@@ -20,5 +20,10 @@ export const onRequestGet = async ({ env, params }) => {
   obj.writeHttpMetadata(headers);
   headers.set('cache-control', 'public, max-age=31536000, immutable');
   headers.set('etag', obj.httpEtag);
+  // CORS: same-origin doesn't strictly need this, but the cover editor
+  // uses canvas + img.crossOrigin to enable canvas.toBlob() output, and
+  // a future custom-domain split (e.g. images.benjaminb.xyz) would
+  // require CORS to avoid tainted-canvas errors. Cheap to always set.
+  headers.set('access-control-allow-origin', '*');
   return new Response(obj.body, { headers });
 };

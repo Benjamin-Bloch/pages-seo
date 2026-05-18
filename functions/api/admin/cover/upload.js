@@ -20,6 +20,15 @@ const MAX_BYTES = 10 * 1024 * 1024;        // 10 MB
 const ALLOWED_KINDS = new Set(['background', 'logo']);
 const ALLOWED_MIME  = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml']);
 
+// Build a /image/<path> URL. The R2 key contains literal "/" segments
+// (e.g. cover/background/<id>.png) and the Pages route reads those as
+// distinct path params. encodeURIComponent on the whole string would
+// turn each "/" into "%2F", which makes the route 404. Encode each
+// segment separately and re-join with literal slashes.
+function imageUrlFor(key) {
+  return '/image/' + key.split('/').map(encodeURIComponent).join('/');
+}
+
 function extFor(mime) {
   return ({
     'image/jpeg': 'jpg',
@@ -98,7 +107,7 @@ export const onRequestPost = async ({ env, request }) => {
     ok: true,
     asset: {
       id, kind, r2_key: key,
-      url: `/image/${encodeURIComponent(key)}`,
+      url: imageUrlFor(key),
       mime, size_bytes: bytes.length,
       width: body?.width || null,
       height: body?.height || null,
@@ -119,7 +128,7 @@ export const onRequestGet = async ({ env, request }) => {
        FROM cover_assets ${where} ORDER BY created_at DESC LIMIT ?`
   ).bind(...params).all();
   const assets = (r?.results || []).map((a) => ({
-    ...a, url: `/image/${encodeURIComponent(a.r2_key)}`,
+    ...a, url: imageUrlFor(a.r2_key),
   }));
   return json(200, { ok: true, assets });
 };
