@@ -1863,6 +1863,186 @@
       return ranked.map((x) => x.c);
     }
 
+    // ── Slash-DSL parser ────────────────────────────────────────
+    // Splits a string into [word, word, ...], respecting single + double
+    // quotes and ignoring backslash-escaped quotes. Returns positional
+    // args; --flag=value pairs are pulled out into a `flags` map.
+    function shlex(s) {
+      const tokens = [];
+      let cur = '', quote = null, esc = false;
+      for (const ch of s) {
+        if (esc) { cur += ch; esc = false; continue; }
+        if (ch === '\\') { esc = true; continue; }
+        if (quote) {
+          if (ch === quote) { quote = null; continue; }
+          cur += ch; continue;
+        }
+        if (ch === '"' || ch === "'") { quote = ch; continue; }
+        if (/\s/.test(ch)) {
+          if (cur) tokens.push(cur); cur = ''; continue;
+        }
+        cur += ch;
+      }
+      if (cur) tokens.push(cur);
+      return tokens;
+    }
+
+    function parseSlash(input) {
+      // Strip leading `/`. Tokenise. Pull out --flag=value pairs.
+      const stripped = input.replace(/^\s*\/+/, '').trim();
+      if (!stripped) return null;
+      const tokens = shlex(stripped);
+      const positional = [];
+      const flags = {};
+      for (const t of tokens) {
+        const m = t.match(/^--([\w-]+)(?:=(.*))?$/);
+        if (m) { flags[m[1]] = m[2] === undefined ? true : m[2]; }
+        else positional.push(t);
+      }
+      const [verb, sub] = positional;
+      return {
+        verb: verb || '',
+        sub:  sub  || '',
+        args: positional.slice(2),
+        flags,
+        raw: stripped,
+      };
+    }
+
+    // DSL command registry. Each entry: matcher(cmd) returns a label +
+    // action function. Verbs map to a handler that may also do its own
+    // sub-routing. Unknown verbs fall back to fuzzy search.
+    const DSL = {
+      go: async ({ args, sub }) => {
+        const tab = sub || args[0];
+        if (!tab) throw new Error('usage: /go <tab>');
+        activateTab(tab);
+      },
+      blog: async ({ sub, flags }) => {
+        if (sub === 'generate') {
+          activateTab('blog');
+          if (flags.topic || flags.provider) {
+            // Direct call to start endpoint with overrides.
+            const start = await api('/api/admin/blog/start', {
+              method: 'POST',
+              body: JSON.stringify({
+                topic_angle: flags.topic || undefined,
+              }),
+            });
+            console.log('[dsl] blog/start →', start);
+            if (start.body?.job_id) {
+              // Hand off to existing chain to finish steps 2-4.
+              await runBlogChain();
+            }
+            return;
+          }
+          await runBlogChain();
+          return;
+        }
+        if (sub === 'list') {
+          activateTab('blog');
+          loadPosts();
+          return;
+        }
+        throw new Error('usage: /blog generate|list');
+      },
+      prog: async ({ sub, flags }) => {
+        if (sub === 'next') { activateTab('prog'); await runProgNext(); return; }
+        if (sub === 'queue') {
+          activateTab('prog');
+          if (flags.status) $('#queue-status').value = flags.status;
+          loadQueue();
+          return;
+        }
+        throw new Error('usage: /prog next|queue [--status=pending|done|failed]');
+      },
+      queue: async ({ sub, args, flags }) => {
+        if (sub === 'refresh') { activateTab('prog'); loadQueue(); return; }
+        if (sub === 'add') {
+          const keyword = args.join(' ') || flags.kw || flags.keyword;
+          if (!keyword) throw new Error('usage: /queue add <keyword>');
+          activateTab('prog');
+          const r = await api('/api/admin/prog/upload', {
+            method: 'POST',
+            body: JSON.stringify({ keywords: [keyword] }),
+          });
+          console.log('[dsl] queue/add →', r);
+          loadQueue();
+          return;
+        }
+        throw new Error('usage: /queue add <keyword> | /queue refresh');
+      },
+      seo: async ({ sub }) => {
+        if (sub === 'ping') { activateTab('seo'); await pingIndexNow(); return; }
+        throw new Error('usage: /seo ping');
+      },
+      usage: async ({ sub, flags }) => {
+        activateTab('usage');
+        if (flags.window) $('#usage-window').value = flags.window;
+        if (sub === 'refresh' || !sub) await loadUsage();
+      },
+      pricing: async ({ sub }) => {
+        if (sub === 'refresh') { activateTab('settings'); await refreshPricing(); return; }
+        throw new Error('usage: /pricing refresh');
+      },
+      brand: async ({ sub, flags }) => {
+        activateTab('brand');
+        if (sub === 'generate') {
+          if (flags.url) $('#brand-url').value = flags.url;
+          await generateBrand();
+          return;
+        }
+        if (sub === 'filter') { await runBrandFilter(true); return; }
+        if (sub === 'save')   { await saveBrand(); return; }
+        throw new Error('usage: /brand generate [--url=…] | filter | save');
+      },
+      cover: async ({ sub, flags, args }) => {
+        if (sub === 'apply') {
+          const postId = args[0] || flags.post;
+          if (!postId) throw new Error('usage: /cover apply <post_id>');
+          activateTab('covers');
+          $('#cover-preview-post').value = postId;
+          await applyToTarget();
+          return;
+        }
+        throw new Error('usage: /cover apply <post_id>');
+      },
+      lock: async () => { setToken(''); showGate(); },
+    };
+
+    // When the input starts with "/", try to parse + run as DSL.
+    // Returns true when handled.
+    async function tryRunSlash(input) {
+      if (!input.startsWith('/')) return false;
+      const parsed = parseSlash(input);
+      if (!parsed?.verb) return false;
+      const handler = DSL[parsed.verb];
+      if (!handler) {
+        showSlashError(`Unknown command: /${parsed.verb}`);
+        return true; // claim it so fuzzy search doesn't take over
+      }
+      close();
+      try { await handler(parsed); }
+      catch (e) {
+        console.error('[dsl] command failed', parsed, e);
+        // Re-open palette with the error message stashed in placeholder
+        open();
+        showSlashError(String(e?.message || e));
+      }
+      return true;
+    }
+
+    function showSlashError(msg) {
+      const ul = $('#palette-results');
+      if (!ul) return;
+      clearChildren(ul);
+      const li = document.createElement('li');
+      li.className = 'empty';
+      li.style.color = 'var(--bad)';
+      li.textContent = msg;
+      ul.appendChild(li);
+    }
+
     function render() {
       const ul = $('#palette-results');
       const input = $('#palette-input');
@@ -1944,8 +2124,15 @@
           rerenderActive();
         } else if (e.key === 'Enter') {
           e.preventDefault();
-          const c = lastResults[activeIdx];
-          if (c) run(c);
+          const input = $('#palette-input').value.trim();
+          // If the user typed a slash command, run it directly. Falls
+          // back to running the highlighted fuzzy result.
+          (async () => {
+            const handled = await tryRunSlash(input);
+            if (handled) return;
+            const c = lastResults[activeIdx];
+            if (c) run(c);
+          })();
         }
       });
       $('#palette-input')?.addEventListener('input', () => {
