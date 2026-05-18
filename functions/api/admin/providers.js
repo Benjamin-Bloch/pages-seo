@@ -6,5 +6,5 @@ import { listProviders } from '../../_lib/ai.js';
 
 export const onRequestGet = async ({ env, request }) => {
   const gate = adminGate(env, request); if (gate) return gate;
-  return json(200, listProviders(env));
+  return json(200, await listProviders(env));
 };

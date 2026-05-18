@@ -162,6 +162,59 @@
     status.textContent = `Generated · provider=${body.brand.provider}. Review then click Save.`;
   }
 
+  function clearBrandFields() {
+    if (!confirm('Clear all brand DNA fields locally? (Click Save afterwards to persist the empty state.)')) return;
+    $$('[data-brand]').forEach((el) => { el.value = ''; });
+    const ga = $('#brand-generated-at'); if (ga) ga.value = '';
+    const su = $('#brand-url'); if (su) su.value = '';
+    const status = $('#brand-save-status');
+    status.className = 'status'; status.textContent = 'Fields cleared. Click Save to persist.';
+  }
+
+  async function runBrandFilter(dryRun) {
+    const status = $('#brand-filter-status');
+    const out = $('#brand-filter-results');
+    const dryBtn = $('#brand-filter-dry');
+    const goBtn = $('#brand-filter-go');
+    dryBtn.disabled = true; goBtn.disabled = true;
+    status.className = 'status';
+    status.textContent = dryRun ? 'Dry-running…' : 'Filtering (this writes failures back to D1)…';
+    const { status: code, body } = await api('/api/admin/brand-filter-queue', {
+      method: 'POST',
+      body: JSON.stringify({ dry_run: !!dryRun }),
+    });
+    dryBtn.disabled = false; goBtn.disabled = false;
+    if (code !== 200 || !body?.ok) {
+      status.className = 'status bad';
+      status.textContent = (body?.error || code) + (body?.hint ? ' · ' + body.hint : '');
+      out.hidden = true;
+      return;
+    }
+    status.className = 'status good';
+    status.textContent = `${dryRun ? '[dry]' : '[applied]'} ${body.evaluated} evaluated · ${body.kept} kept · ${body.dropped} dropped · provider=${body.provider}`;
+    if (!dryRun) loadQueue();
+    // Render the dropped sample
+    out.hidden = false;
+    clearChildren(out);
+    if (body.dropped_sample?.length) {
+      const h = document.createElement('h4'); h.textContent = 'Dropped (first ' + body.dropped_sample.length + ')';
+      out.appendChild(h);
+      const ul = document.createElement('ul');
+      for (const d of body.dropped_sample) {
+        const li = document.createElement('li');
+        const kw = document.createElement('span'); kw.className = 'kw'; kw.textContent = d.keyword;
+        const reason = document.createElement('span'); reason.className = 'meta'; reason.textContent = d.reason;
+        li.append(kw, reason);
+        ul.appendChild(li);
+      }
+      out.appendChild(ul);
+    } else {
+      const p = document.createElement('p'); p.className = 'dim';
+      p.textContent = 'Nothing was off-brand.';
+      out.appendChild(p);
+    }
+  }
+
   async function saveBrand() {
     const status = $('#brand-save-status');
     status.className = 'status'; status.textContent = 'Saving…';
@@ -198,14 +251,25 @@
     const grid = $('#providers-grid');
     if (!grid) return;
     clearChildren(grid);
-    const { body } = await api('/api/admin/providers');
-    const textSet = new Set(body?.text || []);
-    // Try to discover the project name once for the copy commands.
     const who = await api('/api/admin/whoami');
     const projectName = inferProjectName(who.body?.site_url || '');
+    // /api/admin/secrets gives us per-key source: pages-secret | vault | unset.
+    // /api/admin/providers gives us which providers are actually usable.
+    const [secretsResp, providersResp] = await Promise.all([
+      api('/api/admin/secrets'),
+      api('/api/admin/providers'),
+    ]);
+    const sources = secretsResp.body?.keys || {};
+    const usableText = new Set(providersResp.body?.text || []);
 
     for (const p of PROVIDER_META) {
-      const configured = textSet.has(p.name);
+      // workers-ai has no env-var key; it's bound via the [ai] block.
+      const isWorkersAI = p.name === 'workers-ai';
+      const source = isWorkersAI
+        ? (usableText.has('workers-ai') ? 'binding' : 'unset')
+        : (sources[p.envKey] || 'unset');
+      const configured = source !== 'unset';
+
       const card = document.createElement('div');
       card.className = 'provider-card' + (configured ? ' configured' : '');
 
@@ -213,7 +277,12 @@
       const dot = document.createElement('span'); dot.className = 'provider-dot' + (configured ? ' on' : '');
       const label = document.createElement('strong'); label.textContent = p.label;
       const badge = document.createElement('span'); badge.className = 'provider-status';
-      badge.textContent = configured ? 'configured' : (p.optional ? 'not set' : 'missing');
+      badge.textContent = {
+        'binding':       'binding',
+        'pages-secret':  'pages secret',
+        'vault':         'vault',
+        'unset':         p.optional ? 'not set' : 'missing',
+      }[source];
       head.append(dot, label, badge);
 
       const sub = document.createElement('div'); sub.className = 'provider-sub';
@@ -221,22 +290,74 @@
       if (p.text)  caps.push('text');
       if (p.image) caps.push('image');
       sub.textContent = `${p.envKey} · ${caps.join(' + ')}`;
-
       card.append(head, sub);
 
-      if (!configured && p.optional) {
+      if (isWorkersAI) {
+        // No edit affordance — it's a binding.
+        const note = document.createElement('div'); note.className = 'provider-sub';
+        note.style.color = 'var(--ink-faint)';
+        note.textContent = 'Configured via the [ai] binding in wrangler.toml.';
+        card.append(note);
+        grid.appendChild(card);
+        continue;
+      }
+
+      // Edit row: paste key inline, save to the encrypted vault.
+      const editRow = document.createElement('div'); editRow.className = 'provider-edit';
+      const input = document.createElement('input');
+      input.type = 'password';
+      input.placeholder = configured
+        ? `${source} value set — paste a new key to replace`
+        : `Paste ${p.envKey} (stored encrypted)`;
+      input.autocomplete = 'off';
+      const save = document.createElement('button');
+      save.className = 'btn btn-primary btn-sm';
+      save.textContent = 'Save';
+      save.onclick = async () => {
+        const val = input.value.trim();
+        if (!val) { input.focus(); return; }
+        save.disabled = true; save.textContent = 'Saving…';
+        const { status, body } = await api('/api/admin/secrets', {
+          method: 'POST',
+          body: JSON.stringify({ name: p.envKey, value: val }),
+        });
+        save.disabled = false; save.textContent = 'Save';
+        if (status === 200 && body?.ok) {
+          input.value = '';
+          loadProviderGrid(); // refresh
+        } else {
+          save.textContent = body?.error || ('http ' + status);
+          setTimeout(() => (save.textContent = 'Save'), 2500);
+        }
+      };
+      editRow.append(input, save);
+      card.append(editRow);
+
+      // Source-specific actions row.
+      if (source === 'vault') {
+        const actions = document.createElement('div'); actions.className = 'provider-actions';
+        const del = document.createElement('button'); del.className = 'btn btn-ghost btn-sm provider-del';
+        del.textContent = 'Remove from vault';
+        del.onclick = async () => {
+          if (!confirm(`Remove ${p.envKey} from the encrypted vault?`)) return;
+          await api('/api/admin/secrets?name=' + encodeURIComponent(p.envKey), { method: 'DELETE' });
+          loadProviderGrid();
+        };
+        actions.append(del);
+        card.append(actions);
+      } else if (source === 'unset') {
         const cmdRow = document.createElement('div'); cmdRow.className = 'provider-cmd';
         const cmd = `wrangler pages secret put ${p.envKey} --project-name=${projectName}`;
         const code = document.createElement('code'); code.textContent = cmd;
         const copy = document.createElement('button'); copy.className = 'btn btn-ghost btn-sm';
-        copy.textContent = 'Copy';
+        copy.textContent = 'Copy CLI cmd';
         copy.onclick = async () => {
           try {
             await navigator.clipboard.writeText(cmd);
-            copy.textContent = 'Copied!';
-            setTimeout(() => (copy.textContent = 'Copy'), 1500);
+            copy.textContent = 'Copied';
+            setTimeout(() => (copy.textContent = 'Copy CLI cmd'), 1500);
           } catch {
-            copy.textContent = 'Select+copy manually';
+            copy.textContent = 'Select+copy';
           }
         };
         cmdRow.append(code, copy);
@@ -682,8 +803,14 @@
     // brand DNA tab
     const bGen = $('#brand-generate');
     const bSave = $('#brand-save');
-    if (bGen)  bGen.addEventListener('click', generateBrand);
-    if (bSave) bSave.addEventListener('click', saveBrand);
+    const bClear = $('#brand-clear');
+    const bFilterDry = $('#brand-filter-dry');
+    const bFilterGo  = $('#brand-filter-go');
+    if (bGen)        bGen.addEventListener('click', generateBrand);
+    if (bSave)       bSave.addEventListener('click', saveBrand);
+    if (bClear)      bClear.addEventListener('click', clearBrandFields);
+    if (bFilterDry)  bFilterDry.addEventListener('click', () => runBrandFilter(true));
+    if (bFilterGo)   bFilterGo.addEventListener('click', () => runBrandFilter(false));
 
     activateTab('overview');
   }

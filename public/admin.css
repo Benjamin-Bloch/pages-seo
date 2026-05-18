@@ -211,6 +211,25 @@ em.optional{font-style:normal;color:var(--ink-faint);font-size:11px;letter-spaci
   color:var(--ink);background:none;padding:0;
   overflow-x:auto;white-space:nowrap;
 }
+.provider-edit{display:flex;gap:6px;margin-top:4px}
+.provider-edit input{
+  flex:1;padding:7px 10px;
+  background:var(--bg);color:var(--ink);
+  border:1px solid var(--line);border-radius:6px;
+  font:inherit;font-size:13px;
+}
+.provider-edit input:focus{outline:none;border-color:var(--accent)}
+.provider-actions{display:flex;justify-content:flex-end}
+.provider-del{color:var(--bad)}
+.provider-del:hover{background:rgba(241,103,103,0.08);border-color:var(--bad)}
+
+.filter-results{margin-top:14px}
+.filter-results h4{font-size:13px;color:var(--ink-dim);margin:0 0 8px;font-weight:500;text-transform:uppercase;letter-spacing:0.05em}
+.filter-results ul{list-style:none;padding:0;margin:0;border:1px solid var(--line);border-radius:6px;max-height:280px;overflow:auto;background:var(--bg-soft)}
+.filter-results li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 12px;font-size:13px;border-bottom:1px solid var(--line)}
+.filter-results li:last-child{border-bottom:none}
+.filter-results .kw{color:var(--ink)}
+.filter-results .meta{color:var(--ink-dim);font-family:var(--mono);font-size:11.5px;text-align:right}
 
 /* ── Settings form ────────────────────────────────────────────── */
 .form-grid{display:flex;flex-direction:column;gap:14px;margin-top:14px}

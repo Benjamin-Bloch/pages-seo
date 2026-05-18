@@ -633,12 +633,28 @@ function orderProviders(registry, env, preferred) {
   return [...head, ...tail];
 }
 
-// List provider names currently usable. Exposed for the admin UI so it
-// can populate a "preferred provider" dropdown with only working ones.
-export function listProviders(env) {
+// Every provider-secret name we care about, for vault overlay.
+import { envWithVault } from './secret_vault.js';
+const PROVIDER_SECRET_NAMES = [
+  'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GEMINI_API_KEY',
+  'GROQ_API_KEY', 'DEEPSEEK_API_KEY', 'MISTRAL_API_KEY',
+  'TOGETHER_API_KEY', 'CEREBRAS_API_KEY',
+];
+
+// Overlay any vault-stored keys on top of env so the rest of this file
+// can keep reading `env.X` synchronously. Pages secrets always win over
+// vault values.
+async function withVault(env) {
+  return envWithVault(env, PROVIDER_SECRET_NAMES);
+}
+
+// List provider names currently usable. Async because we may consult
+// the vault. Exposed for the admin UI's preferred-provider dropdown.
+export async function listProviders(env) {
+  const overlayed = await withVault(env);
   return {
-    text: TEXT_PROVIDERS.filter((p) => p.available(env)).map((p) => p.name),
-    image: IMAGE_PROVIDERS.filter((p) => p.available(env)).map((p) => p.name),
+    text:  TEXT_PROVIDERS.filter((p) => p.available(overlayed)).map((p) => p.name),
+    image: IMAGE_PROVIDERS.filter((p) => p.available(overlayed)).map((p) => p.name),
   };
 }
 
@@ -649,17 +665,18 @@ export function listProviders(env) {
 // programmatic pages. `provider` is optional — when omitted we walk the
 // registry in default order (Workers AI first).
 export async function generateContent(env, { kind, seed, provider, brand }) {
+  const overlayed = await withVault(env);
   const prompt = kind === 'programmatic'
     ? buildProgrammaticPrompt(seed, brand)
     : buildArticlePrompt(seed, brand);
 
-  const order = orderProviders(TEXT_PROVIDERS, env, provider);
+  const order = orderProviders(TEXT_PROVIDERS, overlayed, provider);
   if (!order.length) throw new Error('no_text_providers_configured');
 
   const errs = [];
   for (const p of order) {
     try {
-      const parsed = await p.call(env, prompt);
+      const parsed = await p.call(overlayed, prompt);
       return shapeArticle(parsed, p.name);
     } catch (e) {
       errs.push(`${p.name}: ${String(e?.message || e).slice(0, 120)}`);
@@ -670,13 +687,14 @@ export async function generateContent(env, { kind, seed, provider, brand }) {
 
 export async function generateImage(env, { prompt, provider }) {
   if (!prompt) throw new Error('image_prompt_empty');
-  const order = orderProviders(IMAGE_PROVIDERS, env, provider);
+  const overlayed = await withVault(env);
+  const order = orderProviders(IMAGE_PROVIDERS, overlayed, provider);
   if (!order.length) throw new Error('no_image_providers_configured');
 
   const errs = [];
   for (const p of order) {
     try {
-      const bytes = await p.call(env, prompt);
+      const bytes = await p.call(overlayed, prompt);
       return { bytes, ai_provider: p.name };
     } catch (e) {
       errs.push(`${p.name}: ${String(e?.message || e).slice(0, 120)}`);
@@ -684,3 +702,8 @@ export async function generateImage(env, { prompt, provider }) {
   }
   throw new Error('all_image_providers_failed — ' + errs.join(' | '));
 }
+
+// Convenience for callers that need to consult the vault outside the
+// content-gen paths (e.g. the brand-DNA generator's bespoke provider
+// dispatcher).
+export async function vaultedEnv(env) { return withVault(env); }

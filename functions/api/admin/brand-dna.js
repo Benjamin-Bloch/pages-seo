@@ -74,8 +74,7 @@ function buildBrandPrompt(scrapeBlock, hints) {
 
 // We re-use the existing provider registry — same fallback chain, same
 // looseJsonParse, same control-character tolerance.
-import { generateContent as _unused } from '../../_lib/ai.js'; // eslint-disable-line no-unused-vars
-import { listProviders } from '../../_lib/ai.js';
+import { listProviders, vaultedEnv } from '../../_lib/ai.js';
 
 // Direct provider call. We don't want to go through generateContent
 // because that runs shapeArticle which assumes blog-post shape. We
@@ -85,7 +84,10 @@ import { listProviders } from '../../_lib/ai.js';
 // Workers AI is the default if it's bound; otherwise fall back to the
 // first configured cloud provider.
 async function callForBrandDNA(env, prompt, preferredProvider) {
-  const available = listProviders(env).text;
+  // Overlay any vault-stored API keys on top of env so cloud providers
+  // configured from the admin dashboard work without restart.
+  const overlayed = await vaultedEnv(env);
+  const available = (await listProviders(overlayed)).text;
   if (!available.length) throw new Error('no_text_providers_configured');
 
   // Honour the explicit preference if it's currently usable.
@@ -96,7 +98,7 @@ async function callForBrandDNA(env, prompt, preferredProvider) {
   const errs = [];
   for (const name of order) {
     try {
-      const text = await runProvider(env, name, prompt);
+      const text = await runProvider(overlayed, name, prompt);
       return { provider: name, parsed: looseJsonParse(text) };
     } catch (e) {
       errs.push(`${name}: ${String(e?.message || e).slice(0, 120)}`);

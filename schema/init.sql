@@ -130,6 +130,16 @@ CREATE TABLE IF NOT EXISTS settings (
   updated_at      INTEGER NOT NULL
 );
 
+-- Encrypted-at-rest API key vault. Used when the admin wants to set
+-- LLM provider keys from the dashboard rather than via
+-- `wrangler pages secret put`. Ciphertext is AES-GCM with a key derived
+-- from ADMIN_TOKEN. See functions/_lib/secret_vault.js.
+CREATE TABLE IF NOT EXISTS secrets_vault (
+  key_name        TEXT PRIMARY KEY,                  -- e.g. OPENAI_API_KEY
+  ciphertext      TEXT NOT NULL,                     -- base64(IV || ciphertext-with-tag)
+  updated_at      INTEGER NOT NULL
+);
+
 -- Audit log: every action (cron, manual, errors) for visibility.
 CREATE TABLE IF NOT EXISTS audit_log (
   id              TEXT PRIMARY KEY,

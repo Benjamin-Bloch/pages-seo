@@ -258,8 +258,21 @@
         </div>
         <div class="row">
           <button id="brand-save" class="btn btn-primary">Save brand DNA</button>
+          <button id="brand-clear" class="btn btn-ghost">Clear all fields</button>
           <span id="brand-save-status" class="status"></span>
         </div>
+      </div>
+
+      <div class="card">
+        <div class="card-eyebrow">Step 3 · Apply</div>
+        <h2>Filter the pending keyword queue against this brand</h2>
+        <p>Runs every pending keyword past the LLM with the brand context. Off-brand keywords get marked failed (not deleted) so you can review them in the Failed queue. Recommend dry-run first.</p>
+        <div class="row">
+          <button id="brand-filter-dry" class="btn">Dry run</button>
+          <button id="brand-filter-go" class="btn btn-primary">Run filter</button>
+          <span id="brand-filter-status" class="status"></span>
+        </div>
+        <div id="brand-filter-results" class="filter-results" hidden></div>
       </div>
     </section>
 
@@ -343,11 +356,11 @@
       <div class="card">
         <div class="card-eyebrow">AI provider keys</div>
         <h2>API key status</h2>
-        <p>API keys are stored as encrypted Cloudflare Pages secrets, not in the database. For each provider you want enabled, copy the command and run it locally — your key never touches the admin UI or D1.</p>
+        <p>Paste a key below to store it encrypted in the database (AES-GCM, keyed off your admin token). Or, for the strongest guarantee, run the CLI command and store it as a Pages secret instead — those win over vault values.</p>
         <div id="providers-grid" class="providers-grid">
           <div class="dim">Loading…</div>
         </div>
-        <p class="dim" style="margin-top:14px"><small>After running a <code>wrangler pages secret put</code> command, redeploy the project (or wait for the next push) and refresh this page — the provider will appear as configured.</small></p>
+        <p class="dim" style="margin-top:14px"><small><strong>How keys are resolved:</strong> Pages secrets first, then vault. <strong>Vault risk:</strong> anyone with your admin token + database access can decrypt. Rotate the token via <code>wrangler pages secret put ADMIN_TOKEN</code> if it leaks (vault keys will then need to be re-saved here).</small></p>
       </div>
       <div class="card">
         <div class="row">
