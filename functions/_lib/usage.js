@@ -1,9 +1,9 @@
 // AI usage logging, cost calculation, and budget enforcement.
 //
 // Every LLM/image call site builds a `usage` record and passes it to
-// `recordUsage()`. Cost is computed from `settings.price_*_in/out`
-// (USD per 1M tokens) for text and `price_*_image` (USD per image)
-// for images. Workers AI defaults to 0/0/0 since the free tier doesn't
+// `recordUsage()`. Cost is computed from the active price catalogue
+// (see functions/_lib/prices.js: live models.dev refresh + bundled
+// fallback). Workers AI defaults to 0/0/0 since the free tier doesn't
 // charge, but we still log the tokens (estimated, since the API
 // doesn't return counts) so you can see where your neurons go.
 //
@@ -15,6 +15,7 @@
 
 import { newId, nowSec } from './util.js';
 import { loadSettings } from './settings.js';
+import { loadPrices, priceFor } from './prices.js';
 
 // ~4 chars per token across English text. We use this only when the
 // provider doesn't return counts (Workers AI, sometimes image models).
@@ -25,42 +26,27 @@ export function estimateTokens(text) {
   return Math.max(1, Math.ceil(String(text).length / CHARS_PER_TOKEN));
 }
 
-const PRICE_KEY = {
-  'workers-ai': { in: 'price_workers_ai_in', out: 'price_workers_ai_out', image: 'price_workers_ai_image' },
-  'openai':     { in: 'price_openai_in',     out: 'price_openai_out',     image: 'price_openai_image' },
-  'anthropic':  { in: 'price_anthropic_in',  out: 'price_anthropic_out',  image: null },
-  'gemini':     { in: 'price_gemini_in',     out: 'price_gemini_out',     image: 'price_gemini_image' },
-  'groq':       { in: 'price_groq_in',       out: 'price_groq_out',       image: null },
-  'deepseek':   { in: 'price_deepseek_in',   out: 'price_deepseek_out',   image: null },
-  'mistral':    { in: 'price_mistral_in',    out: 'price_mistral_out',    image: null },
-  'together':   { in: 'price_together_in',   out: 'price_together_out',   image: null },
-  'cerebras':   { in: 'price_cerebras_in',   out: 'price_cerebras_out',   image: null },
-};
-
-function readPrice(settings, key) {
-  if (!key) return 0;
-  const v = parseFloat(settings[key]);
-  return Number.isFinite(v) && v >= 0 ? v : 0;
-}
-
 // Compute cost in USD. For text: prices are $/1M tokens. For images:
-// price is $/image (set price_*_image accordingly).
-export function computeCostUSD(settings, { provider, kind, prompt_tokens, completion_tokens }) {
-  const keys = PRICE_KEY[provider];
-  if (!keys) return 0;
+// price is $/image.
+export function computeCostUSD(prices, { provider, kind, prompt_tokens, completion_tokens }) {
   if (kind === 'image') {
-    return +readPrice(settings, keys.image).toFixed(6);
+    return +priceFor(prices, provider, 'image').toFixed(6);
   }
-  const inP  = readPrice(settings, keys.in);
-  const outP = readPrice(settings, keys.out);
+  const inP  = priceFor(prices, provider, 'in');
+  const outP = priceFor(prices, provider, 'out');
   return +((prompt_tokens * inP + completion_tokens * outP) / 1_000_000).toFixed(6);
 }
 
-// Persist one usage row. `extras` may carry estimated:1, error, model
-// override, etc. Swallows DB errors so usage logging can never break a
-// real generation — the request must succeed even if logging fails.
+// Persist one usage row. Swallows DB errors so usage logging can never
+// break a real generation — the request must succeed even if logging
+// fails. `settings` arg kept for API stability with existing callers
+// but no longer carries the rate table.
 export async function recordUsage(env, settings, row) {
   try {
+    // Always look up live prices fresh per call. Cheap (it's a cached
+    // JSON string in settings) and means a manual refresh from the
+    // Settings tab takes effect immediately.
+    const { prices } = await loadPrices(env);
     const r = {
       id: newId(),
       provider: row.provider || 'unknown',
@@ -71,7 +57,7 @@ export async function recordUsage(env, settings, row) {
       completion_tokens: row.completion_tokens | 0,
       total_tokens: (row.prompt_tokens | 0) + (row.completion_tokens | 0),
       estimated: row.estimated ? 1 : 0,
-      cost_usd: computeCostUSD(settings, {
+      cost_usd: computeCostUSD(prices, {
         provider: row.provider, kind: row.kind,
         prompt_tokens: row.prompt_tokens | 0,
         completion_tokens: row.completion_tokens | 0,

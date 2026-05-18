@@ -30,33 +30,19 @@ const FALLBACK = {
   brand_service_area:      () => '',
   brand_source_url:        () => '', // the URL we scraped (informational)
   brand_generated_at:      () => '', // ISO timestamp of last generation
+  // How the daily blog chain produces its hero image.
+  //   'ai'     = generate a fresh image with the AI provider (current default)
+  //   'cover'  = render a saved cover template (uses the default template + post title)
+  // When 'ai', the Covers tab is shown but frozen with an explainer.
+  hero_image_mode:         () => 'ai',
+  // Cached LLM price catalogue (JSON). Refreshed via the Settings tab
+  // from models.dev. See functions/_lib/prices.js.
+  price_cache_json:        () => '',
   // Usage + budget. Cost values are USD per 1M tokens, separate input
-  // and output rates. Updated Jan 2026 from each provider's pricing
-  // page. Override via the Settings tab when prices change.
+  // and output rates. Prices come from prices.js (bundled snapshot +
+  // optional models.dev cache) rather than per-key settings.
   monthly_budget_usd:      () => '10',     // hard-stop cron when this month's spend >= this
   budget_warn_pct:         () => '80',     // show banner at this % of budget
-  // Token prices: USD per 1,000,000 tokens. Image prices: USD per image.
-  price_workers_ai_in:     () => '0',
-  price_workers_ai_out:    () => '0',
-  price_workers_ai_image:  () => '0',
-  price_openai_in:         () => '1.25',   // gpt-5 input ($1.25/M)
-  price_openai_out:        () => '10.00',  // gpt-5 output ($10/M)
-  price_openai_image:      () => '0.04',   // gpt-image-1 ≈ $0.04 per image
-  price_anthropic_in:      () => '15.00',  // claude-opus ($15/M)
-  price_anthropic_out:     () => '75.00',  // claude-opus ($75/M)
-  price_gemini_in:         () => '1.25',   // gemini-2.5-pro ≤200k context
-  price_gemini_out:        () => '10.00',
-  price_gemini_image:      () => '0.04',   // imagen-4 ≈ $0.04 per image
-  price_groq_in:           () => '0.59',   // llama-3.3-70b
-  price_groq_out:          () => '0.79',
-  price_deepseek_in:       () => '0.27',
-  price_deepseek_out:      () => '1.10',
-  price_mistral_in:        () => '2.00',
-  price_mistral_out:       () => '6.00',
-  price_together_in:       () => '0.88',
-  price_together_out:      () => '0.88',
-  price_cerebras_in:       () => '0.85',
-  price_cerebras_out:      () => '1.20',
 };
 
 const KEYS = Object.keys(FALLBACK);

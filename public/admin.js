@@ -531,19 +531,45 @@
       }
     }
     // Populate every [data-setting] input/textarea with the loaded value.
+    // Radio inputs (multiple with the same data-setting) are toggled by
+    // matching their `value` against the stored setting; everything else
+    // gets its `value` set directly.
     $$('[data-setting]').forEach((el) => {
       if (el.tagName === 'SELECT') return; // handled above
       const key = el.dataset.setting;
-      el.value = body.settings?.[key] ?? '';
+      const v = body.settings?.[key] ?? '';
+      if (el.type === 'radio') {
+        el.checked = (el.value === v);
+      } else if (el.type === 'checkbox') {
+        el.checked = v === 'true' || v === '1' || v === 'on';
+      } else {
+        el.value = v;
+      }
     });
+    // Apply hero-image-mode side effects (freeze the Covers tab if 'ai').
+    applyHeroImageMode(body.settings?.hero_image_mode || 'ai');
+    // Refresh the pricing snapshot whenever the Settings tab opens.
+    loadPricingSnapshot();
   }
 
   async function saveSettings() {
     const status = $('#settings-status');
     setText(status, 'saving…');
     const payload = {};
+    // Collect by key. For radios there are multiple elements with the
+    // same data-setting — only the checked one wins.
+    const seen = new Set();
     $$('[data-setting]').forEach((el) => {
-      payload[el.dataset.setting] = (el.value || '').toString();
+      const key = el.dataset.setting;
+      if (el.type === 'radio') {
+        if (el.checked) { payload[key] = el.value; seen.add(key); }
+        else if (!seen.has(key)) { /* leave; might be set by a later checked sibling */ }
+        return;
+      }
+      if (el.type === 'checkbox') {
+        payload[key] = el.checked ? 'true' : ''; return;
+      }
+      payload[key] = (el.value || '').toString();
     });
     const r = await api('/api/admin/settings', {
       method: 'PUT',
@@ -552,9 +578,65 @@
     if (r.status === 200) {
       setText(status, `saved ${r.body?.updated?.length || 0} field(s)`);
       setTimeout(() => setText(status, ''), 2500);
+      // Re-apply the freeze state after save in case the user just
+      // flipped the toggle.
+      applyHeroImageMode(payload.hero_image_mode || 'ai');
     } else {
       setText(status, `error: ${r.body?.error || r.status}`);
     }
+  }
+
+  // ── hero image mode (freeze Covers tab when 'ai') ──────────────
+  function applyHeroImageMode(mode) {
+    const banner  = $('#cover-frozen-banner');
+    const content = $('#cover-content');
+    const frozen  = mode !== 'cover';
+    if (banner)  banner.hidden = !frozen;
+    if (content) content.classList.toggle('frozen', frozen);
+  }
+
+  // ── pricing snapshot UI ────────────────────────────────────────
+  async function loadPricingSnapshot() {
+    const root = $('#pricing-current');
+    if (!root) return;
+    const { status, body } = await api('/api/admin/pricing');
+    if (status !== 200) { root.textContent = 'Failed to load pricing.'; return; }
+    clearChildren(root);
+    const tbl = document.createElement('table');
+    const thead = document.createElement('thead');
+    thead.innerHTML = '<tr><th>Provider</th><th>Input / 1M</th><th>Output / 1M</th><th>Image</th></tr>';
+    tbl.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    for (const [name, p] of Object.entries(body.prices || {})) {
+      const tr = document.createElement('tr');
+      const cell = (txt, cls) => { const td = document.createElement('td'); if (cls) td.className = cls; td.textContent = txt; return td; };
+      tr.appendChild(cell(name));
+      tr.appendChild(cell(p.in === 0 ? '—' : `$${Number(p.in).toFixed(2)}`, 'cost'));
+      tr.appendChild(cell(p.out === 0 ? '—' : `$${Number(p.out).toFixed(2)}`, 'cost'));
+      tr.appendChild(cell(p.image == null ? '—' : `$${Number(p.image).toFixed(3)}/img`, 'cost'));
+      tbody.appendChild(tr);
+    }
+    tbl.appendChild(tbody);
+    root.appendChild(tbl);
+    const meta = document.createElement('span'); meta.className = 'pricing-meta';
+    const when = body.fetched_at ? new Date(body.fetched_at * 1000).toISOString().replace('T', ' ').slice(0, 16) + ' UTC' : 'never';
+    meta.textContent = `Source: ${body.source}${body.stale ? ' (stale)' : ''} · last refreshed: ${when}`;
+    root.appendChild(meta);
+  }
+
+  async function refreshPricing() {
+    const status = $('#pricing-status');
+    setText(status, 'fetching from models.dev…');
+    const { status: code, body } = await api('/api/admin/pricing', { method: 'POST', body: '{}' });
+    if (code !== 200 || !body?.ok) {
+      status.className = 'status bad';
+      status.textContent = 'Refresh failed: ' + (body?.error || body?.detail || code);
+      return;
+    }
+    status.className = 'status good';
+    status.textContent = `Updated ${body.count_updated} providers from ${body.source}.`;
+    setTimeout(() => { status.textContent = ''; status.className = 'status'; }, 4000);
+    loadPricingSnapshot();
   }
 
   // ── overview ────────────────────────────────────────────────────
@@ -1576,6 +1658,12 @@
     }
 
     async function init() {
+      // Always apply the current freeze state, even on repeat opens —
+      // the user might have flipped the toggle in another tab.
+      try {
+        const s = await api('/api/admin/settings');
+        applyHeroImageMode(s.body?.settings?.hero_image_mode || 'ai');
+      } catch { /* leave whatever the previous state was */ }
       if (state.mounted) { redraw(); return; }
       state.mounted = true;
       bindCanvas();
@@ -1629,6 +1717,13 @@
     // settings tab
     const saveBtn = $('#settings-save');
     if (saveBtn) saveBtn.addEventListener('click', saveSettings);
+    const pricingRefresh = $('#pricing-refresh');
+    if (pricingRefresh) pricingRefresh.addEventListener('click', refreshPricing);
+
+    // "Go to settings" jump from any [data-jump-to] link.
+    $$('[data-jump-to]').forEach((a) => {
+      a.addEventListener('click', (e) => { e.preventDefault(); activateTab(a.dataset.jumpTo); });
+    });
 
     // usage tab
     const uRef = $('#usage-refresh');

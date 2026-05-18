@@ -362,6 +362,13 @@
 
     <!-- ============ COVERS ============ -->
     <section data-page="covers" class="page" hidden>
+      <div id="cover-frozen-banner" class="frozen-banner" hidden>
+        <div class="frozen-banner-inner">
+          <strong>Cover editor is read-only.</strong>
+          <p>This site is set to use <em>AI-generated images</em> as blog covers. To use the cover editor, switch the mode in <a href="#" data-jump-to="settings">Settings → Hero images</a>.</p>
+        </div>
+      </div>
+      <div id="cover-content">
       <div class="card">
         <div class="card-eyebrow">Step 1 · Upload</div>
         <h2>Backgrounds &amp; logos</h2>
@@ -444,6 +451,7 @@
           <ul id="cover-templates" class="cover-templates"><li class="dim">None yet.</li></ul>
         </div>
       </div>
+      </div><!-- /#cover-content -->
     </section>
 
     <!-- ============ SETTINGS ============ -->
@@ -471,6 +479,27 @@
         </div>
       </div>
       <div class="card">
+        <div class="card-eyebrow">Hero images</div>
+        <h2>How blog covers are produced</h2>
+        <p>Choose how the daily blog chain creates the hero image for each post.</p>
+        <div class="form-grid form-grid-cols">
+          <label class="mode-card">
+            <input type="radio" name="hero_image_mode" value="ai" data-setting="hero_image_mode" />
+            <div class="mode-card-body">
+              <strong>AI-generated images</strong>
+              <small>Workers AI (Flux) renders a fresh photo from the post's hero-image prompt. No setup required; free on the Workers AI tier. The Covers tab is shown but disabled.</small>
+            </div>
+          </label>
+          <label class="mode-card">
+            <input type="radio" name="hero_image_mode" value="cover" data-setting="hero_image_mode" />
+            <div class="mode-card-body">
+              <strong>Cover templates</strong>
+              <small>Use a saved template from the Covers tab. The post title is rendered into the template (via the <code>{title}</code> token). Requires at least one template marked default.</small>
+            </div>
+          </label>
+        </div>
+      </div>
+      <div class="card">
         <div class="card-eyebrow">Budget</div>
         <h2>Monthly AI spend cap</h2>
         <p>The cron Worker hard-stops once monthly spend reaches the limit. Manual admin generations keep working but you'll see a warning banner. Set to 0 to disable.</p>
@@ -489,28 +518,13 @@
       </div>
       <div class="card">
         <div class="card-eyebrow">Pricing</div>
-        <h2>Per-provider rates</h2>
-        <p>USD per 1M tokens for text (in / out), USD per image for image generation. Defaults are correct as of Jan 2026 — update if a provider changes their published rates.</p>
-        <div class="form-grid form-grid-cols pricing-grid">
-          <label><span>OpenAI in</span><input data-setting="price_openai_in" type="number" step="0.01" /></label>
-          <label><span>OpenAI out</span><input data-setting="price_openai_out" type="number" step="0.01" /></label>
-          <label><span>OpenAI image</span><input data-setting="price_openai_image" type="number" step="0.001" /></label>
-          <label><span>Anthropic in</span><input data-setting="price_anthropic_in" type="number" step="0.01" /></label>
-          <label><span>Anthropic out</span><input data-setting="price_anthropic_out" type="number" step="0.01" /></label>
-          <label><span>Gemini in</span><input data-setting="price_gemini_in" type="number" step="0.01" /></label>
-          <label><span>Gemini out</span><input data-setting="price_gemini_out" type="number" step="0.01" /></label>
-          <label><span>Gemini image</span><input data-setting="price_gemini_image" type="number" step="0.001" /></label>
-          <label><span>Groq in</span><input data-setting="price_groq_in" type="number" step="0.01" /></label>
-          <label><span>Groq out</span><input data-setting="price_groq_out" type="number" step="0.01" /></label>
-          <label><span>DeepSeek in</span><input data-setting="price_deepseek_in" type="number" step="0.01" /></label>
-          <label><span>DeepSeek out</span><input data-setting="price_deepseek_out" type="number" step="0.01" /></label>
-          <label><span>Mistral in</span><input data-setting="price_mistral_in" type="number" step="0.01" /></label>
-          <label><span>Mistral out</span><input data-setting="price_mistral_out" type="number" step="0.01" /></label>
-          <label><span>Together in</span><input data-setting="price_together_in" type="number" step="0.01" /></label>
-          <label><span>Together out</span><input data-setting="price_together_out" type="number" step="0.01" /></label>
-          <label><span>Cerebras in</span><input data-setting="price_cerebras_in" type="number" step="0.01" /></label>
-          <label><span>Cerebras out</span><input data-setting="price_cerebras_out" type="number" step="0.01" /></label>
+        <h2>LLM rate catalogue</h2>
+        <p>Token costs are pulled from <a href="https://models.dev" target="_blank" rel="noopener">models.dev</a>, a community-maintained catalogue of LLM prices. Falls back to a bundled snapshot if the network call fails.</p>
+        <div class="row">
+          <button id="pricing-refresh" class="btn">Refresh from models.dev</button>
+          <span id="pricing-status" class="status"></span>
         </div>
+        <div id="pricing-current" class="pricing-current dim">Loading current rates…</div>
       </div>
       <div class="card">
         <div class="card-eyebrow">Length</div>
