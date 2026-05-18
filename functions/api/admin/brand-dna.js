@@ -22,6 +22,7 @@ import { json, nowSec, audit } from '../../_lib/util.js';
 import { adminGate } from '../../_lib/auth.js';
 import { scrapeUrl, scrapeToPromptInput } from '../../_lib/scrape.js';
 import { loadSettings, setSetting } from '../../_lib/settings.js';
+// recordUsage + estimateTokens imported below.
 
 const BRAND_DNA_KEYS = [
   'brand_business_type',
@@ -75,6 +76,7 @@ function buildBrandPrompt(scrapeBlock, hints) {
 // We re-use the existing provider registry — same fallback chain, same
 // looseJsonParse, same control-character tolerance.
 import { listProviders, vaultedEnv } from '../../_lib/ai.js';
+import { recordUsage, estimateTokens } from '../../_lib/usage.js';
 
 // Direct provider call. We don't want to go through generateContent
 // because that runs shapeArticle which assumes blog-post shape. We
@@ -95,15 +97,30 @@ async function callForBrandDNA(env, prompt, preferredProvider) {
     ? [preferredProvider, ...available.filter((p) => p !== preferredProvider)]
     : available;
 
+  const settings = await loadSettings(env);
   const errs = [];
   for (const name of order) {
     try {
-      const text = await runProvider(overlayed, name, prompt);
+      const { text, model } = await runProvider(overlayed, name, prompt);
+      // Brand-DNA generations don't always have usage in the raw return,
+      // so we estimate. The Workers AI path returns no usage at all,
+      // OpenAI's Responses API can; we treat both conservatively.
+      await recordUsage(env, settings, {
+        provider: name, model,
+        prompt_tokens: estimateTokens(prompt),
+        completion_tokens: estimateTokens(text),
+        estimated: true,
+        kind: 'brand-dna', source: 'admin-brand-dna',
+      });
       return { provider: name, parsed: looseJsonParse(text) };
     } catch (e) {
       errs.push(`${name}: ${String(e?.message || e).slice(0, 120)}`);
     }
   }
+  await recordUsage(env, settings, {
+    provider: order[0] || 'unknown', kind: 'brand-dna', source: 'admin-brand-dna',
+    ok: false, error: errs.join(' | '),
+  });
   throw new Error('all_providers_failed — ' + errs.join(' | '));
 }
 
@@ -118,10 +135,13 @@ async function runProvider(env, name, prompt) {
         max_tokens: 4096,
       });
       const raw = r?.response ?? r?.result?.response ?? r;
+      let text = '';
       if (raw && typeof raw === 'object' && !Array.isArray(raw) && raw.business_type) {
-        return JSON.stringify(raw);
+        text = JSON.stringify(raw);
+      } else {
+        text = typeof raw === 'string' ? raw : JSON.stringify(raw);
       }
-      return typeof raw === 'string' ? raw : JSON.stringify(raw);
+      return { text, model };
     }
     case 'openai': {
       const model = env.OPENAI_TEXT_MODEL || 'gpt-5';
@@ -132,10 +152,10 @@ async function runProvider(env, name, prompt) {
       });
       if (!r.ok) throw new Error('openai_http_' + r.status);
       const d = await r.json();
-      if (d.output_text) return d.output_text;
+      if (d.output_text) return { text: d.output_text, model };
       for (const item of (d.output || [])) {
         if (item.type !== 'message') continue;
-        for (const c of (item.content || [])) if (c.type === 'output_text' && c.text) return c.text;
+        for (const c of (item.content || [])) if (c.type === 'output_text' && c.text) return { text: c.text, model };
       }
       throw new Error('openai_empty');
     }
@@ -148,7 +168,7 @@ async function runProvider(env, name, prompt) {
       });
       if (!r.ok) throw new Error('anthropic_http_' + r.status);
       const d = await r.json();
-      return (d.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('');
+      return { text: (d.content || []).filter((c) => c.type === 'text').map((c) => c.text).join(''), model };
     }
     case 'gemini': {
       const model = env.GEMINI_TEXT_MODEL || 'gemini-2.5-pro';
@@ -163,7 +183,7 @@ async function runProvider(env, name, prompt) {
       });
       if (!r.ok) throw new Error('gemini_http_' + r.status);
       const d = await r.json();
-      return (d.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('');
+      return { text: (d.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join(''), model };
     }
     case 'groq':
     case 'deepseek':
@@ -189,7 +209,7 @@ async function runProvider(env, name, prompt) {
       });
       if (!r.ok) throw new Error(`${name}_http_` + r.status);
       const d = await r.json();
-      return d?.choices?.[0]?.message?.content || '';
+      return { text: d?.choices?.[0]?.message?.content || '', model: map.model };
     }
     default:
       throw new Error('unknown_provider: ' + name);

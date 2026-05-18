@@ -49,6 +49,9 @@ async function call(env, url, body = '{}', method = 'POST') {
     headers: {
       'Authorization': `Bearer ${env.ADMIN_TOKEN}`,
       'Content-Type': 'application/json',
+      // Identifies this caller as the cron Worker so the admin API can
+      // apply the cron budget hard-stop (admin clicks aren't gated).
+      'X-Source-Cron': '1',
     },
   };
   if (method !== 'GET' && method !== 'HEAD') init.body = body;

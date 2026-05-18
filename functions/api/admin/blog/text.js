@@ -6,6 +6,7 @@ import { generateContent } from '../../../_lib/ai.js';
 import { sanitiseMarkdownLinks } from '../../../_lib/links/sanitise.js';
 import { buildAliases } from '../../../_lib/links/aliases.js';
 import { loadSettings } from '../../../_lib/settings.js';
+import { checkBudget } from '../../../_lib/usage.js';
 
 export const onRequestPost = async ({ request, env }) => {
   const gate = adminGate(env, request); if (gate) return gate;
@@ -39,12 +40,24 @@ export const onRequestPost = async ({ request, env }) => {
   const aliases = buildAliases(env);
   const settings = await loadSettings(env);
 
+  // Identify caller: cron Worker sends X-Source-Cron, otherwise treat
+  // as ad-hoc admin click. Cron gets hard-stopped at budget; admin can
+  // override with allow_over_budget=true in the body.
+  const source = request.headers.get('X-Source-Cron') === '1' ? 'cron-blog' : 'admin-blog';
+  if (source === 'cron-blog' && !body.allow_over_budget) {
+    const b = await checkBudget(env, source);
+    if (!b.allowed) {
+      return json(429, { error: 'budget_exceeded', month_spend_usd: b.spend, budget_usd: b.budget, pct: b.pct });
+    }
+  }
+
   let post;
   try {
     post = await generateContent(env, {
       kind: 'article',
       seed: job.topic_angle,
       provider: body.provider || settings.default_ai_provider || undefined,
+      source,
       brand: {
         name: env.SITE_NAME || 'this site',
         url: env.SITE_URL || '/',

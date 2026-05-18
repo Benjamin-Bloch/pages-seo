@@ -130,6 +130,29 @@ CREATE TABLE IF NOT EXISTS settings (
   updated_at      INTEGER NOT NULL
 );
 
+-- Per-call AI usage log. Every LLM/image generation writes one row.
+-- We compute cost client-side from a per-provider price table (see
+-- functions/_lib/usage.js + the pricing_* keys in `settings`). Workers
+-- AI rows have estimated tokens (no API returns them) and cost 0 on
+-- the free tier.
+CREATE TABLE IF NOT EXISTS ai_usage (
+  id                TEXT PRIMARY KEY,                -- 16-byte hex
+  provider          TEXT NOT NULL,                   -- workers-ai | openai | anthropic | …
+  model             TEXT,                            -- specific model variant
+  kind              TEXT NOT NULL,                   -- text | image | brand-dna | brand-filter
+  source            TEXT,                            -- blog | prog | preview | admin | cron
+  prompt_tokens     INTEGER NOT NULL DEFAULT 0,
+  completion_tokens INTEGER NOT NULL DEFAULT 0,
+  total_tokens      INTEGER NOT NULL DEFAULT 0,
+  estimated         INTEGER NOT NULL DEFAULT 0,      -- 1 = tokens are estimates (no API)
+  cost_usd          REAL    NOT NULL DEFAULT 0,
+  ok                INTEGER NOT NULL DEFAULT 1,      -- 0 = error, 1 = success
+  error             TEXT,
+  created_at        INTEGER NOT NULL                 -- unix seconds
+);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_created ON ai_usage(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_provider_created ON ai_usage(provider, created_at DESC);
+
 -- Encrypted-at-rest API key vault. Used when the admin wants to set
 -- LLM provider keys from the dashboard rather than via
 -- `wrangler pages secret put`. Ciphertext is AES-GCM with a key derived

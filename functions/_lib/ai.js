@@ -299,6 +299,12 @@ const SYSTEM_JSON_ONLY = 'You return strict JSON only. No prose outside the JSON
 const WORKERS_AI_TEXT_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 const WORKERS_AI_IMAGE_MODEL = '@cf/black-forest-labs/flux-1-schnell';
 
+// Each provider helper returns { parsed, usage } where usage is
+//   { provider, model, prompt_tokens, completion_tokens, estimated }.
+// generateContent/generateImage then thread usage into recordUsage().
+
+import { estimateTokens } from './usage.js';
+
 async function workersAIText(env, prompt) {
   if (!env?.AI) throw new Error('workers_ai_binding_missing');
   const model = env.WORKERS_AI_TEXT_MODEL || WORKERS_AI_TEXT_MODEL;
@@ -312,19 +318,34 @@ async function workersAIText(env, prompt) {
   // Workers AI may return either a string in `response` or, when the
   // model emits structured output, an already-parsed object. Cover both.
   const raw = r?.response ?? r?.result?.response ?? r?.result ?? r;
-  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-    // Already parsed JSON — just hand it back.
-    if (raw.title || raw.body_markdown || raw.primary_query) return raw;
+  let parsed;
+  if (raw && typeof raw === 'object' && !Array.isArray(raw) && (raw.title || raw.body_markdown || raw.primary_query)) {
+    parsed = raw;
+  } else if (typeof raw === 'string' && raw.length) {
+    parsed = looseJsonParse(raw);
+  } else if (!raw) {
+    throw new Error('workers_ai_empty_response');
+  } else {
+    throw new Error('workers_ai_unexpected_shape: ' + JSON.stringify(raw).slice(0, 200));
   }
-  if (typeof raw === 'string' && raw.length) return looseJsonParse(raw);
-  if (!raw) throw new Error('workers_ai_empty_response');
-  throw new Error('workers_ai_unexpected_shape: ' + JSON.stringify(raw).slice(0, 200));
+  // Workers AI doesn't return token counts; estimate from text length.
+  const respText = typeof raw === 'string' ? raw : JSON.stringify(raw);
+  return {
+    parsed,
+    usage: {
+      provider: 'workers-ai', model,
+      prompt_tokens: estimateTokens(SYSTEM_JSON_ONLY + prompt),
+      completion_tokens: estimateTokens(respText),
+      estimated: true,
+    },
+  };
 }
 
 async function workersAIImage(env, prompt) {
   if (!env?.AI) throw new Error('workers_ai_binding_missing');
   const model = env.WORKERS_AI_IMAGE_MODEL || WORKERS_AI_IMAGE_MODEL;
   const r = await env.AI.run(model, { prompt, num_steps: 4 });
+  const usage = { provider: 'workers-ai', model, prompt_tokens: 1, completion_tokens: 0, estimated: true };
   if (r instanceof ReadableStream) {
     const chunks = [];
     const reader = r.getReader();
@@ -337,10 +358,10 @@ async function workersAIImage(env, prompt) {
     const buf = new Uint8Array(total);
     let off = 0;
     for (const c of chunks) { buf.set(c, off); off += c.length; }
-    return buf;
+    return { bytes: buf, usage };
   }
-  if (r instanceof Uint8Array) return r;
-  if (r?.image) return b64ToBytes(r.image);
+  if (r instanceof Uint8Array) return { bytes: r, usage };
+  if (r?.image) return { bytes: b64ToBytes(r.image), usage };
   throw new Error('workers_ai_image_unexpected_shape');
 }
 
@@ -357,7 +378,7 @@ function b64ToBytes(b64) {
 // chat-completions endpoint with the same request/response shape. Wrap
 // the differences (base URL, model id, optional `response_format`) in
 // one helper so adding a new compatible provider is one config entry.
-async function chatCompletion({ url, apiKey, model, prompt, useJsonFormat = true, extraHeaders = {} }) {
+async function chatCompletion({ provider, url, apiKey, model, prompt, useJsonFormat = true, extraHeaders = {} }) {
   const body = {
     model,
     messages: [
@@ -383,7 +404,16 @@ async function chatCompletion({ url, apiKey, model, prompt, useJsonFormat = true
   const data = await r.json();
   const text = data?.choices?.[0]?.message?.content || '';
   if (!text) throw new Error('chat_empty');
-  return looseJsonParse(text);
+  const u = data?.usage || {};
+  return {
+    parsed: looseJsonParse(text),
+    usage: {
+      provider, model,
+      prompt_tokens: u.prompt_tokens || estimateTokens(SYSTEM_JSON_ONLY + prompt),
+      completion_tokens: u.completion_tokens || estimateTokens(text),
+      estimated: !u.prompt_tokens,
+    },
+  };
 }
 
 // ── OpenAI (Responses API for gpt-5; chat API for image) ──────────────
@@ -427,7 +457,18 @@ async function openAIText(env, prompt) {
   const data = await r.json();
   const text = extractOpenAIText(data);
   if (!text) throw new Error('openai_text_empty');
-  return looseJsonParse(text);
+  const u = data?.usage || {};
+  return {
+    parsed: looseJsonParse(text),
+    usage: {
+      provider: 'openai', model,
+      // gpt-5 Responses API exposes input_tokens/output_tokens, not the
+      // older Chat API names. Handle both.
+      prompt_tokens: u.input_tokens || u.prompt_tokens || estimateTokens(SYSTEM_JSON_ONLY + prompt),
+      completion_tokens: u.output_tokens || u.completion_tokens || estimateTokens(text),
+      estimated: !(u.input_tokens || u.prompt_tokens),
+    },
+  };
 }
 
 async function openAIImage(env, prompt) {
@@ -461,7 +502,10 @@ async function openAIImage(env, prompt) {
   const data = await r.json();
   const b64 = data?.data?.[0]?.b64_json;
   if (!b64) throw new Error('openai_image_empty');
-  return b64ToBytes(b64);
+  return {
+    bytes: b64ToBytes(b64),
+    usage: { provider: 'openai', model, prompt_tokens: 1, completion_tokens: 0, estimated: true },
+  };
 }
 
 // ── Anthropic (Claude) ─────────────────────────────────────────────────
@@ -494,7 +538,16 @@ async function anthropicText(env, prompt) {
   const text = (data?.content || [])
     .filter((c) => c?.type === 'text').map((c) => c.text).join('') || '';
   if (!text) throw new Error('anthropic_empty');
-  return looseJsonParse(text);
+  const u = data?.usage || {};
+  return {
+    parsed: looseJsonParse(text),
+    usage: {
+      provider: 'anthropic', model,
+      prompt_tokens: u.input_tokens || estimateTokens(SYSTEM_JSON_ONLY + prompt),
+      completion_tokens: u.output_tokens || estimateTokens(text),
+      estimated: !u.input_tokens,
+    },
+  };
 }
 
 // ── Google Gemini ──────────────────────────────────────────────────────
@@ -523,7 +576,16 @@ async function geminiText(env, prompt) {
   const text = (data?.candidates?.[0]?.content?.parts || [])
     .map((p) => p?.text || '').join('');
   if (!text) throw new Error('gemini_empty');
-  return looseJsonParse(text);
+  const u = data?.usageMetadata || {};
+  return {
+    parsed: looseJsonParse(text),
+    usage: {
+      provider: 'gemini', model,
+      prompt_tokens: u.promptTokenCount || estimateTokens(SYSTEM_JSON_ONLY + prompt),
+      completion_tokens: u.candidatesTokenCount || estimateTokens(text),
+      estimated: !u.promptTokenCount,
+    },
+  };
 }
 
 async function geminiImage(env, prompt) {
@@ -545,7 +607,10 @@ async function geminiImage(env, prompt) {
   const data = await r.json();
   const b64 = data?.predictions?.[0]?.bytesBase64Encoded;
   if (!b64) throw new Error('gemini_image_empty');
-  return b64ToBytes(b64);
+  return {
+    bytes: b64ToBytes(b64),
+    usage: { provider: 'gemini', model, prompt_tokens: 1, completion_tokens: 0, estimated: true },
+  };
 }
 
 // ── OpenAI-compatible cloud providers ─────────────────────────────────
@@ -553,6 +618,7 @@ async function geminiImage(env, prompt) {
 async function groqText(env, prompt) {
   if (!env?.GROQ_API_KEY) throw new Error('groq_not_configured');
   return chatCompletion({
+    provider: 'groq',
     url: 'https://api.groq.com/openai/v1/chat/completions',
     apiKey: env.GROQ_API_KEY,
     model: env.GROQ_TEXT_MODEL || 'llama-3.3-70b-versatile',
@@ -563,6 +629,7 @@ async function groqText(env, prompt) {
 async function deepseekText(env, prompt) {
   if (!env?.DEEPSEEK_API_KEY) throw new Error('deepseek_not_configured');
   return chatCompletion({
+    provider: 'deepseek',
     url: 'https://api.deepseek.com/v1/chat/completions',
     apiKey: env.DEEPSEEK_API_KEY,
     model: env.DEEPSEEK_TEXT_MODEL || 'deepseek-chat',
@@ -573,6 +640,7 @@ async function deepseekText(env, prompt) {
 async function mistralText(env, prompt) {
   if (!env?.MISTRAL_API_KEY) throw new Error('mistral_not_configured');
   return chatCompletion({
+    provider: 'mistral',
     url: 'https://api.mistral.ai/v1/chat/completions',
     apiKey: env.MISTRAL_API_KEY,
     model: env.MISTRAL_TEXT_MODEL || 'mistral-large-latest',
@@ -583,6 +651,7 @@ async function mistralText(env, prompt) {
 async function togetherText(env, prompt) {
   if (!env?.TOGETHER_API_KEY) throw new Error('together_not_configured');
   return chatCompletion({
+    provider: 'together',
     url: 'https://api.together.xyz/v1/chat/completions',
     apiKey: env.TOGETHER_API_KEY,
     model: env.TOGETHER_TEXT_MODEL || 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
@@ -593,6 +662,7 @@ async function togetherText(env, prompt) {
 async function cerebrasText(env, prompt) {
   if (!env?.CEREBRAS_API_KEY) throw new Error('cerebras_not_configured');
   return chatCompletion({
+    provider: 'cerebras',
     url: 'https://api.cerebras.ai/v1/chat/completions',
     apiKey: env.CEREBRAS_API_KEY,
     model: env.CEREBRAS_TEXT_MODEL || 'llama-3.3-70b',
@@ -660,12 +730,17 @@ export async function listProviders(env) {
 
 // ── public API ─────────────────────────────────────────────────────────
 
+import { recordUsage } from './usage.js';
+import { loadSettings } from './settings.js';
+
 // `kind` is 'article' (long blog post) or 'programmatic' (landing page).
 // `seed` is the topic-angle string for articles or the keyword for
 // programmatic pages. `provider` is optional — when omitted we walk the
-// registry in default order (Workers AI first).
-export async function generateContent(env, { kind, seed, provider, brand }) {
+// registry in default order (Workers AI first). `source` is logged to
+// ai_usage (e.g. 'cron-blog', 'admin-prog', 'preview').
+export async function generateContent(env, { kind, seed, provider, brand, source = 'admin' }) {
   const overlayed = await withVault(env);
+  const settings = await loadSettings(env);
   const prompt = kind === 'programmatic'
     ? buildProgrammaticPrompt(seed, brand)
     : buildArticlePrompt(seed, brand);
@@ -676,30 +751,54 @@ export async function generateContent(env, { kind, seed, provider, brand }) {
   const errs = [];
   for (const p of order) {
     try {
-      const parsed = await p.call(overlayed, prompt);
-      return shapeArticle(parsed, p.name);
+      const out = await p.call(overlayed, prompt);
+      // Log success usage row before returning. Cost gets computed from
+      // the live settings table so it always reflects the current prices.
+      if (out?.usage) {
+        await recordUsage(env, settings, {
+          ...out.usage,
+          kind: kind === 'programmatic' ? 'prog-text' : 'blog-text',
+          source,
+        });
+      }
+      return shapeArticle(out.parsed, p.name);
     } catch (e) {
       errs.push(`${p.name}: ${String(e?.message || e).slice(0, 120)}`);
     }
   }
+  // Every provider failed — log one error row so the dashboard shows
+  // the spike in error rate even when nothing succeeded.
+  await recordUsage(env, settings, {
+    provider: order[0]?.name || 'unknown',
+    kind: kind === 'programmatic' ? 'prog-text' : 'blog-text',
+    source, ok: false, error: errs.join(' | '),
+  });
   throw new Error('all_text_providers_failed — ' + errs.join(' | '));
 }
 
-export async function generateImage(env, { prompt, provider }) {
+export async function generateImage(env, { prompt, provider, source = 'admin' }) {
   if (!prompt) throw new Error('image_prompt_empty');
   const overlayed = await withVault(env);
+  const settings = await loadSettings(env);
   const order = orderProviders(IMAGE_PROVIDERS, overlayed, provider);
   if (!order.length) throw new Error('no_image_providers_configured');
 
   const errs = [];
   for (const p of order) {
     try {
-      const bytes = await p.call(overlayed, prompt);
-      return { bytes, ai_provider: p.name };
+      const out = await p.call(overlayed, prompt);
+      if (out?.usage) {
+        await recordUsage(env, settings, { ...out.usage, kind: 'image', source });
+      }
+      return { bytes: out.bytes, ai_provider: p.name };
     } catch (e) {
       errs.push(`${p.name}: ${String(e?.message || e).slice(0, 120)}`);
     }
   }
+  await recordUsage(env, settings, {
+    provider: order[0]?.name || 'unknown', kind: 'image', source,
+    ok: false, error: errs.join(' | '),
+  });
   throw new Error('all_image_providers_failed — ' + errs.join(' | '));
 }
 

@@ -48,7 +48,7 @@ export const onRequestPost = async ({ request, env }) => {
 
   let content;
   try {
-    content = await generateContent(env, { kind, seed, provider, brand });
+    content = await generateContent(env, { kind, seed, provider, brand, source: 'preview' });
   } catch (e) {
     return json(502, { error: 'text_failed', detail: String(e?.message || e).slice(0, 400) });
   }
@@ -58,7 +58,7 @@ export const onRequestPost = async ({ request, env }) => {
   let imageError = null;
   if (body.with_image) {
     try {
-      const img = await generateImage(env, { prompt: content.hero_image_prompt, provider });
+      const img = await generateImage(env, { prompt: content.hero_image_prompt, provider, source: 'preview' });
       // Inline as data URL so the preview is portable. ~1-2MB typical.
       let bin = '';
       const chunk = 0x8000;

@@ -29,7 +29,8 @@ export const onRequestPost = async ({ request, env }) => {
   let imageError = null;
   let imageProvider = null;
   try {
-    const r = await generateImage(env, { prompt: job.hero_image_prompt, provider: body.provider });
+    const source = request.headers.get('X-Source-Cron') === '1' ? 'cron-blog' : 'admin-blog';
+    const r = await generateImage(env, { prompt: job.hero_image_prompt, provider: body.provider, source });
     imageProvider = r.ai_provider;
     imageKey = `${job.slug}-${Date.now()}.png`;
     if (!env.IMAGES) throw new Error('r2_binding_missing');

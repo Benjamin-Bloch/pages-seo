@@ -10,6 +10,7 @@ import { pingIndexNow } from '../../../_lib/indexnow.js';
 import { sanitiseMarkdownLinks } from '../../../_lib/links/sanitise.js';
 import { buildAliases } from '../../../_lib/links/aliases.js';
 import { loadSettings } from '../../../_lib/settings.js';
+import { checkBudget } from '../../../_lib/usage.js';
 
 export const onRequestPost = async ({ request, env, waitUntil }) => {
   const gate = adminGate(env, request); if (gate) return gate;
@@ -33,12 +34,29 @@ export const onRequestPost = async ({ request, env, waitUntil }) => {
 
   const aliases = buildAliases(env);
   const settings = await loadSettings(env);
+
+  // Budget check before we touch the LLM. Cron pulls a fresh keyword
+  // each minute on a busy backlog; hard-stop above budget.
+  let body = {};
+  try { body = await request.clone().json(); } catch { /* fine */ }
+  const source = request.headers.get('X-Source-Cron') === '1' ? 'cron-prog' : 'admin-prog';
+  if (source === 'cron-prog' && !body.allow_over_budget) {
+    const b = await checkBudget(env, source);
+    if (!b.allowed) {
+      // Re-queue the keyword we just claimed so it isn't lost.
+      await env.DB.prepare("UPDATE prog_keywords SET status='pending', updated_at=? WHERE id=?")
+        .bind(nowSec(), next.id).run();
+      return json(429, { error: 'budget_exceeded', month_spend_usd: b.spend, budget_usd: b.budget, pct: b.pct });
+    }
+  }
+
   let content;
   try {
     content = await generateContent(env, {
       kind: 'programmatic',
       seed: next.keyword,
       provider: settings.default_ai_provider || undefined,
+      source,
       brand: {
         name: env.SITE_NAME || 'this site',
         url: env.SITE_URL || '/',
@@ -74,7 +92,7 @@ export const onRequestPost = async ({ request, env, waitUntil }) => {
 
   let imageKey = null;
   try {
-    const img = await generateImage(env, { prompt: content.hero_image_prompt });
+    const img = await generateImage(env, { prompt: content.hero_image_prompt, source });
     imageKey = `${slug}-${Date.now()}.png`;
     if (env.IMAGES) {
       await env.IMAGES.put(imageKey, img.bytes, {

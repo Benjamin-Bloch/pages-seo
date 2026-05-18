@@ -97,7 +97,150 @@
     if (name === 'prog') { loadQueue(); }
     if (name === 'seo') { renderWidgetSnippet(); }
     if (name === 'brand') { loadBrand(); }
+    if (name === 'usage') { loadUsage(); }
     if (name === 'settings') { loadSettings(); loadProviderGrid(); }
+  }
+
+  // ── usage ──────────────────────────────────────────────────────
+  function fmtUSD(n) {
+    if (n == null) return '—';
+    if (n < 0.01) return '$' + n.toFixed(4);
+    if (n < 1)    return '$' + n.toFixed(3);
+    return '$' + n.toFixed(2);
+  }
+  function fmtInt(n) {
+    if (n == null) return '—';
+    if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+    if (n >= 1e3) return (n / 1e3).toFixed(1) + 'k';
+    return String(n);
+  }
+
+  async function loadUsage() {
+    const win = $('#usage-window')?.value || 'month';
+    const { status, body } = await api('/api/admin/usage?window=' + encodeURIComponent(win));
+    if (status !== 200) return;
+
+    // Headline numbers
+    setText($('#usage-spent'),  fmtUSD(body.total.cost_usd));
+    setText($('#usage-budget'), body.budget.monthly_usd > 0 ? fmtUSD(body.budget.monthly_usd) : 'none');
+    setText($('#usage-pct'),    body.budget.monthly_usd > 0 ? body.budget.pct + '%' : '—');
+    setText($('#usage-calls'),  fmtInt(body.total.calls));
+    setText($('#usage-tokens'), fmtInt(body.total.total_tokens));
+    setText($('#usage-errors'), fmtInt(body.total.errors));
+
+    // Progress bar
+    const wrap = $('#usage-progress-wrap');
+    const fill = $('#usage-progress-fill');
+    if (body.budget.monthly_usd > 0) {
+      wrap.style.display = 'block';
+      const pct = Math.min(100, body.budget.pct);
+      fill.style.width = pct + '%';
+      fill.classList.toggle('warn', body.budget.over_warn);
+      fill.classList.toggle('bad',  body.budget.over_budget);
+    } else {
+      wrap.style.display = 'none';
+    }
+
+    // Banner
+    const bCard = $('#usage-banner-card');
+    const banner = $('#usage-banner');
+    if (body.budget.over_budget) {
+      bCard.hidden = false;
+      banner.className = 'usage-banner bad';
+      banner.innerHTML = '<strong>Budget exceeded.</strong> The cron Worker is now blocked. Admin generations still work (with a confirmation prompt). Increase the budget in Settings or wait for the next month.';
+    } else if (body.budget.over_warn) {
+      bCard.hidden = false;
+      banner.className = 'usage-banner warn';
+      banner.innerHTML = `<strong>${body.budget.pct}% of monthly budget used.</strong> Consider tuning provider mix or pausing the cron until the new month.`;
+    } else {
+      bCard.hidden = true;
+    }
+
+    // By provider
+    const tbP = $('#usage-by-provider');
+    clearChildren(tbP);
+    if (!body.by_provider.length) {
+      const tr = document.createElement('tr'); const td_ = document.createElement('td');
+      td_.colSpan = 4; td_.className = 'dim'; td_.textContent = 'No usage yet for this window.';
+      tr.appendChild(td_); tbP.appendChild(tr);
+    } else {
+      for (const p of body.by_provider) {
+        const tr = document.createElement('tr');
+        tr.appendChild(td(p.provider, 'cell-strong'));
+        tr.appendChild(td(p.calls));
+        tr.appendChild(td(fmtInt(p.tokens)));
+        tr.appendChild(td(fmtUSD(p.cost)));
+        tbP.appendChild(tr);
+      }
+    }
+
+    // By kind
+    const tbK = $('#usage-by-kind');
+    clearChildren(tbK);
+    if (!body.by_kind.length) {
+      const tr = document.createElement('tr'); const td_ = document.createElement('td');
+      td_.colSpan = 4; td_.className = 'dim'; td_.textContent = 'No usage yet.';
+      tr.appendChild(td_); tbK.appendChild(tr);
+    } else {
+      for (const k of body.by_kind) {
+        const tr = document.createElement('tr');
+        tr.appendChild(td(k.kind, 'cell-strong'));
+        tr.appendChild(td(k.calls));
+        tr.appendChild(td(fmtInt(k.tokens)));
+        tr.appendChild(td(fmtUSD(k.cost)));
+        tbK.appendChild(tr);
+      }
+    }
+
+    // Daily bars
+    const daily = $('#usage-daily');
+    clearChildren(daily);
+    if (!body.daily.length) {
+      daily.textContent = 'No usage yet.';
+      daily.className = 'usage-daily dim';
+    } else {
+      daily.className = 'usage-daily';
+      const max = Math.max(...body.daily.map((d) => d.cost), 0.001);
+      for (const d of body.daily) {
+        const row = document.createElement('div'); row.className = 'usage-day';
+        const lbl = document.createElement('div'); lbl.className = 'usage-day-label'; lbl.textContent = d.date;
+        const barWrap = document.createElement('div'); barWrap.className = 'usage-day-bar';
+        const bar = document.createElement('div'); bar.className = 'usage-day-fill';
+        bar.style.width = Math.max(2, (d.cost / max) * 100) + '%';
+        barWrap.appendChild(bar);
+        const val = document.createElement('div'); val.className = 'usage-day-val'; val.textContent = `${fmtUSD(d.cost)} · ${d.calls} calls`;
+        row.append(lbl, barWrap, val);
+        daily.appendChild(row);
+      }
+    }
+
+    // Recent
+    const tbR = $('#usage-recent');
+    clearChildren(tbR);
+    if (!body.recent.length) {
+      const tr = document.createElement('tr'); const td_ = document.createElement('td');
+      td_.colSpan = 7; td_.className = 'dim'; td_.textContent = 'No calls yet.';
+      tr.appendChild(td_); tbR.appendChild(tr);
+    } else {
+      for (const r of body.recent) {
+        const tr = document.createElement('tr');
+        const when = new Date(r.created_at * 1000);
+        tr.appendChild(td(when.toISOString().slice(5, 16).replace('T', ' ')));
+        tr.appendChild(td(r.provider));
+        tr.appendChild(td(r.kind));
+        tr.appendChild(td(r.source || '—'));
+        tr.appendChild(td(fmtInt(r.total_tokens)));
+        tr.appendChild(td(fmtUSD(r.cost_usd)));
+        const tdOk = document.createElement('td');
+        const pill = document.createElement('span');
+        pill.className = 'pill ' + (r.ok ? 'good' : 'bad');
+        pill.textContent = r.ok ? 'ok' : 'err';
+        if (!r.ok && r.error) tdOk.title = r.error;
+        tdOk.appendChild(pill);
+        tr.appendChild(tdOk);
+        tbR.appendChild(tr);
+      }
+    }
   }
 
   // ── brand DNA ────────────────────────────────────────────────────
@@ -799,6 +942,12 @@
     // settings tab
     const saveBtn = $('#settings-save');
     if (saveBtn) saveBtn.addEventListener('click', saveSettings);
+
+    // usage tab
+    const uRef = $('#usage-refresh');
+    const uWin = $('#usage-window');
+    if (uRef) uRef.addEventListener('click', loadUsage);
+    if (uWin) uWin.addEventListener('change', loadUsage);
 
     // brand DNA tab
     const bGen = $('#brand-generate');

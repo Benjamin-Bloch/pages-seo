@@ -30,6 +30,7 @@
       <button class="tab" data-tab="prog">Programmatic</button>
       <button class="tab" data-tab="seo">SEO</button>
       <button class="tab" data-tab="brand">Brand DNA</button>
+      <button class="tab" data-tab="usage">Usage</button>
       <button class="tab" data-tab="settings">Settings</button>
     </nav>
     <button id="lock" class="btn btn-ghost btn-sm">Lock</button>
@@ -276,6 +277,88 @@
       </div>
     </section>
 
+    <!-- ============ USAGE ============ -->
+    <section data-page="usage" class="page" hidden>
+      <div class="card" id="usage-banner-card" hidden>
+        <div id="usage-banner" class="usage-banner"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-eyebrow">This month</div>
+        <h2>Budget &amp; spend</h2>
+        <div class="usage-summary">
+          <div class="usage-stat">
+            <div class="usage-stat-label">Spent</div>
+            <div class="usage-stat-value" id="usage-spent">—</div>
+          </div>
+          <div class="usage-stat">
+            <div class="usage-stat-label">Budget</div>
+            <div class="usage-stat-value" id="usage-budget">—</div>
+          </div>
+          <div class="usage-stat">
+            <div class="usage-stat-label">% used</div>
+            <div class="usage-stat-value" id="usage-pct">—</div>
+          </div>
+          <div class="usage-stat">
+            <div class="usage-stat-label">Calls</div>
+            <div class="usage-stat-value" id="usage-calls">—</div>
+          </div>
+          <div class="usage-stat">
+            <div class="usage-stat-label">Tokens</div>
+            <div class="usage-stat-value" id="usage-tokens">—</div>
+          </div>
+          <div class="usage-stat">
+            <div class="usage-stat-label">Errors</div>
+            <div class="usage-stat-value" id="usage-errors">—</div>
+          </div>
+        </div>
+        <div class="usage-progress" id="usage-progress-wrap">
+          <div class="usage-progress-bar"><div class="usage-progress-fill" id="usage-progress-fill"></div></div>
+        </div>
+        <div class="row" style="margin-top:14px">
+          <select id="usage-window">
+            <option value="month" selected>Current month</option>
+            <option value="7d">Last 7 days</option>
+            <option value="24h">Last 24 hours</option>
+          </select>
+          <button id="usage-refresh" class="btn btn-ghost btn-sm">Refresh</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-eyebrow">By provider</div>
+        <h2>Spend per provider</h2>
+        <table class="data data-usage">
+          <thead><tr><th>Provider</th><th>Calls</th><th>Tokens</th><th>Cost (USD)</th></tr></thead>
+          <tbody id="usage-by-provider"><tr><td colspan="4" class="dim">Loading…</td></tr></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-eyebrow">By job kind</div>
+        <h2>Where the tokens went</h2>
+        <table class="data data-usage">
+          <thead><tr><th>Kind</th><th>Calls</th><th>Tokens</th><th>Cost (USD)</th></tr></thead>
+          <tbody id="usage-by-kind"><tr><td colspan="4" class="dim">Loading…</td></tr></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-eyebrow">Daily</div>
+        <h2>Cost per day</h2>
+        <div id="usage-daily" class="usage-daily">Loading…</div>
+      </div>
+
+      <div class="card">
+        <div class="card-eyebrow">Recent</div>
+        <h2>Last 25 calls</h2>
+        <table class="data data-usage data-recent">
+          <thead><tr><th>When</th><th>Provider</th><th>Kind</th><th>Source</th><th>Tokens</th><th>Cost</th><th>OK</th></tr></thead>
+          <tbody id="usage-recent"><tr><td colspan="7" class="dim">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
     <!-- ============ SETTINGS ============ -->
     <section data-page="settings" class="page" hidden>
       <div class="card">
@@ -298,6 +381,48 @@
             <textarea data-setting="site_audience" rows="2" placeholder="someone planning a £20k+ bathroom renovation, comparing materials and brands"></textarea>
             <small>What does the reader already know? What's their intent?</small>
           </label>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">Budget</div>
+        <h2>Monthly AI spend cap</h2>
+        <p>The cron Worker hard-stops once monthly spend reaches the limit. Manual admin generations keep working but you'll see a warning banner. Set to 0 to disable.</p>
+        <div class="form-grid form-grid-cols">
+          <label>
+            <span>Monthly budget (USD)</span>
+            <input data-setting="monthly_budget_usd" type="number" min="0" step="0.01" placeholder="10.00" />
+            <small>Tracks across all providers. Resets at the start of each calendar month (UTC).</small>
+          </label>
+          <label>
+            <span>Warn at %</span>
+            <input data-setting="budget_warn_pct" type="number" min="0" max="100" placeholder="80" />
+            <small>Show a banner once spend reaches this percentage of the budget.</small>
+          </label>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">Pricing</div>
+        <h2>Per-provider rates</h2>
+        <p>USD per 1M tokens for text (in / out), USD per image for image generation. Defaults are correct as of Jan 2026 — update if a provider changes their published rates.</p>
+        <div class="form-grid form-grid-cols pricing-grid">
+          <label><span>OpenAI in</span><input data-setting="price_openai_in" type="number" step="0.01" /></label>
+          <label><span>OpenAI out</span><input data-setting="price_openai_out" type="number" step="0.01" /></label>
+          <label><span>OpenAI image</span><input data-setting="price_openai_image" type="number" step="0.001" /></label>
+          <label><span>Anthropic in</span><input data-setting="price_anthropic_in" type="number" step="0.01" /></label>
+          <label><span>Anthropic out</span><input data-setting="price_anthropic_out" type="number" step="0.01" /></label>
+          <label><span>Gemini in</span><input data-setting="price_gemini_in" type="number" step="0.01" /></label>
+          <label><span>Gemini out</span><input data-setting="price_gemini_out" type="number" step="0.01" /></label>
+          <label><span>Gemini image</span><input data-setting="price_gemini_image" type="number" step="0.001" /></label>
+          <label><span>Groq in</span><input data-setting="price_groq_in" type="number" step="0.01" /></label>
+          <label><span>Groq out</span><input data-setting="price_groq_out" type="number" step="0.01" /></label>
+          <label><span>DeepSeek in</span><input data-setting="price_deepseek_in" type="number" step="0.01" /></label>
+          <label><span>DeepSeek out</span><input data-setting="price_deepseek_out" type="number" step="0.01" /></label>
+          <label><span>Mistral in</span><input data-setting="price_mistral_in" type="number" step="0.01" /></label>
+          <label><span>Mistral out</span><input data-setting="price_mistral_out" type="number" step="0.01" /></label>
+          <label><span>Together in</span><input data-setting="price_together_in" type="number" step="0.01" /></label>
+          <label><span>Together out</span><input data-setting="price_together_out" type="number" step="0.01" /></label>
+          <label><span>Cerebras in</span><input data-setting="price_cerebras_in" type="number" step="0.01" /></label>
+          <label><span>Cerebras out</span><input data-setting="price_cerebras_out" type="number" step="0.01" /></label>
         </div>
       </div>
       <div class="card">

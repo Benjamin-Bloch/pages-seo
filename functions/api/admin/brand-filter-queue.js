@@ -18,6 +18,7 @@ import { json, nowSec, audit } from '../../_lib/util.js';
 import { adminGate } from '../../_lib/auth.js';
 import { loadSettings } from '../../_lib/settings.js';
 import { listProviders, vaultedEnv } from '../../_lib/ai.js';
+import { recordUsage, estimateTokens } from '../../_lib/usage.js';
 
 const DEFAULT_BATCH = 15;
 const MAX_BATCH = 30;
@@ -62,6 +63,7 @@ function buildBatchPrompt(brand, keywords) {
 async function evaluateBatch(env, brand, keywords) {
   const prompt = buildBatchPrompt(brand, keywords);
   const overlayed = await vaultedEnv(env);
+  const settings = await loadSettings(env);
   const available = (await listProviders(overlayed)).text;
   if (!available.length) throw new Error('no_text_providers_configured');
 
@@ -70,14 +72,25 @@ async function evaluateBatch(env, brand, keywords) {
   const SYS = 'You filter keyword queues for SEO. Strict JSON output only.';
   let raw = '';
   let usedProvider = '';
+  let usedModel = '';
   for (const name of available) {
     try {
-      raw = await callProvider(overlayed, name, SYS, prompt);
+      const r = await callProvider(overlayed, name, SYS, prompt);
+      raw = r.text; usedModel = r.model;
       usedProvider = name;
       break;
     } catch { /* try next */ }
   }
   if (!raw) throw new Error('all_providers_failed');
+
+  // Log usage row per batch — these aren't free with cloud providers.
+  await recordUsage(env, settings, {
+    provider: usedProvider, model: usedModel,
+    prompt_tokens: estimateTokens(SYS + prompt),
+    completion_tokens: estimateTokens(raw),
+    estimated: true,
+    kind: 'brand-filter', source: 'admin-brand-filter',
+  });
 
   const parsed = looseJsonParse(raw);
   const verdicts = Array.isArray(parsed?.verdicts) ? parsed.verdicts : [];
@@ -105,42 +118,45 @@ async function callProvider(env, name, system, prompt) {
         max_tokens: 2048,
       });
       const raw = r?.response ?? r?.result?.response ?? r;
+      let text = '';
       if (raw && typeof raw === 'object' && !Array.isArray(raw) && Array.isArray(raw.verdicts)) {
-        return JSON.stringify(raw);
+        text = JSON.stringify(raw);
+      } else {
+        text = typeof raw === 'string' ? raw : JSON.stringify(raw);
       }
-      return typeof raw === 'string' ? raw : JSON.stringify(raw);
+      return { text, model };
     }
     case 'openai': {
+      const model = env.OPENAI_TEXT_MODEL || 'gpt-5';
       const r = await fetch('https://api.openai.com/v1/responses', {
         method: 'POST',
         headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: env.OPENAI_TEXT_MODEL || 'gpt-5',
-          instructions: system, input: prompt,
+          model, instructions: system, input: prompt,
           text: { format: { type: 'json_object' } },
         }),
       });
       if (!r.ok) throw new Error('openai_http_' + r.status);
       const d = await r.json();
-      if (d.output_text) return d.output_text;
+      if (d.output_text) return { text: d.output_text, model };
       for (const item of (d.output || [])) {
         if (item.type !== 'message') continue;
-        for (const c of (item.content || [])) if (c.type === 'output_text' && c.text) return c.text;
+        for (const c of (item.content || [])) if (c.type === 'output_text' && c.text) return { text: c.text, model };
       }
       throw new Error('openai_empty');
     }
     case 'anthropic': {
+      const model = env.ANTHROPIC_TEXT_MODEL || 'claude-opus-4-7';
       const r = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: env.ANTHROPIC_TEXT_MODEL || 'claude-opus-4-7',
-          max_tokens: 2048, system, messages: [{ role: 'user', content: prompt }],
+          model, max_tokens: 2048, system, messages: [{ role: 'user', content: prompt }],
         }),
       });
       if (!r.ok) throw new Error('anthropic_http_' + r.status);
       const d = await r.json();
-      return (d.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('');
+      return { text: (d.content || []).filter((c) => c.type === 'text').map((c) => c.text).join(''), model };
     }
     case 'gemini': {
       const model = env.GEMINI_TEXT_MODEL || 'gemini-2.5-pro';
@@ -155,7 +171,7 @@ async function callProvider(env, name, system, prompt) {
       });
       if (!r.ok) throw new Error('gemini_http_' + r.status);
       const d = await r.json();
-      return (d.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('');
+      return { text: (d.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join(''), model };
     }
     default:
       // OpenAI-compatible providers — same body shape.
@@ -179,7 +195,7 @@ async function callProvider(env, name, system, prompt) {
       });
       if (!r.ok) throw new Error(`${name}_http_` + r.status);
       const d = await r.json();
-      return d?.choices?.[0]?.message?.content || '';
+      return { text: d?.choices?.[0]?.message?.content || '', model: map.model };
   }
 }
 
