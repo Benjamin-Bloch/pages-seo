@@ -133,14 +133,34 @@ say "Writing .env"
 echo "  wrote .env (added to .gitignore)"
 
 # ── create D1 ───────────────────────────────────────────────────────
+# Parse `wrangler d1 list --json` with python so we don't depend on a
+# specific JSON field name (wrangler used `uuid` historically and now
+# also exposes `database_id`; both shapes work here).
 say "Creating D1 database \"$DB_NAME\""
-if wrangler d1 list 2>/dev/null | grep -q "\"name\":\\s*\"$DB_NAME\""; then
+resolve_db_id() {
+  wrangler d1 list --json 2>/dev/null | python3 - "$DB_NAME" <<'PY'
+import json, sys
+target = sys.argv[1]
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+for row in data if isinstance(data, list) else []:
+    if row.get('name') == target:
+        print(row.get('uuid') or row.get('database_id') or row.get('id') or '')
+        break
+PY
+}
+
+EXISTING_ID="$(resolve_db_id)"
+if [[ -n "$EXISTING_ID" ]]; then
   warn "D1 database $DB_NAME already exists — skipping create"
+  DB_ID="$EXISTING_ID"
 else
   wrangler d1 create "$DB_NAME"
+  DB_ID="$(resolve_db_id)"
 fi
-DB_ID=$(wrangler d1 list --json 2>/dev/null | grep -A1 "\"name\":\\s*\"$DB_NAME\"" | grep '"uuid"' | head -1 | sed -E 's/.*"uuid":\s*"([^"]+)".*/\1/')
-[[ -n "$DB_ID" ]] || die "Could not resolve D1 ID for $DB_NAME"
+[[ -n "$DB_ID" ]] || die "Could not resolve D1 ID for $DB_NAME (try: wrangler d1 list --json)"
 echo "  database_id: $DB_ID"
 
 # ── create R2 ───────────────────────────────────────────────────────
@@ -162,6 +182,13 @@ sys.stdout.write(src)
 PY
 mv "$TMP" wrangler.toml
 echo "  wrangler.toml updated"
+
+# ── create Pages project (so secret put / deploy has something to target) ─
+say "Ensuring Cloudflare Pages project \"$PROJECT_NAME\" exists"
+if ! wrangler pages project list 2>/dev/null | awk '{print $2}' | grep -qx "$PROJECT_NAME"; then
+  wrangler pages project create "$PROJECT_NAME" --production-branch=main \
+    || warn "pages project create returned non-zero — may already exist; continuing"
+fi
 
 # ── apply schema ────────────────────────────────────────────────────
 say "Applying schema/init.sql"
