@@ -1,0 +1,17 @@
+{
+  "name": "pages-seo",
+  "version": "0.1.0",
+  "private": false,
+  "license": "MIT",
+  "description": "Self-hostable programmatic-SEO + daily-blog toolkit for Cloudflare Pages. Workers AI primary, OpenAI fallback.",
+  "scripts": {
+    "deploy": "./scripts/deploy.sh",
+    "db:init": "wrangler d1 execute pages-seo --remote --file=schema/init.sql",
+    "db:console": "wrangler d1 execute pages-seo --remote --command=\"SELECT count(*) FROM blog_posts\"",
+    "dev": "wrangler pages dev public",
+    "cron:deploy": "cd cron-worker && wrangler deploy"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

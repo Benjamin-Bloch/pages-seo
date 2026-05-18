@@ -1,0 +1,30 @@
+# Cloudflare Pages config. Self-hosters fork this and adjust:
+#   1. `name` to whatever they call the project
+#   2. The D1 database_id after creating their own DB
+#   3. The R2 bucket name (if they use images)
+#
+# Deploy with:  wrangler pages deploy public --project-name=<name>
+
+name = "pages-seo"
+compatibility_date = "2026-05-18"
+pages_build_output_dir = "./public"
+
+# D1 — stores generated posts, programmatic pages, keyword pool, cron state.
+# Create with:  wrangler d1 create pages-seo
+# Apply schema: wrangler d1 execute pages-seo --remote --file=schema/init.sql
+[[d1_databases]]
+binding = "DB"
+database_name = "pages-seo"
+database_id = "REPLACE_AFTER_CREATING_DB"
+
+# R2 — stores hero images. Create with:
+#   wrangler r2 bucket create pages-seo-images
+[[r2_buckets]]
+binding = "IMAGES"
+bucket_name = "pages-seo-images"
+
+# Workers AI — bound automatically; no extra config needed.
+# We default to Workers AI for text + image generation. OpenAI is an
+# optional fallback set via the OPENAI_API_KEY secret.
+[ai]
+binding = "AI"

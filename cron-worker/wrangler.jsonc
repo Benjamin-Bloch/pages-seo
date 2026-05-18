@@ -1,0 +1,24 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "pages-seo-cron",
+  "main": "src/index.js",
+  "compatibility_date": "2026-05-18",
+
+  // Triggers:
+  //   0 8 * * *         → start daily blog (or resume any draft first)
+  //   0 10,14,18 * * *  → retry-only windows for unfinished drafts
+  //   0 9 * * *         → programmatic-SEO batch (10 keywords per run)
+  //
+  // Secrets:
+  //   BLOG_URL    — https://<host>/api/admin/blog (base path)
+  //   PROG_URL    — https://<host>/api/admin/prog/generate-next
+  //   ADMIN_TOKEN — shared bearer token
+
+  "triggers": {
+    "crons": [
+      "0 8 * * *",
+      "0 10,14,18 * * *",
+      "0 9 * * *"
+    ]
+  }
+}

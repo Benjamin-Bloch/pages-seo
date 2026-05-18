@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>pages-seo · Self-hosted programmatic SEO on Cloudflare</title>
+<meta name="description" content="A self-hostable programmatic-SEO + daily-blog toolkit for Cloudflare Pages. Workers AI primary, OpenAI fallback. Open source, MIT licensed." />
+<link rel="canonical" href="/" />
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+<header class="nav">
+  <a class="brand" href="/">pages-seo</a>
+  <nav>
+    <a href="/blog">Blog</a>
+    <a href="https://github.com/Benjamin-Bloch/pages-seo" target="_blank" rel="noopener">GitHub</a>
+  </nav>
+</header>
+
+<main class="landing">
+  <section class="hero">
+    <span class="eyebrow">Open source · Cloudflare-native</span>
+    <h1>Programmatic SEO at the edge.</h1>
+    <p class="lede">A self-hosted toolkit that publishes one AI-written blog post a day and turns a keyword list into hundreds of indexable landing pages. Runs entirely on Cloudflare — Pages Functions, D1, R2, Workers AI. Free tier covers most use cases.</p>
+    <div class="cta">
+      <a class="btn btn-primary" href="https://github.com/Benjamin-Bloch/pages-seo" target="_blank" rel="noopener">⭐ Star on GitHub</a>
+      <a class="btn btn-ghost" href="/blog">See the blog</a>
+    </div>
+  </section>
+
+  <section class="features">
+    <article>
+      <h2>One post a day, on autopilot</h2>
+      <p>A daily cron picks a topic from a 50-entry pool, generates a 900-1300 word post with a hero image, and pings IndexNow. Three backup windows resume failed jobs the same day.</p>
+    </article>
+    <article>
+      <h2>Programmatic landing pages</h2>
+      <p>Drop a CSV of long-tail keywords. The worker chews through them one at a time, producing a unique 700-1000 word landing page per keyword — each with its own schema, sitemap entry, and IndexNow ping.</p>
+    </article>
+    <article>
+      <h2>Workers AI primary, OpenAI fallback</h2>
+      <p>Defaults to Llama 3.3 70B + Flux on Workers AI — free at the edge. Configure an OpenAI key and posts can opt-in to gpt-5 + gpt-image-1 for higher quality.</p>
+    </article>
+    <article>
+      <h2>Drop-in widget for any site</h2>
+      <p>One-line <code>&lt;script&gt;</code> tag puts your latest posts on your existing marketing site. Cross-origin enabled, zero-CSS footprint.</p>
+    </article>
+    <article>
+      <h2>SEO plumbing included</h2>
+      <p>Dynamic sitemap, robots.txt, canonical URLs, Open Graph, JSON-LD Article + BreadcrumbList schema, automatic IndexNow on publish. The boring stuff is already done.</p>
+    </article>
+    <article>
+      <h2>Resilient by design</h2>
+      <p>Multi-step generation chain (topic → article → image → publish) with a draft state between each step. A transient OpenAI error doesn't lose the post — the next cron resumes from the failed step.</p>
+    </article>
+  </section>
+
+  <section class="cta-end">
+    <h2>Five-minute setup</h2>
+    <pre><code>git clone https://github.com/Benjamin-Bloch/pages-seo
+cd pages-seo
+wrangler d1 create pages-seo
+wrangler r2 bucket create pages-seo-images
+wrangler pages secret put ADMIN_TOKEN --project-name=pages-seo
+wrangler pages secret put INDEXNOW_KEY --project-name=pages-seo
+npm run db:init
+npm run deploy</code></pre>
+    <p>Full instructions in the <a href="https://github.com/Benjamin-Bloch/pages-seo#readme" target="_blank" rel="noopener">README</a>.</p>
+  </section>
+</main>
+
+<footer class="foot">
+  <span>pages-seo · MIT licensed</span> · <a href="/blog">Blog</a> · <a href="https://github.com/Benjamin-Bloch/pages-seo" target="_blank" rel="noopener">GitHub</a>
+</footer>
+</body>
+</html>

@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="robots" content="noindex,nofollow" />
+<title>Admin · pages-seo</title>
+<link rel="stylesheet" href="/admin.css" />
+</head>
+<body>
+
+<!-- Token gate. Shown on first load; admin.js validates against
+     /api/admin/whoami before swapping to the main dashboard. -->
+<div id="gate" class="gate" hidden>
+  <div class="gate-card">
+    <h1>pages-seo admin</h1>
+    <p>Paste the <code>ADMIN_TOKEN</code> secret from your Cloudflare project to continue.</p>
+    <input id="gate-token" type="password" autocomplete="off" placeholder="paste token…" />
+    <button id="gate-go" class="btn btn-primary">Unlock</button>
+    <div id="gate-err" class="err"></div>
+  </div>
+</div>
+
+<div id="dash" class="dash" hidden>
+  <header class="topbar">
+    <div class="brand">pages-seo · admin</div>
+    <nav class="tabs">
+      <button class="tab" data-tab="overview" aria-current="page">Overview</button>
+      <button class="tab" data-tab="blog">Daily blog</button>
+      <button class="tab" data-tab="prog">Programmatic</button>
+      <button class="tab" data-tab="seo">SEO</button>
+    </nav>
+    <button id="lock" class="btn btn-ghost btn-sm">Lock</button>
+  </header>
+
+  <main class="pages">
+
+    <!-- ============ OVERVIEW ============ -->
+    <section data-page="overview" class="page">
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-eyebrow">Posts</div>
+          <div class="card-stat" id="stat-blog-count">—</div>
+          <div class="card-sub">Published blog posts</div>
+        </div>
+        <div class="card">
+          <div class="card-eyebrow">Programmatic</div>
+          <div class="card-stat" id="stat-prog-count">—</div>
+          <div class="card-sub">Generated landing pages</div>
+        </div>
+        <div class="card">
+          <div class="card-eyebrow">Queue</div>
+          <div class="card-stat" id="stat-queue-count">—</div>
+          <div class="card-sub">Pending keywords</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-eyebrow">Quick actions</div>
+        <h2>Run something</h2>
+        <p>Trigger a one-off generation or refresh search engines now.</p>
+        <div class="row">
+          <button id="qa-blog" class="btn btn-primary">Generate blog post</button>
+          <button id="qa-prog" class="btn btn-primary">Generate next programmatic page</button>
+          <button id="qa-ping" class="btn btn-ghost">Ping IndexNow</button>
+        </div>
+        <pre id="qa-out" class="log" hidden></pre>
+      </div>
+    </section>
+
+    <!-- ============ BLOG ============ -->
+    <section data-page="blog" class="page" hidden>
+      <div class="card">
+        <div class="card-eyebrow">Daily blog</div>
+        <h2>Generate a post</h2>
+        <p>One full chain: pick topic → write 900-1300 words → generate hero image → publish + ping IndexNow. ~60-120s total.</p>
+        <div class="row">
+          <button id="blog-go" class="btn btn-primary">Generate now</button>
+          <span id="blog-status" class="status"></span>
+        </div>
+        <pre id="blog-log" class="log" hidden></pre>
+      </div>
+
+      <div class="card">
+        <div class="card-eyebrow">Drafts &amp; failed</div>
+        <h2>Resume incomplete jobs</h2>
+        <p>Each step is idempotent, so retry resumes from whichever step failed.</p>
+        <div class="row">
+          <button id="jobs-refresh" class="btn btn-ghost btn-sm">Refresh</button>
+        </div>
+        <table id="jobs-table" class="data">
+          <thead><tr><th>When</th><th>Topic</th><th>Slug</th><th>Status</th><th>Error</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-eyebrow">Published posts</div>
+        <h2>Blog post list</h2>
+        <table id="posts-table" class="data">
+          <thead><tr><th>Date</th><th>Title</th><th>Slug</th><th>Provider</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ PROGRAMMATIC ============ -->
+    <section data-page="prog" class="page" hidden>
+      <div class="card">
+        <div class="card-eyebrow">Pull keywords</div>
+        <h2>Discover from Google Autocomplete</h2>
+        <p>Type a seed phrase, get 50 related long-tails, queued straight into the generation pipeline.</p>
+        <div class="row">
+          <input id="pull-seed" placeholder="e.g. instagram followers" />
+          <input id="pull-limit" type="number" value="50" min="1" max="200" style="max-width:90px" />
+          <button id="pull-go" class="btn btn-primary">Pull &amp; queue</button>
+          <button id="pull-preview" class="btn btn-ghost">Preview only</button>
+        </div>
+        <pre id="pull-out" class="log" hidden></pre>
+      </div>
+
+      <div class="card">
+        <div class="card-eyebrow">Upload keyword list</div>
+        <h2>Paste your own</h2>
+        <p>One keyword per line. Duplicates are skipped automatically.</p>
+        <textarea id="upload-csv" placeholder="best smm panel uk&#10;cheap instagram followers&#10;…"></textarea>
+        <div class="row">
+          <button id="upload-go" class="btn btn-primary">Add to queue</button>
+          <span id="upload-status" class="status"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-eyebrow">Queue</div>
+        <h2>Pending keywords</h2>
+        <div class="row">
+          <select id="queue-status">
+            <option value="pending" selected>Pending</option>
+            <option value="processing">Processing</option>
+            <option value="done">Done</option>
+            <option value="failed">Failed</option>
+          </select>
+          <button id="queue-refresh" class="btn btn-ghost btn-sm">Refresh</button>
+        </div>
+        <table id="queue-table" class="data">
+          <thead><tr><th>Keyword</th><th>Status</th><th>Attempts</th><th>Slug</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-eyebrow">Run now</div>
+        <h2>Generate the next page</h2>
+        <p>Takes ~60-120s. Run multiple to chew through the queue manually; otherwise the daily cron handles 10/day.</p>
+        <div class="row">
+          <button id="prog-go" class="btn btn-primary">Generate next</button>
+          <span id="prog-status" class="status"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SEO ============ -->
+    <section data-page="seo" class="page" hidden>
+      <div class="card">
+        <div class="card-eyebrow">IndexNow</div>
+        <h2>Push the sitemap to Bing, Yandex, Seznam</h2>
+        <p>Reads <code>/sitemap.xml</code> and submits every URL to IndexNow. Runs automatically after each new post; this button is for ad-hoc re-pings.</p>
+        <div class="row">
+          <button id="ping-go" class="btn btn-primary">Ping IndexNow</button>
+          <span id="ping-status" class="status"></span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">Sitemap</div>
+        <h2>Live sitemap</h2>
+        <p><a id="sitemap-link" href="/sitemap.xml" target="_blank">/sitemap.xml ↗</a></p>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">Embed widget</div>
+        <h2>Drop the latest posts on any site</h2>
+        <p>One-line script. Cross-origin enabled.</p>
+        <pre id="widget-snippet" class="log"></pre>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="/admin.js"></script>
+</body>
+</html>
