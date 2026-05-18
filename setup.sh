@@ -53,21 +53,27 @@ save_kv() {
 mark_done() { save_kv "STEP_$1" "done"; }
 is_done()   { [[ -f "$STATE_FILE" ]] && grep -q "^STEP_$1=done$" "$STATE_FILE"; }
 
-# Resolve a D1 database ID by name from `wrangler d1 list --json`.
+# Resolve a D1 database ID by name. We capture wrangler's stdout to a
+# temp file rather than piping it directly into `python3 -` — the dash
+# form treats stdin as the *script source*, so piped JSON would be read
+# as Python and crash on `null` (which is `None` in Python).
 resolve_db_id() {
-  local target="$1"
-  wrangler d1 list --json 2>/dev/null | python3 - "$target" <<'PY'
+  local target="$1" tmp
+  tmp="$(mktemp)"
+  wrangler d1 list --json > "$tmp" 2>/dev/null || { rm -f "$tmp"; return 0; }
+  python3 -c '
 import json, sys
 target = sys.argv[1]
 try:
-    data = json.load(sys.stdin)
+    data = json.load(open(sys.argv[2]))
 except Exception:
     sys.exit(0)
 for row in data if isinstance(data, list) else []:
-    if row.get('name') == target:
-        print(row.get('uuid') or row.get('database_id') or row.get('id') or '')
+    if row.get("name") == target:
+        print(row.get("uuid") or row.get("database_id") or row.get("id") or "")
         break
-PY
+' "$target" "$tmp"
+  rm -f "$tmp"
 }
 
 push_secret() {
