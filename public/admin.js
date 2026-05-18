@@ -96,7 +96,155 @@
     if (name === 'blog') { loadJobs(); loadPosts(); }
     if (name === 'prog') { loadQueue(); }
     if (name === 'seo') { renderWidgetSnippet(); }
-    if (name === 'settings') { loadSettings(); }
+    if (name === 'brand') { loadBrand(); }
+    if (name === 'settings') { loadSettings(); loadProviderGrid(); }
+  }
+
+  // ── brand DNA ────────────────────────────────────────────────────
+  // Project name used by the wrangler-secret-put hint. Inferred from
+  // SITE_URL when possible (e.g. https://my-royal-bath.pages.dev → my-royal-bath).
+  function inferProjectName(siteUrl) {
+    try {
+      const host = new URL(siteUrl).hostname;
+      const m = host.match(/^([^.]+)\.pages\.dev$/);
+      if (m) return m[1];
+      return host.split('.')[0];
+    } catch { return '<project-name>'; }
+  }
+
+  function fillBrand(brand) {
+    $$('[data-brand]').forEach((el) => {
+      const k = el.dataset.brand;
+      el.value = brand?.[k] ?? '';
+    });
+    const ga = $('#brand-generated-at');
+    if (ga) ga.value = brand?.generated_at || '';
+  }
+
+  async function loadBrand() {
+    const { status, body } = await api('/api/admin/brand-dna');
+    if (status !== 200) return;
+    fillBrand(body?.brand || {});
+    // Pre-seed the URL input with the saved source_url if any.
+    const urlIn = $('#brand-url');
+    if (urlIn && !urlIn.value) urlIn.value = body?.brand?.source_url || '';
+  }
+
+  async function generateBrand() {
+    const url = $('#brand-url').value.trim();
+    const status = $('#brand-gen-status');
+    if (!url) { status.className = 'status bad'; status.textContent = 'Enter a URL first.'; return; }
+    const btn = $('#brand-generate');
+    btn.disabled = true;
+    status.className = 'status'; status.textContent = 'Scraping + analysing… ~10-30s';
+    const { status: code, body } = await api('/api/admin/brand-dna', {
+      method: 'POST',
+      body: JSON.stringify({
+        url,
+        // Carry over any user-typed service-area / topics-to-avoid so the
+        // model doesn't overwrite the operator's intent.
+        service_area:    $('[data-brand="service_area"]').value.trim() || undefined,
+        topics_to_avoid: $('[data-brand="topics_to_avoid"]').value.trim() || undefined,
+      }),
+    });
+    btn.disabled = false;
+    if (code !== 200 || !body?.ok) {
+      status.className = 'status bad';
+      status.textContent = (body?.error || code) + (body?.detail ? ' · ' + body.detail : '');
+      return;
+    }
+    fillBrand(body.brand);
+    // Also fill source_url field manually since the GET endpoint returns
+    // it under a key the form-fill loop reads.
+    const su = $('[data-brand="source_url"]');
+    if (su) su.value = body.brand.source_url || '';
+    status.className = 'status good';
+    status.textContent = `Generated · provider=${body.brand.provider}. Review then click Save.`;
+  }
+
+  async function saveBrand() {
+    const status = $('#brand-save-status');
+    status.className = 'status'; status.textContent = 'Saving…';
+    const payload = {};
+    $$('[data-brand]').forEach((el) => {
+      payload[el.dataset.brand] = (el.value || '').toString();
+    });
+    const { status: code, body } = await api('/api/admin/brand-dna', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+    if (code !== 200 || !body?.ok) {
+      status.className = 'status bad'; status.textContent = body?.error || code; return;
+    }
+    status.className = 'status good';
+    status.textContent = `Saved · ${body.saved} field(s). Every new post will use this.`;
+    setTimeout(() => { status.textContent = ''; status.className = 'status'; }, 4000);
+  }
+
+  // ── provider status grid (Settings tab) ─────────────────────────
+  const PROVIDER_META = [
+    { name: 'workers-ai', label: 'Cloudflare Workers AI', envKey: '(binding)',          text: true,  image: true,  optional: false },
+    { name: 'openai',     label: 'OpenAI',                envKey: 'OPENAI_API_KEY',     text: true,  image: true,  optional: true },
+    { name: 'anthropic',  label: 'Anthropic Claude',      envKey: 'ANTHROPIC_API_KEY',  text: true,  image: false, optional: true },
+    { name: 'gemini',     label: 'Google Gemini',         envKey: 'GEMINI_API_KEY',     text: true,  image: true,  optional: true },
+    { name: 'groq',       label: 'Groq',                  envKey: 'GROQ_API_KEY',       text: true,  image: false, optional: true },
+    { name: 'deepseek',   label: 'DeepSeek',              envKey: 'DEEPSEEK_API_KEY',   text: true,  image: false, optional: true },
+    { name: 'mistral',    label: 'Mistral',               envKey: 'MISTRAL_API_KEY',    text: true,  image: false, optional: true },
+    { name: 'together',   label: 'Together AI',           envKey: 'TOGETHER_API_KEY',   text: true,  image: false, optional: true },
+    { name: 'cerebras',   label: 'Cerebras',              envKey: 'CEREBRAS_API_KEY',   text: true,  image: false, optional: true },
+  ];
+
+  async function loadProviderGrid() {
+    const grid = $('#providers-grid');
+    if (!grid) return;
+    clearChildren(grid);
+    const { body } = await api('/api/admin/providers');
+    const textSet = new Set(body?.text || []);
+    // Try to discover the project name once for the copy commands.
+    const who = await api('/api/admin/whoami');
+    const projectName = inferProjectName(who.body?.site_url || '');
+
+    for (const p of PROVIDER_META) {
+      const configured = textSet.has(p.name);
+      const card = document.createElement('div');
+      card.className = 'provider-card' + (configured ? ' configured' : '');
+
+      const head = document.createElement('div'); head.className = 'provider-head';
+      const dot = document.createElement('span'); dot.className = 'provider-dot' + (configured ? ' on' : '');
+      const label = document.createElement('strong'); label.textContent = p.label;
+      const badge = document.createElement('span'); badge.className = 'provider-status';
+      badge.textContent = configured ? 'configured' : (p.optional ? 'not set' : 'missing');
+      head.append(dot, label, badge);
+
+      const sub = document.createElement('div'); sub.className = 'provider-sub';
+      const caps = [];
+      if (p.text)  caps.push('text');
+      if (p.image) caps.push('image');
+      sub.textContent = `${p.envKey} · ${caps.join(' + ')}`;
+
+      card.append(head, sub);
+
+      if (!configured && p.optional) {
+        const cmdRow = document.createElement('div'); cmdRow.className = 'provider-cmd';
+        const cmd = `wrangler pages secret put ${p.envKey} --project-name=${projectName}`;
+        const code = document.createElement('code'); code.textContent = cmd;
+        const copy = document.createElement('button'); copy.className = 'btn btn-ghost btn-sm';
+        copy.textContent = 'Copy';
+        copy.onclick = async () => {
+          try {
+            await navigator.clipboard.writeText(cmd);
+            copy.textContent = 'Copied!';
+            setTimeout(() => (copy.textContent = 'Copy'), 1500);
+          } catch {
+            copy.textContent = 'Select+copy manually';
+          }
+        };
+        cmdRow.append(code, copy);
+        card.append(cmdRow);
+      }
+
+      grid.appendChild(card);
+    }
   }
 
   // ── settings ────────────────────────────────────────────────────
@@ -530,6 +678,12 @@
     // settings tab
     const saveBtn = $('#settings-save');
     if (saveBtn) saveBtn.addEventListener('click', saveSettings);
+
+    // brand DNA tab
+    const bGen = $('#brand-generate');
+    const bSave = $('#brand-save');
+    if (bGen)  bGen.addEventListener('click', generateBrand);
+    if (bSave) bSave.addEventListener('click', saveBrand);
 
     activateTab('overview');
   }

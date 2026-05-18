@@ -37,8 +37,12 @@ export const onRequestPost = async ({ request, env }) => {
     name: body.brand?.name || env.SITE_NAME,
     url:  body.brand?.url  || env.SITE_URL,
     cta:  body.brand?.cta  || settings.site_cta,
-    tone: body.brand?.tone || settings.site_tone || undefined,
-    audience: body.brand?.audience || settings.site_audience || undefined,
+    tone: body.brand?.tone || settings.brand_voice_tone || settings.site_tone || undefined,
+    audience: body.brand?.audience || settings.brand_target_audience || settings.site_audience || undefined,
+    business_type:   body.brand?.business_type   || settings.brand_business_type   || undefined,
+    key_themes:      body.brand?.key_themes      || settings.brand_key_themes      || undefined,
+    topics_to_avoid: body.brand?.topics_to_avoid || settings.brand_topics_to_avoid || undefined,
+    service_area:    body.brand?.service_area    || settings.brand_service_area    || undefined,
     aliases: buildAliases(env),
   };
 

@@ -73,6 +73,38 @@ function voiceBlock(brand) {
   ].join('\n');
 }
 
+// Renders the long-form brand DNA (business type, key themes, topics
+// to avoid, service area) into a prompt block. Only emits sections
+// that are actually populated — empty fields don't burn tokens.
+function brandDNABlock(brand) {
+  const out = [];
+  if (brand?.business_type) {
+    out.push('# Business context');
+    out.push(String(brand.business_type).trim());
+    out.push('');
+  }
+  if (brand?.key_themes) {
+    out.push('# Key themes this brand covers');
+    const themes = String(brand.key_themes)
+      .split(/[\n,]/).map((s) => s.trim()).filter(Boolean);
+    for (const t of themes) out.push(`- ${t}`);
+    out.push('');
+  }
+  if (brand?.service_area) {
+    out.push(`# Service area`);
+    out.push(`This brand operates in: ${String(brand.service_area).trim()}.`);
+    out.push('If location-relevant, mention this naturally. Do NOT invent service areas outside it.');
+    out.push('');
+  }
+  if (brand?.topics_to_avoid) {
+    out.push('# DO NOT mention');
+    out.push(String(brand.topics_to_avoid).trim());
+    out.push('Treat the above as off-strategy. Skip these topics entirely.');
+    out.push('');
+  }
+  return out.join('\n');
+}
+
 function jsonSchemaBlock(primaryQueryHint = '...') {
   return [
     'Return STRICT JSON only — no markdown fences, no prose outside the braces. Shape:',
@@ -99,6 +131,7 @@ function buildArticlePrompt(angle, brand) {
     `You are a senior content writer for ${brandName} (${brandUrl}).`,
     `Today's topic angle: "${angle}"`,
     ``,
+    brandDNABlock(brand),
     `# Reader context`,
     voiceBlock(brand),
     ``,
@@ -145,6 +178,7 @@ function buildProgrammaticPrompt(keyword, brand) {
     `Target keyword (verbatim, this is the search query): "${keyword}"`,
     'This page needs to rank for that exact query and serve the reader who typed it.',
     '',
+    brandDNABlock(brand),
     `# Reader context`,
     voiceBlock(brand),
     'The reader typed this exact keyword into Google. They have a specific question or intent. Address it head-on in the first paragraph — do NOT bury the answer.',

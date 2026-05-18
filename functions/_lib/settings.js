@@ -19,6 +19,17 @@ const FALLBACK = {
   prog_min_words:      () => '700',
   prog_max_words:      () => '1000',
   default_ai_provider: () => '',
+  // Brand DNA — generated from the user's own site, editable in the
+  // admin UI. Plugged into every prompt so the LLM writes as if it
+  // works for that business.
+  brand_business_type:     () => '',
+  brand_voice_tone:        () => '',
+  brand_target_audience:   () => '',
+  brand_key_themes:        () => '', // newline- or comma-separated
+  brand_topics_to_avoid:   () => '',
+  brand_service_area:      () => '',
+  brand_source_url:        () => '', // the URL we scraped (informational)
+  brand_generated_at:      () => '', // ISO timestamp of last generation
 };
 
 const KEYS = Object.keys(FALLBACK);
