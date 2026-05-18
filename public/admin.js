@@ -1049,8 +1049,95 @@
       catch { return null; }
     }
 
+    // Tiny mirror of functions/_lib/template.js so the canvas can use
+    // the same syntax as the server. Keep them in sync — same filters,
+    // same conditional shape. See server file for the full spec.
+    const TPL_FILTERS = {
+      upper:    (v) => String(v ?? '').toUpperCase(),
+      lower:    (v) => String(v ?? '').toLowerCase(),
+      title:    (v) => String(v ?? '').replace(/\w\S*/g, (t) => t[0].toUpperCase() + t.slice(1).toLowerCase()),
+      truncate: (v, n) => {
+        const s = String(v ?? '');
+        const max = parseInt(n, 10) || 60;
+        return s.length > max ? s.slice(0, max - 1).trimEnd() + '…' : s;
+      },
+      default:  (v, fb) => {
+        const s = String(v ?? '').trim();
+        return s ? v : (fb ?? '');
+      },
+      slug:   (v) => String(v ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+      escape: (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])),
+      date:   (v, fmt) => {
+        const d = v ? new Date(v) : new Date();
+        if (isNaN(d.getTime())) return '';
+        const f = String(fmt || 'short');
+        if (f === 'long') return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+        if (f === 'short') return d.toISOString().slice(0, 10);
+        return f
+          .replace(/YYYY/g, d.getUTCFullYear())
+          .replace(/MM/g, String(d.getUTCMonth() + 1).padStart(2, '0'))
+          .replace(/DD/g, String(d.getUTCDate()).padStart(2, '0'))
+          .replace(/HH/g, String(d.getUTCHours()).padStart(2, '0'))
+          .replace(/mm/g, String(d.getUTCMinutes()).padStart(2, '0'));
+      },
+    };
+
+    function tplLookup(ctx, path) {
+      if (!path) return undefined;
+      const parts = path.split('.');
+      let cur = ctx;
+      for (const p of parts) {
+        if (cur == null || typeof cur !== 'object') return undefined;
+        cur = cur[p];
+      }
+      return cur;
+    }
+
+    function tplTruthy(v) {
+      if (v == null || v === false || v === 0) return false;
+      if (typeof v === 'string') {
+        const s = v.trim();
+        return !!s && s !== '0' && s.toLowerCase() !== 'false';
+      }
+      if (Array.isArray(v)) return v.length > 0;
+      return true;
+    }
+
+    function tplExpand(template, ctx) {
+      if (template == null) return '';
+      let s = String(template);
+      // Conditionals first.
+      const re = /\{\s*if\s+(!)?\s*([a-zA-Z_][\w.]*)\s*\}([\s\S]*?)\{\s*\/if\s*\}/;
+      for (let i = 0; i < 100; i++) {
+        const m = s.match(re);
+        if (!m) break;
+        const v = tplLookup(ctx, m[2]);
+        const keep = tplTruthy(v) !== (m[1] === '!') ? m[3] : '';
+        s = s.slice(0, m.index) + keep + s.slice(m.index + m[0].length);
+      }
+      // Then plain tokens.
+      return s.replace(/\{\s*([^{}|][^{}]*?)\s*\}/g, (full, raw) => {
+        if (/^\s*(if\s+|\/if)/i.test(raw)) return full;
+        const parts = raw.split('|').map((p) => p.trim());
+        const path = parts.shift();
+        let v = tplLookup(ctx, path);
+        for (const p of parts) {
+          const colon = p.indexOf(':');
+          const name = colon < 0 ? p.trim() : p.slice(0, colon).trim();
+          let arg = colon < 0 ? undefined : p.slice(colon + 1).trim();
+          if (arg) { const qm = arg.match(/^['"](.*)['"]$/); if (qm) arg = qm[1]; }
+          const fn = TPL_FILTERS[name];
+          if (typeof fn === 'function') { try { v = fn(v, arg); } catch {} }
+        }
+        return v == null ? '' : String(v);
+      });
+    }
+
+    // Backwards-compat shim — older code calls substituteTitle(text, title).
+    // We translate that into a one-key context so existing layers still work
+    // even if the spec ever changes.
     function substituteTitle(text, title) {
-      return String(text || '').replace(/\{title\}/gi, title || '');
+      return tplExpand(text, { title: title || '' });
     }
 
     function wrapLines(ctx, text, maxWidth) {
@@ -1072,7 +1159,15 @@
       return lines;
     }
 
-    async function draw(previewTitle = '') {
+    // Normalise a draw() argument into a full template context. Accepts
+    // either a string (treated as title) or a full ctx object.
+    function normaliseCtx(arg) {
+      if (arg && typeof arg === 'object') return arg;
+      return { title: String(arg || ''), date: new Date(), has_image: !!state.template.background?.url };
+    }
+
+    async function draw(arg = '') {
+      const previewCtx = normaliseCtx(arg);
       const canvas = $('#' + CANVAS_ID);
       if (!canvas) return;
       const { width, height } = state.template;
@@ -1112,7 +1207,7 @@
           ctx.fillStyle = layer.color || '#ffffff';
           ctx.textBaseline = 'top';
           ctx.textAlign = layer.align || 'left';
-          const display = substituteTitle(layer.text, previewTitle);
+          const display = tplExpand(layer.text, previewCtx);
           const lines = wrapLines(ctx, display, layer.w || width - layer.x);
           const lineHeight = fontSize * (layer.lineHeight || 1.15);
           let drawX = layer.x;
@@ -1606,14 +1701,44 @@
       }
     }
 
-    async function runPreview() {
+    // Build a full template context for the editor: title comes from
+    // the chosen post (or the typed-override input), brand fields come
+    // from the live settings call. The same shape as the server's
+    // buildBrandContext() so tokens behave identically.
+    async function buildPreviewCtx() {
       const titleField = $('#cover-preview-title').value.trim();
       const postId = $('#cover-preview-post').value;
-      let title = titleField;
-      if (!title && postId) {
-        title = state.posts.find((p) => p.id === postId)?.title || '';
-      }
-      redraw(title);
+      const post = postId ? state.posts.find((p) => p.id === postId) : null;
+      const title = titleField || post?.title || '';
+      const s = await api('/api/admin/settings');
+      const settings = s.body?.settings || {};
+      const env = { SITE_NAME: s.body?.settings?.site_name, SITE_URL: s.body?.settings?.site_url };
+      const whoami = await api('/api/admin/whoami');
+      return {
+        title,
+        primary_keyword: post?.primary_query || '',
+        slug: post?.slug || '',
+        provider: post?.ai_provider || '',
+        has_image: !!post?.hero_image_key,
+        has_logo:  state.template.layers.some((l) => l.kind === 'logo' && l.url),
+        date: new Date(),
+        brand: {
+          name:           whoami.body?.site_name || env.SITE_NAME || 'this site',
+          url:            whoami.body?.site_url  || env.SITE_URL  || '/',
+          cta:            settings.site_cta || '',
+          tone:           settings.brand_voice_tone || settings.site_tone || '',
+          audience:       settings.brand_target_audience || settings.site_audience || '',
+          business_type:  settings.brand_business_type || '',
+          service_area:   settings.brand_service_area  || '',
+          key_themes:     settings.brand_key_themes    || '',
+          topics_to_avoid: settings.brand_topics_to_avoid || '',
+        },
+      };
+    }
+
+    async function runPreview() {
+      const ctx = await buildPreviewCtx();
+      redraw(ctx);
     }
 
     async function applyToTarget() {
@@ -1624,7 +1749,9 @@
       if (!post) { status.className = 'status bad'; status.textContent = 'Post not found.'; return; }
       status.className = 'status'; status.textContent = 'Rendering…';
       state._renderingFinal = true;
-      await draw(post.title);
+      const ctx = await buildPreviewCtx();
+      ctx.title = post.title; // ensure the applied title wins
+      await draw(ctx);
       state._renderingFinal = false;
       const canvas = $('#' + CANVAS_ID);
       const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));

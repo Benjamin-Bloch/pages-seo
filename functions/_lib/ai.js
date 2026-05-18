@@ -1,4 +1,5 @@
 // AI provider router.
+import { renderTemplate } from './template.js';
 //
 // Supports a pluggable registry of providers. Workers AI is the default —
 // it runs at the edge, free tier covers ~10k tokens/day, and is bound via
@@ -121,7 +122,41 @@ function jsonSchemaBlock(primaryQueryHint = '...') {
   ].join('\n');
 }
 
+// Expand any templating tokens in the user-supplied brand strings.
+// This lets operators write things like `{brand.name} customers love
+// it.` in the CTA, or `Today is {date|date:long}` in the tone — and
+// have them resolved at prompt-build time.
+function expandBrandFields(brand, extraCtx = {}) {
+  if (!brand) return brand;
+  const ctx = {
+    title: extraCtx.title || '',
+    primary_keyword: extraCtx.primary_keyword || '',
+    date: new Date(),
+    has_image: !!extraCtx.has_image,
+    brand: {
+      name: brand.name, url: brand.url, cta: brand.cta,
+      tone: brand.tone, audience: brand.audience,
+      business_type: brand.business_type,
+      service_area:  brand.service_area,
+      key_themes:    brand.key_themes,
+      topics_to_avoid: brand.topics_to_avoid,
+    },
+  };
+  const exp = (s) => (s == null ? s : renderTemplate(String(s), ctx));
+  return {
+    ...brand,
+    cta:             exp(brand.cta),
+    tone:            exp(brand.tone),
+    audience:        exp(brand.audience),
+    business_type:   exp(brand.business_type),
+    service_area:    exp(brand.service_area),
+    key_themes:      exp(brand.key_themes),
+    topics_to_avoid: exp(brand.topics_to_avoid),
+  };
+}
+
 function buildArticlePrompt(angle, brand) {
+  brand = expandBrandFields(brand, { title: angle });
   const brandName = brand?.name || 'this site';
   const brandUrl = brand?.url || '/';
   const cta = brand?.cta || 'Sign up to get started.';
@@ -168,6 +203,7 @@ function buildArticlePrompt(angle, brand) {
 }
 
 function buildProgrammaticPrompt(keyword, brand) {
+  brand = expandBrandFields(brand, { primary_keyword: keyword });
   const brandName = brand?.name || 'this site';
   const brandUrl = brand?.url || '/';
   const cta = brand?.cta || 'Sign up to get started.';
