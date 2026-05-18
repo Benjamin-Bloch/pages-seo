@@ -139,14 +139,55 @@ function shapeArticle(parsed, providerLabel) {
   };
 }
 
-// Strip code fences / leading prose if the model wraps its JSON.
+// Escape raw control characters (newlines, tabs, etc.) that appear
+// *inside* JSON string literals. Llama-class models routinely return
+// JSON-looking output with raw \n bytes inside the body_markdown field,
+// which violates strict JSON. We walk the string with a tiny state
+// machine and replace unescaped control chars with their \uXXXX form
+// only while we're inside a string literal.
+function escapeControlsInStrings(s) {
+  let out = '';
+  let inStr = false;
+  let escaped = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    const code = ch.charCodeAt(0);
+    if (!inStr) {
+      out += ch;
+      if (ch === '"') inStr = true;
+      continue;
+    }
+    if (escaped) {
+      out += ch;
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\') { out += ch; escaped = true; continue; }
+    if (ch === '"') { out += ch; inStr = false; continue; }
+    if (code < 0x20) {
+      // \n → \\n, \r → \\r, \t → \\t, others → \\uXXXX.
+      if (code === 0x0a) out += '\\n';
+      else if (code === 0x0d) out += '\\r';
+      else if (code === 0x09) out += '\\t';
+      else out += '\\u' + code.toString(16).padStart(4, '0');
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+// Strip code fences / leading prose if the model wraps its JSON. Also
+// tolerates raw control chars inside string values (Llama habit).
 function looseJsonParse(text) {
   let s = String(text || '').trim();
   s = s.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
   const first = s.indexOf('{');
   const last = s.lastIndexOf('}');
   if (first >= 0 && last > first) s = s.slice(first, last + 1);
-  return JSON.parse(s);
+  try { return JSON.parse(s); } catch {}
+  // Retry with control chars inside string literals escaped.
+  return JSON.parse(escapeControlsInStrings(s));
 }
 
 const SYSTEM_JSON_ONLY = 'You return strict JSON only. No prose outside the JSON.';
@@ -166,9 +207,16 @@ async function workersAIText(env, prompt) {
     ],
     max_tokens: 4096,
   });
-  const text = r?.response || r?.result?.response || '';
-  if (!text) throw new Error('workers_ai_empty_response');
-  return looseJsonParse(text);
+  // Workers AI may return either a string in `response` or, when the
+  // model emits structured output, an already-parsed object. Cover both.
+  const raw = r?.response ?? r?.result?.response ?? r?.result ?? r;
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    // Already parsed JSON — just hand it back.
+    if (raw.title || raw.body_markdown || raw.primary_query) return raw;
+  }
+  if (typeof raw === 'string' && raw.length) return looseJsonParse(raw);
+  if (!raw) throw new Error('workers_ai_empty_response');
+  throw new Error('workers_ai_unexpected_shape: ' + JSON.stringify(raw).slice(0, 200));
 }
 
 async function workersAIImage(env, prompt) {
