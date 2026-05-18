@@ -165,7 +165,17 @@ textarea{display:block;width:100%;min-height:140px;font-family:var(--mono);font-
 
 /* ── Cover editor ────────────────────────────────────────────── */
 .cover-upload-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px}
-.cover-upload-row .btn{cursor:pointer}
+.cover-upload-row .btn{cursor:pointer;position:relative}
+.cover-upload-row label.busy{
+  pointer-events:none;opacity:0.55;
+  background:linear-gradient(90deg,var(--bg-card) 0%,var(--bg-soft) 50%,var(--bg-card) 100%);
+  background-size:200% 100%;
+  animation:cover-busy-shimmer 1.2s linear infinite;
+}
+@keyframes cover-busy-shimmer{0%{background-position:0% 50%}100%{background-position:-200% 50%}}
+#cover-upload-status{font-size:12.5px;font-family:inherit;font-weight:500}
+#cover-upload-status.status.good{color:var(--good)}
+#cover-upload-status.status.bad{color:var(--bad)}
 
 .cover-assets{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
 @media (max-width:700px){.cover-assets{grid-template-columns:1fr}}

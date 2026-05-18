@@ -1378,22 +1378,60 @@
 
     async function uploadAsset(kind, file) {
       const status = $('#cover-upload-status');
-      status.className = 'status'; status.textContent = `Uploading ${kind}…`;
-      const b64 = await fileToBase64(file);
-      const { status: code, body } = await api('/api/admin/cover/upload', {
-        method: 'POST',
-        body: JSON.stringify({
-          kind, filename: file.name, content_type: file.type, base64: b64,
-        }),
-      });
+      const sizeMB = (file.size / 1024 / 1024).toFixed(2);
+      // Visible busy state — the buttons get disabled, status stays
+      // pinned until completion. Large images can take a few seconds
+      // to base64-encode + upload, so silence is the worst UX.
+      console.log('[cover] uploadAsset start', { kind, name: file.name, type: file.type, size: file.size });
+      const buttons = $$('.cover-upload-row label');
+      buttons.forEach((b) => b.classList.add('busy'));
+      status.className = 'status'; status.textContent = `Encoding ${kind} (${sizeMB} MB)…`;
+      let b64;
+      try { b64 = await fileToBase64(file); }
+      catch (e) {
+        buttons.forEach((b) => b.classList.remove('busy'));
+        status.className = 'status bad';
+        status.textContent = 'Could not read file: ' + (e?.message || e);
+        console.error('[cover] fileToBase64 failed', e);
+        return;
+      }
+      status.textContent = `Uploading ${kind}…`;
+      let resp;
+      try {
+        resp = await api('/api/admin/cover/upload', {
+          method: 'POST',
+          body: JSON.stringify({
+            kind, filename: file.name, content_type: file.type, base64: b64,
+          }),
+        });
+      } catch (e) {
+        buttons.forEach((b) => b.classList.remove('busy'));
+        status.className = 'status bad';
+        status.textContent = 'Network error: ' + (e?.message || e);
+        console.error('[cover] upload network error', e);
+        return;
+      }
+      buttons.forEach((b) => b.classList.remove('busy'));
+      const { status: code, body } = resp;
+      console.log('[cover] upload response', code, body);
       if (code !== 200 || !body?.ok) {
         status.className = 'status bad';
-        status.textContent = 'Upload failed: ' + (body?.error || code);
+        status.textContent = `Upload failed: ${body?.error || code}${body?.detail ? ' · ' + body.detail : ''}`;
         return;
       }
       status.className = 'status good';
-      status.textContent = `Uploaded ${kind}.`;
-      setTimeout(() => { status.textContent = ''; }, 2000);
+      status.textContent = `✓ Uploaded ${kind}: ${file.name}`;
+      // Auto-apply on first upload of each kind so the user sees an
+      // immediate visual change in the canvas.
+      if (kind === 'background' && !state.template.background) {
+        state.template.background = { asset_id: body.asset.id, url: body.asset.url };
+        redraw();
+      } else if (kind === 'logo' && !state.template.layers.find((l) => l.kind === 'logo')) {
+        addLayer('logo');
+        const l = state.template.layers[state.template.layers.length - 1];
+        l.url = body.asset.url; l.asset_id = body.asset.id;
+        redraw();
+      }
       loadAssets();
     }
 
