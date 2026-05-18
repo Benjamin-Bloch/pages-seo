@@ -35,11 +35,20 @@ ask_secret() {
 }
 
 # ── preflight ───────────────────────────────────────────────────────
+# Portable yes-default prompt. Works on macOS bash 3.2 (no ${var,,}).
+ask_yes_default() {
+  local prompt="$1" reply
+  read -rp "  $prompt (Y/n): " reply || true
+  case "$reply" in
+    n|N|no|NO|No) return 1 ;;
+    *)            return 0 ;;
+  esac
+}
+
 if ! command -v wrangler >/dev/null; then
   warn "wrangler CLI not found."
   if command -v npm >/dev/null; then
-    read -rp "  Install it now with 'npm install -g wrangler'? (Y/n): " yn
-    if [[ "${yn,,}" != "n" ]]; then
+    if ask_yes_default "Install it now with 'npm install -g wrangler'?"; then
       npm install -g wrangler || die "npm install failed. Install wrangler manually and re-run."
     else
       die "Install wrangler (npm install -g wrangler) and re-run."
@@ -51,8 +60,7 @@ fi
 
 if ! wrangler whoami >/dev/null 2>&1; then
   warn "wrangler is not logged in to Cloudflare."
-  read -rp "  Run 'wrangler login' now? (Y/n): " yn
-  if [[ "${yn,,}" != "n" ]]; then
+  if ask_yes_default "Run 'wrangler login' now?"; then
     wrangler login || die "wrangler login failed. Re-run setup once you've logged in."
     wrangler whoami >/dev/null 2>&1 || die "wrangler still not logged in. Re-run setup once login completes."
   else
@@ -186,8 +194,7 @@ wrangler pages deploy public --project-name="$PROJECT_NAME" --commit-dirty=true
 
 # ── deploy cron worker (optional) ───────────────────────────────────
 echo ""
-read -rp "  Deploy the cron Worker now? (Y/n): " want_cron
-if [[ "${want_cron,,}" != "n" ]]; then
+if ask_yes_default "Deploy the cron Worker now?"; then
   say "Deploying cron Worker"
   (
     cd cron-worker
