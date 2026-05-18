@@ -87,11 +87,17 @@ CREATE INDEX IF NOT EXISTS idx_prog_status
 CREATE INDEX IF NOT EXISTS idx_prog_keyword
   ON prog_pages(keyword);
 
--- The uploaded keyword pool. Cron processes pending rows in small batches.
+-- The uploaded keyword pool. Cron processes pending rows in priority
+-- order. `score`/`intent` come from the heuristic scorer; `priority`
+-- can be overridden by the admin (defaults to score). `canonical` is
+-- the normalised form used for dedupe.
 CREATE TABLE IF NOT EXISTS prog_keywords (
   id              TEXT PRIMARY KEY,
   keyword         TEXT UNIQUE NOT NULL,
-  intent          TEXT,                              -- optional admin-supplied intent (informational/transactional)
+  canonical       TEXT,                              -- normalised form for dedupe
+  intent          TEXT,                              -- transactional|commercial|informational|navigational|junk
+  score           INTEGER NOT NULL DEFAULT 0,        -- 0-100, from scorer
+  priority        INTEGER NOT NULL DEFAULT 0,        -- admin-overridable; defaults to score
   status          TEXT NOT NULL DEFAULT 'pending',   -- pending | processing | done | failed
   page_id         TEXT,                              -- links to prog_pages when done
   error           TEXT,
@@ -100,7 +106,9 @@ CREATE TABLE IF NOT EXISTS prog_keywords (
   updated_at      INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_prog_kw_status
-  ON prog_keywords(status, created_at);
+  ON prog_keywords(status, priority DESC, created_at);
+CREATE INDEX IF NOT EXISTS idx_prog_kw_canonical
+  ON prog_keywords(canonical);
 
 -- Brand/voice/SEO settings. Single-row key/value store the admin UI
 -- edits. The blog + programmatic generation chain reads these and

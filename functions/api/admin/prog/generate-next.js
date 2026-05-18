@@ -14,10 +14,14 @@ import { loadSettings } from '../../../_lib/settings.js';
 export const onRequestPost = async ({ request, env, waitUntil }) => {
   const gate = adminGate(env, request); if (gate) return gate;
 
-  // Atomically claim the oldest pending keyword. The status flip from
-  // pending → processing blocks parallel workers from picking the same row.
+  // Atomically claim the highest-priority pending keyword. Priority
+  // defaults to score (so high-intent keywords go first); the admin can
+  // override priority via the queue UI to pin specific keywords. Ties
+  // resolve to oldest-created-first so a long backlog still drains in
+  // a predictable order.
   const claimed = await env.DB.batch([
-    env.DB.prepare(`SELECT id, keyword FROM prog_keywords WHERE status='pending' ORDER BY created_at LIMIT 1`),
+    env.DB.prepare(`SELECT id, keyword FROM prog_keywords WHERE status='pending'
+                    ORDER BY priority DESC, created_at ASC LIMIT 1`),
   ]);
   const next = claimed[0]?.results?.[0];
   if (!next) return json(200, { ok: true, drained: true });

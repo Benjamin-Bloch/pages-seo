@@ -143,8 +143,15 @@
           </select>
           <button id="queue-refresh" class="btn btn-ghost btn-sm">Refresh</button>
         </div>
-        <table id="queue-table" class="data">
-          <thead><tr><th>Keyword</th><th>Status</th><th>Attempts</th><th>Slug</th></tr></thead>
+        <table id="queue-table" class="data data-queue">
+          <thead><tr>
+            <th>Keyword</th>
+            <th title="Intent classification: transactional > commercial > informational">Intent</th>
+            <th title="Heuristic 0-100 score. Higher = more likely to convert.">Score</th>
+            <th title="Cron picks highest priority first. Click ↑/↓ to adjust.">Priority</th>
+            <th>Status</th>
+            <th>Slug</th>
+          </tr></thead>
           <tbody></tbody>
         </table>
       </div>

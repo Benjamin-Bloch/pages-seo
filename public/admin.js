@@ -299,8 +299,39 @@
       method: 'POST', body: JSON.stringify({ seed, limit, queue }),
     });
     if (status !== 200) { showLog(out, 'Error: ' + (body?.error || status)); return; }
-    const head = `Pulled ${body.pulled} keywords` + (queue ? ` · inserted ${body.inserted} · duplicate ${body.duplicate}` : ' (preview only)');
-    showLog(out, head + '\n' + (body.keywords || []).map((k, i) => `${(i+1).toString().padStart(3)}. ${k}`).join('\n'));
+    const head = `Pulled ${body.pulled} keywords (deduped, junk dropped)` +
+      (queue ? ` · inserted ${body.inserted} · duplicate ${body.duplicate}` : ' (preview only)');
+    // Hide the log block and render a structured list instead.
+    if (out) { out.hidden = true; }
+    const host = out?.parentNode;
+    if (!host) return;
+    // Remove a previous preview list if present.
+    const old = host.querySelector('.pull-preview-list');
+    if (old) old.remove();
+    const headline = document.createElement('p');
+    headline.style.cssText = 'margin:10px 0 0;color:var(--ink-dim);font-size:13px';
+    headline.textContent = head;
+    // Insert headline + list right after the log placeholder so it sits in place.
+    const ul = document.createElement('ul');
+    ul.className = 'pull-preview-list';
+    const items = (body.keywords || []);
+    if (!items.length) {
+      const li = document.createElement('li');
+      li.innerHTML = '<span class="kw">No keywords passed the junk/dedupe filters.</span>';
+      ul.appendChild(li);
+    } else {
+      for (const k of items) {
+        const li = document.createElement('li');
+        const kw = document.createElement('span'); kw.className = 'kw'; kw.textContent = k.keyword;
+        const meta = document.createElement('span'); meta.className = 'meta';
+        meta.textContent = `${k.intent.padEnd(13)} · score ${String(k.score).padStart(2)}`;
+        li.append(kw, meta);
+        ul.appendChild(li);
+      }
+    }
+    // Stick the headline + list right after the textarea / log.
+    out.parentNode.insertBefore(headline, out.nextSibling);
+    out.parentNode.insertBefore(ul, headline.nextSibling);
     if (queue) loadQueue();
   }
 
@@ -318,6 +349,21 @@
     loadQueue();
   }
 
+  const INTENT_PILL = {
+    transactional: 'good',
+    commercial:    'warn',
+    informational: '',
+    navigational:  '',
+    junk:          'bad',
+  };
+
+  async function patchKeyword(id, patch) {
+    return api('/api/admin/prog/queue', {
+      method: 'PATCH',
+      body: JSON.stringify({ id, ...patch }),
+    });
+  }
+
   async function loadQueue() {
     const tbody = $('#queue-table tbody');
     if (!tbody) return;
@@ -327,18 +373,70 @@
     const rows = body?.keywords || [];
     if (!rows.length) {
       const tr = document.createElement('tr');
-      const tdE = document.createElement('td'); tdE.colSpan = 4; tdE.style.color = 'var(--ink-faint)';
+      const tdE = document.createElement('td'); tdE.colSpan = 6; tdE.style.color = 'var(--ink-faint)';
       tdE.textContent = `No ${statusFilter} keywords.`;
       tr.appendChild(tdE); tbody.appendChild(tr); return;
     }
     for (const k of rows) {
       const tr = document.createElement('tr');
       tr.appendChild(td(k.keyword, 'cell-strong'));
+
+      // Intent pill
+      const intentPill = document.createElement('span');
+      const intentClass = INTENT_PILL[k.intent] || '';
+      intentPill.className = 'pill' + (intentClass ? ' ' + intentClass : '');
+      intentPill.textContent = k.intent || '—';
+      const tdI = document.createElement('td'); tdI.appendChild(intentPill); tr.appendChild(tdI);
+
+      // Score
+      const scoreCell = document.createElement('td');
+      scoreCell.className = 'cell-num';
+      scoreCell.textContent = (k.score != null ? k.score : '—');
+      tr.appendChild(scoreCell);
+
+      // Priority — editable inline for pending rows.
+      const tdP = document.createElement('td'); tdP.className = 'cell-priority';
+      if (statusFilter === 'pending') {
+        const up = document.createElement('button');
+        up.className = 'pri-btn'; up.title = 'Bump priority +10'; up.textContent = '↑';
+        up.onclick = async () => {
+          await patchKeyword(k.id, { priority: (k.priority || 0) + 10 });
+          loadQueue();
+        };
+        const down = document.createElement('button');
+        down.className = 'pri-btn'; down.title = 'Lower priority −10'; down.textContent = '↓';
+        down.onclick = async () => {
+          await patchKeyword(k.id, { priority: (k.priority || 0) - 10 });
+          loadQueue();
+        };
+        const drop = document.createElement('button');
+        drop.className = 'pri-btn pri-drop'; drop.title = 'Mark failed (skip)'; drop.textContent = '✕';
+        drop.onclick = async () => {
+          await patchKeyword(k.id, { status: 'failed' });
+          loadQueue();
+        };
+        const val = document.createElement('span'); val.className = 'pri-val'; val.textContent = (k.priority != null ? k.priority : 0);
+        tdP.append(val, up, down, drop);
+      } else if (statusFilter === 'failed') {
+        const retry = document.createElement('button');
+        retry.className = 'pri-btn'; retry.title = 'Retry'; retry.textContent = '↻';
+        retry.onclick = async () => {
+          await patchKeyword(k.id, { status: 'pending' });
+          loadQueue();
+        };
+        const val = document.createElement('span'); val.className = 'pri-val'; val.textContent = (k.priority != null ? k.priority : 0);
+        tdP.append(val, retry);
+      } else {
+        tdP.textContent = k.priority != null ? k.priority : '—';
+      }
+      tr.appendChild(tdP);
+
+      // Status pill
       const pill = document.createElement('span');
       pill.className = 'pill ' + (k.status === 'failed' ? 'bad' : k.status === 'done' ? 'good' : 'warn');
       pill.textContent = k.status;
       const tdS = document.createElement('td'); tdS.appendChild(pill); tr.appendChild(tdS);
-      tr.appendChild(td(k.attempts));
+
       tr.appendChild(td(k.page_id ? '/p/…' : '—'));
       tbody.appendChild(tr);
     }

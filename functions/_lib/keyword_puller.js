@@ -53,7 +53,23 @@ async function withLimit(items, fn, concurrency = 4) {
   return out.flat();
 }
 
-export async function pullKeywords(seed, { limit = 50, expand = true } = {}) {
+import { scoreKeyword, canonicaliseKeyword } from './keyword_score.js';
+
+// Decide whether a suggestion is meaningfully related to the seed.
+// Old code dropped anything not containing the seed's first word, which
+// killed perfectly relevant long-tails. Now: keep if the canonicalised
+// suggestion contains AT LEAST half the seed's non-stopword tokens.
+function relatedToSeed(suggestion, seed) {
+  const stopwords = new Set(['the', 'a', 'an', 'of', 'and', 'or', 'to', 'is', 'are', 'in', 'on', 'for']);
+  const seedTokens = canonicaliseKeyword(seed).split(' ').filter((t) => t && !stopwords.has(t));
+  if (!seedTokens.length) return true;
+  const cand = canonicaliseKeyword(suggestion);
+  let hits = 0;
+  for (const t of seedTokens) if (cand.includes(t)) hits++;
+  return hits / seedTokens.length >= 0.5;
+}
+
+export async function pullKeywords(seed, { limit = 50, expand = true, minScore = 0 } = {}) {
   const cleanSeed = String(seed || '').trim().toLowerCase();
   if (!cleanSeed) throw new Error('seed_required');
 
@@ -65,18 +81,39 @@ export async function pullKeywords(seed, { limit = 50, expand = true } = {}) {
   }
 
   const all = await withLimit(queries, fetchSuggestions, 4);
-  const seen = new Set();
-  const out = [];
-  for (const k of all) {
-    const norm = String(k || '').trim().toLowerCase();
+
+  // Pass 1: collect every unique normalised + seed-related suggestion,
+  // scored. Dedupe by canonical key (handles plurals/article variants).
+  const byCanonical = new Map();
+  for (const raw of all) {
+    const norm = String(raw || '').trim().toLowerCase();
     if (!norm) continue;
-    if (seen.has(norm)) continue;
-    // Drop suggestions that don't include the seed at all — they're
-    // tangentially related at best and rarely worth a landing page.
-    if (!norm.includes(cleanSeed.split(' ')[0])) continue;
-    seen.add(norm);
-    out.push(norm);
-    if (out.length >= limit) break;
+    if (!relatedToSeed(norm, cleanSeed)) continue;
+    const canon = canonicaliseKeyword(norm);
+    if (!canon) continue;
+    const scored = scoreKeyword(norm);
+    if (scored.intent === 'junk') continue;
+    if (scored.score < minScore) continue;
+    const existing = byCanonical.get(canon);
+    // Keep the variant with the higher score; if tied, the shorter one
+    // (it's the more "canonical" surface form).
+    if (!existing ||
+        scored.score > existing.score ||
+        (scored.score === existing.score && norm.length < existing.keyword.length)) {
+      byCanonical.set(canon, {
+        keyword: norm,
+        canonical: canon,
+        score: scored.score,
+        intent: scored.intent,
+        signals: scored.signals,
+      });
+    }
   }
-  return { seed: cleanSeed, total: out.length, keywords: out };
+
+  // Pass 2: sort by score DESC and trim to limit.
+  const sorted = [...byCanonical.values()]
+    .sort((a, b) => b.score - a.score || a.keyword.length - b.keyword.length)
+    .slice(0, limit);
+
+  return { seed: cleanSeed, total: sorted.length, keywords: sorted };
 }
