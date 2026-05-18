@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>pages-seo · self-hosted programmatic SEO on Cloudflare</title>
+<meta name="description" content="Open-source toolkit that ships a daily AI blog, programmatic landing pages, sitemap and IndexNow pings on Cloudflare Pages. Free tier covers it. Five-minute install." />
+<link rel="canonical" href="https://pages-seo-site.pages.dev/" />
+<meta property="og:title" content="pages-seo — self-hosted programmatic SEO" />
+<meta property="og:description" content="Daily AI blog + programmatic landing pages on your own domain. Runs entirely on Cloudflare Pages. Free tier covers it." />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+
+<header class="nav">
+  <a class="brand" href="/">pages-seo</a>
+  <nav>
+    <a href="#how">How it works</a>
+    <a href="#example">Example</a>
+    <a href="#install">Install</a>
+    <a href="https://github.com/Benjamin-Bloch/pages-seo" rel="noopener">GitHub →</a>
+  </nav>
+</header>
+
+<main>
+
+<section class="hero">
+  <h1>Ship a daily AI blog<br/>and 1000 landing pages.<br/><span class="dim">All on your own domain.</span></h1>
+  <p class="lede">
+    <strong>pages-seo</strong> is an open-source toolkit that runs a programmatic-SEO machine on Cloudflare Pages — daily blog generation, keyword-driven landing pages, sitemap, IndexNow, RSS, embeddable widget. <strong>Five-minute install. Free tier covers it.</strong>
+  </p>
+  <div class="cta-row">
+    <a class="btn primary" href="#install">Install in 5 minutes</a>
+    <a class="btn" href="https://github.com/Benjamin-Bloch/pages-seo" rel="noopener">Star on GitHub</a>
+  </div>
+  <div class="hero-stack">
+    <code>$ bash setup.sh</code>
+    <code>$ open https://your-site.pages.dev/admin</code>
+  </div>
+</section>
+
+<section class="features">
+  <h2>What you get</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>Daily AI blog</h3>
+      <p>One SEO-optimised post a day, with a hero image. Multi-step generation chain that survives Cloudflare's edge timeout. Resumable if it fails halfway.</p>
+    </div>
+    <div class="card">
+      <h3>Programmatic pages</h3>
+      <p>Feed it a keyword list (or pull keywords automatically from Google Autocomplete) and it generates one ranked landing page per keyword.</p>
+    </div>
+    <div class="card">
+      <h3>9 AI providers</h3>
+      <p>Workers AI (free tier) by default. Drop in keys for OpenAI, Anthropic, Gemini, Groq, DeepSeek, Mistral, Together or Cerebras — they're tried as fallbacks.</p>
+    </div>
+    <div class="card">
+      <h3>Search-ready</h3>
+      <p>Dynamic sitemap, robots.txt, IndexNow pings to Bing/Yandex on every publish, Article + Breadcrumb schema, OG tags. Indexed within minutes.</p>
+    </div>
+    <div class="card">
+      <h3>Embed widget</h3>
+      <p>Drop one <code>&lt;script&gt;</code> tag on any site and render your latest posts inline. Useful for boosting other properties you already own.</p>
+    </div>
+    <div class="card">
+      <h3>Self-hosted, free tier</h3>
+      <p>You own your domain, your D1 database, your R2 image bucket. Cloudflare's free tier covers ~10k Workers AI requests a day. No usage-based SaaS pricing.</p>
+    </div>
+  </div>
+</section>
+
+<section id="how" class="how">
+  <h2>How it works</h2>
+  <ol class="steps">
+    <li>
+      <strong>Install.</strong>
+      <p><code>bash setup.sh</code> creates a Cloudflare Pages project, a D1 database, an R2 bucket, applies the schema, pushes your secrets, and deploys the site. Resumable — if any step fails, just re-run.</p>
+    </li>
+    <li>
+      <strong>Generate.</strong>
+      <p>A scheduled Worker calls a multi-step chain: pick a topic → generate text → generate hero image → publish → ping IndexNow. Each step is idempotent and short enough to fit inside Cloudflare's request budget.</p>
+    </li>
+    <li>
+      <strong>Distribute.</strong>
+      <p>New posts appear in your sitemap immediately. IndexNow pings Bing/Yandex/Seznam. Google picks them up via sitemap.xml. RSS feed exposes them to readers and aggregators.</p>
+    </li>
+    <li>
+      <strong>Measure + iterate.</strong>
+      <p>The admin dashboard shows your queue, published pages, and per-provider stats. Hit the dry-run endpoint to preview what the AI would write before it ever writes to your database.</p>
+    </li>
+  </ol>
+</section>
+
+<section id="example" class="example">
+  <h2>What a generated post looks like</h2>
+  <p class="dim">Below is a real blog post written by Workers AI through pages-seo, no human editing. Topic: <em>"How to design a luxury bathroom that feels like a spa retreat"</em>.</p>
+  <article class="prose">
+    <h2>Creating a Luxury Bathroom Design that Feels like a Spa Retreat</h2>
+    <p class="post-date">Generated · Workers AI (Llama 3.3 70B) · 2,792 chars</p>
+    <h3>Introduction to Luxury Bathroom Design</h3>
+    <p>When it comes to creating a luxury bathroom design, the goal is to create a space that feels like a spa retreat. A luxury bathroom design should be a place where you can relax and unwind, surrounded by high-end materials and fixtures.</p>
+    <h3>Defining Luxury Bathroom Design</h3>
+    <p>A luxury bathroom design is all about creating a space that is both functional and beautiful. It's about using high-end materials, such as marble and granite, and incorporating luxury bathroom fixtures, such as freestanding tubs and rain showerheads. Some key features:</p>
+    <ul>
+      <li>Heated floors and towel warmers</li>
+      <li>High-end lighting fixtures</li>
+      <li>Spa-inspired showers and tubs</li>
+    </ul>
+    <h3>Frequently Asked Questions</h3>
+    <p><strong>What is the most important element of a luxury bathroom design?</strong><br/>The creation of a space that is both functional and beautiful — achieved through high-end materials and fixtures, plus spa-inspired elements.</p>
+    <p class="cta-inline">To get started on your own luxury bathroom design project, <a href="#">visit our site</a> and browse the collection.</p>
+  </article>
+  <p class="caption">
+    Title, meta description, slug, keywords and the markdown body are all picked by the model based on a brief you control. The CTA paragraph, link target, and primary keyword come from your config — they're injected into the prompt every time.
+  </p>
+</section>
+
+<section class="metrics">
+  <h2>Why this beats SaaS programmatic-SEO tools</h2>
+  <table>
+    <thead>
+      <tr><th></th><th>pages-seo</th><th>Typical SaaS</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Per-page cost</td><td>$0 (Workers AI free tier)</td><td>$0.05 – $2 per page</td></tr>
+      <tr><td>You own the content + URLs</td><td>Yes</td><td>Sometimes</td></tr>
+      <tr><td>You own the database</td><td>Yes (your D1)</td><td>No</td></tr>
+      <tr><td>AI provider lock-in</td><td>None (9 supported)</td><td>Usually one</td></tr>
+      <tr><td>Source code</td><td>MIT, on GitHub</td><td>Closed</td></tr>
+      <tr><td>Indexing setup</td><td>Built in (IndexNow, sitemap)</td><td>Manual</td></tr>
+      <tr><td>Vendor risk</td><td>Cloudflare or self-host</td><td>Single vendor</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="install" class="install">
+  <h2>Install in 5 minutes</h2>
+  <pre><code>git clone https://github.com/Benjamin-Bloch/pages-seo
+cd pages-seo
+npm install -g wrangler && wrangler login
+
+# pick one — they all do the same thing
+bash setup.sh
+# or:  python3 setup.py
+# or:  node setup.js
+</code></pre>
+  <p class="dim">The setup script asks for a project name, your domain, and (optionally) keys for any of the 9 AI providers. It generates an admin token, creates all the Cloudflare resources, applies the schema and deploys. If anything fails, just re-run — it resumes from the failed step.</p>
+  <p class="dim">Once it finishes, open <code>https://&lt;your-domain&gt;/admin</code>, paste the admin token, and you're in.</p>
+  <div class="cta-row">
+    <a class="btn primary" href="https://github.com/Benjamin-Bloch/pages-seo" rel="noopener">View on GitHub</a>
+    <a class="btn" href="https://github.com/Benjamin-Bloch/pages-seo#readme" rel="noopener">Read the docs</a>
+  </div>
+</section>
+
+<section class="faq">
+  <h2>FAQ</h2>
+  <details><summary>How much does it cost?</summary>
+    <p>If you stay on Cloudflare's free tier and use Workers AI, the toolkit itself is free. You're paying $0/month for the infrastructure (Pages + D1 + R2 + Workers AI free quotas) until you exceed the free limits. At that point you're at Cloudflare's $5/month Workers Paid plan plus pennies-per-million on D1/R2/AI.</p>
+  </details>
+  <details><summary>Do I have to use Workers AI?</summary>
+    <p>No. It's the default because the free tier covers most use cases, but you can plug in OpenAI, Anthropic Claude, Google Gemini, Groq, DeepSeek, Mistral, Together AI or Cerebras — and the toolkit will try them in fallback order. Adding another provider is a single config entry.</p>
+  </details>
+  <details><summary>What about content quality?</summary>
+    <p>Workers AI (Llama 3.3 70B) produces SEO-coherent but generic copy. It's good enough to rank for long-tail keywords. For premium-feeling content, plug in Claude or GPT-5 — same toolkit, same workflow, just different output.</p>
+  </details>
+  <details><summary>Will Google penalise AI content?</summary>
+    <p>Google's published position is that AI content is fine if it's helpful to readers. The toolkit ships SEO essentials (schema, structured headings, FAQ blocks, primary/secondary keyword targeting, IndexNow). Quality of output is on the model you choose.</p>
+  </details>
+  <details><summary>Can I edit posts manually?</summary>
+    <p>Yes. Posts are stored in your D1 database — edit via the admin UI, or run SQL directly with <code>wrangler d1 execute</code>. The hero image lives in R2; replace by uploading a new file with the same key.</p>
+  </details>
+  <details><summary>Is the admin dashboard secure?</summary>
+    <p>Bearer-token auth with a 64-char hex token generated at install. Stored as a Cloudflare Pages secret on the server, in localStorage on your machine. No accounts, no sessions — rotate the token via <code>wrangler pages secret put ADMIN_TOKEN</code> if it leaks.</p>
+  </details>
+</section>
+
+<footer>
+  <p>
+    <a href="https://github.com/Benjamin-Bloch/pages-seo" rel="noopener">GitHub</a> ·
+    <a href="https://github.com/Benjamin-Bloch/pages-seo/blob/main/LICENCE" rel="noopener">MIT</a> ·
+    Built on <a href="https://pages.cloudflare.com" rel="noopener">Cloudflare Pages</a>
+  </p>
+</footer>
+
+</main>
+</body>
+</html>
