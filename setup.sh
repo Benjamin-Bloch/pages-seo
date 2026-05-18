@@ -1,144 +1,62 @@
 #!/usr/bin/env bash
-# pages-seo · one-shot setup script (bash flavour).
+# pages-seo · one-shot setup (bash flavour, resumable).
 #
-# Asks for the basics, creates the D1 database + R2 bucket, pushes
-# secrets, applies the schema, and deploys both the Pages app and the
-# cron Worker. Same flow as setup.py / setup.js — pick whichever you
-# prefer.
+# Writes progress to .setup-state after each step. Re-running this
+# script picks up where it left off — answer the prompts once, then if
+# any step fails (network, auth, quota), fix the underlying issue and
+# re-run `bash setup.sh`. Steps already marked done are skipped.
+#
+# To start over, delete .setup-state.
 #
 # Prereqs:
-#   - wrangler (`npm install -g wrangler` or use `npx wrangler`)
-#   - logged in (`wrangler login`)
-#   - `gh` is NOT required.
+#   - wrangler CLI + logged in (script will offer to install/login)
 
 set -euo pipefail
 
+cd "$(dirname "$0")"
+STATE_FILE=".setup-state"
+
 # ── helpers ─────────────────────────────────────────────────────────
 say()  { printf "\033[1;36m▸ %s\033[0m\n" "$*"; }
+ok()   { printf "\033[1;32m✓ %s\033[0m\n" "$*"; }
 warn() { printf "\033[1;33m! %s\033[0m\n" "$*"; }
 die()  { printf "\033[1;31m✗ %s\033[0m\n" "$*"; exit 1; }
-ask()  {
-  local prompt="$1" default="${2:-}" var
-  if [[ -n "$default" ]]; then
-    read -rp "  $prompt [$default]: " var || true
-    echo "${var:-$default}"
-  else
-    read -rp "  $prompt: " var || true
-    echo "$var"
-  fi
-}
-ask_secret() {
-  local prompt="$1" var
-  read -rsp "  $prompt: " var || true
-  echo ""
-  echo "$var"
-}
 
-# ── preflight ───────────────────────────────────────────────────────
-# Portable yes-default prompt. Works on macOS bash 3.2 (no ${var,,}).
+# Portable yes-default prompt (macOS bash 3.2 has no ${var,,}).
 ask_yes_default() {
   local prompt="$1" reply
   read -rp "  $prompt (Y/n): " reply || true
-  case "$reply" in
-    n|N|no|NO|No) return 1 ;;
-    *)            return 0 ;;
-  esac
+  case "$reply" in n|N|no|NO|No) return 1 ;; *) return 0 ;; esac
 }
 
-if ! command -v wrangler >/dev/null; then
-  warn "wrangler CLI not found."
-  if command -v npm >/dev/null; then
-    if ask_yes_default "Install it now with 'npm install -g wrangler'?"; then
-      npm install -g wrangler || die "npm install failed. Install wrangler manually and re-run."
-    else
-      die "Install wrangler (npm install -g wrangler) and re-run."
-    fi
+ask() {
+  local prompt="$1" default="${2:-}" var
+  if [[ -n "$default" ]]; then
+    read -rp "  $prompt [$default]: " var || true
+    printf '%s' "${var:-$default}"
   else
-    die "Install Node.js + wrangler (npm install -g wrangler) and re-run."
+    read -rp "  $prompt: " var || true
+    printf '%s' "$var"
   fi
-fi
-
-if ! wrangler whoami >/dev/null 2>&1; then
-  warn "wrangler is not logged in to Cloudflare."
-  if ask_yes_default "Run 'wrangler login' now?"; then
-    wrangler login || die "wrangler login failed. Re-run setup once you've logged in."
-    wrangler whoami >/dev/null 2>&1 || die "wrangler still not logged in. Re-run setup once login completes."
-  else
-    die "Run 'wrangler login' then re-run setup."
-  fi
-fi
-
-cd "$(dirname "$0")"
-[[ -f wrangler.toml ]] || die "wrangler.toml not found. Run setup from the repo root."
-
-say "pages-seo setup"
-echo "  This walks through creating the Cloudflare resources you need."
-echo "  Each step prints what it will run before doing it."
-echo ""
-
-# ── inputs ──────────────────────────────────────────────────────────
-PROJECT_NAME=$(ask "Cloudflare Pages project name" "pages-seo")
-DB_NAME=$(ask "D1 database name" "$PROJECT_NAME")
-BUCKET_NAME=$(ask "R2 bucket name (for hero images)" "$PROJECT_NAME-images")
-SITE_NAME=$(ask "Site display name (shown in titles)" "pages-seo")
-SITE_URL=$(ask "Site URL (used in OG tags)" "https://example.com")
-
-echo ""
-say "Generating admin + indexnow tokens"
-ADMIN_TOKEN=$(openssl rand -hex 32)
-INDEXNOW_KEY=$(openssl rand -hex 32)
-echo "  ADMIN_TOKEN  (save this — you'll paste it into the admin UI):"
-echo "    $ADMIN_TOKEN"
-echo "  INDEXNOW_KEY (auto-served at /<key>.txt):"
-echo "    $INDEXNOW_KEY"
-echo ""
-
-echo ""
-echo "  Workers AI is enabled by default (free tier covers most usage)."
-echo "  You can ALSO add keys for other providers — they'll be tried as fallbacks."
-echo "  Leave blank to skip any of them."
-echo ""
-ask_optional_secret() {
-  local label="$1" var
-  read -rsp "  $label (blank to skip): " var || true
-  echo ""
-  echo "$var"
 }
-OPENAI_KEY=$(ask_optional_secret    "OpenAI API key (gpt-5, gpt-image-1)")
-ANTHROPIC_KEY=$(ask_optional_secret "Anthropic API key (Claude)")
-GEMINI_KEY=$(ask_optional_secret    "Google Gemini API key (Gemini + Imagen)")
-GROQ_KEY=$(ask_optional_secret      "Groq API key (fast Llama)")
-DEEPSEEK_KEY=$(ask_optional_secret  "DeepSeek API key")
-MISTRAL_KEY=$(ask_optional_secret   "Mistral API key")
-TOGETHER_KEY=$(ask_optional_secret  "Together AI API key")
-CEREBRAS_KEY=$(ask_optional_secret  "Cerebras API key")
 
-# ── write .env ──────────────────────────────────────────────────────
-say "Writing .env"
-{
-  echo "# Local-only mirror of the secrets pushed to Cloudflare. Never commit."
-  echo "SITE_NAME=$SITE_NAME"
-  echo "SITE_URL=$SITE_URL"
-  echo "ADMIN_TOKEN=$ADMIN_TOKEN"
-  echo "INDEXNOW_KEY=$INDEXNOW_KEY"
-  [[ -n "$OPENAI_KEY"    ]] && echo "OPENAI_API_KEY=$OPENAI_KEY"
-  [[ -n "$ANTHROPIC_KEY" ]] && echo "ANTHROPIC_API_KEY=$ANTHROPIC_KEY"
-  [[ -n "$GEMINI_KEY"    ]] && echo "GEMINI_API_KEY=$GEMINI_KEY"
-  [[ -n "$GROQ_KEY"      ]] && echo "GROQ_API_KEY=$GROQ_KEY"
-  [[ -n "$DEEPSEEK_KEY"  ]] && echo "DEEPSEEK_API_KEY=$DEEPSEEK_KEY"
-  [[ -n "$MISTRAL_KEY"   ]] && echo "MISTRAL_API_KEY=$MISTRAL_KEY"
-  [[ -n "$TOGETHER_KEY"  ]] && echo "TOGETHER_API_KEY=$TOGETHER_KEY"
-  [[ -n "$CEREBRAS_KEY"  ]] && echo "CEREBRAS_API_KEY=$CEREBRAS_KEY"
-} > .env
-echo "  wrote .env (added to .gitignore)"
+# State file: simple KEY=value lines. Read by sourcing.
+load_state() { [[ -f "$STATE_FILE" ]] && source "$STATE_FILE"; return 0; }
+save_kv() {
+  local key="$1" val="$2"
+  if [[ -f "$STATE_FILE" ]] && grep -q "^${key}=" "$STATE_FILE"; then
+    /usr/bin/sed -i.bak "s|^${key}=.*|${key}=${val}|" "$STATE_FILE" && rm -f "${STATE_FILE}.bak"
+  else
+    echo "${key}=${val}" >> "$STATE_FILE"
+  fi
+}
+mark_done() { save_kv "STEP_$1" "done"; }
+is_done()   { [[ -f "$STATE_FILE" ]] && grep -q "^STEP_$1=done$" "$STATE_FILE"; }
 
-# ── create D1 ───────────────────────────────────────────────────────
-# Parse `wrangler d1 list --json` with python so we don't depend on a
-# specific JSON field name (wrangler used `uuid` historically and now
-# also exposes `database_id`; both shapes work here).
-say "Creating D1 database \"$DB_NAME\""
+# Resolve a D1 database ID by name from `wrangler d1 list --json`.
 resolve_db_id() {
-  wrangler d1 list --json 2>/dev/null | python3 - "$DB_NAME" <<'PY'
+  local target="$1"
+  wrangler d1 list --json 2>/dev/null | python3 - "$target" <<'PY'
 import json, sys
 target = sys.argv[1]
 try:
@@ -152,25 +70,167 @@ for row in data if isinstance(data, list) else []:
 PY
 }
 
-EXISTING_ID="$(resolve_db_id)"
-if [[ -n "$EXISTING_ID" ]]; then
-  warn "D1 database $DB_NAME already exists — skipping create"
-  DB_ID="$EXISTING_ID"
-else
-  wrangler d1 create "$DB_NAME"
-  DB_ID="$(resolve_db_id)"
+push_secret() {
+  local name="$1" val="${2:-}" project="$3"
+  [[ -z "$val" ]] && return 0
+  printf '%s' "$val" | wrangler pages secret put "$name" --project-name="$project"
+}
+
+# ── preflight ───────────────────────────────────────────────────────
+if ! command -v wrangler >/dev/null; then
+  warn "wrangler CLI not found."
+  if command -v npm >/dev/null && ask_yes_default "Install it now with 'npm install -g wrangler'?"; then
+    npm install -g wrangler || die "npm install failed."
+  else
+    die "Install wrangler (npm install -g wrangler) and re-run."
+  fi
 fi
-[[ -n "$DB_ID" ]] || die "Could not resolve D1 ID for $DB_NAME (try: wrangler d1 list --json)"
-echo "  database_id: $DB_ID"
 
-# ── create R2 ───────────────────────────────────────────────────────
-say "Creating R2 bucket \"$BUCKET_NAME\""
-wrangler r2 bucket create "$BUCKET_NAME" 2>&1 | grep -v "already exists" || true
+if ! wrangler whoami >/dev/null 2>&1; then
+  warn "wrangler is not logged in to Cloudflare."
+  if ask_yes_default "Run 'wrangler login' now?"; then
+    wrangler login
+    wrangler whoami >/dev/null 2>&1 || die "wrangler still not logged in."
+  else
+    die "Run 'wrangler login' then re-run setup."
+  fi
+fi
 
-# ── patch wrangler.toml ─────────────────────────────────────────────
-say "Patching wrangler.toml with your resource names"
-TMP=$(mktemp)
-python3 - "$DB_ID" "$DB_NAME" "$BUCKET_NAME" "$PROJECT_NAME" <<'PY' > "$TMP"
+[[ -f wrangler.toml ]] || die "wrangler.toml not found. Run from repo root."
+
+say "pages-seo setup"
+load_state
+
+if [[ -f "$STATE_FILE" ]]; then
+  echo "  Found .setup-state — resuming. (Delete it to start over.)"
+else
+  echo "  No previous state found. This will walk through the full setup."
+fi
+echo ""
+
+# ── 1. inputs ───────────────────────────────────────────────────────
+if ! is_done INPUTS; then
+  PROJECT_NAME="$(ask 'Cloudflare Pages project name' "${PROJECT_NAME:-pages-seo}")"
+  DB_NAME="$(ask 'D1 database name' "${DB_NAME:-$PROJECT_NAME}")"
+  BUCKET_NAME="$(ask 'R2 bucket name (for hero images)' "${BUCKET_NAME:-$PROJECT_NAME-images}")"
+  SITE_NAME="$(ask 'Site display name (shown in titles)' "${SITE_NAME:-pages-seo}")"
+  SITE_URL="$(ask 'Site URL (used in OG tags)' "${SITE_URL:-https://$PROJECT_NAME.pages.dev}")"
+
+  save_kv PROJECT_NAME "$PROJECT_NAME"
+  save_kv DB_NAME      "$DB_NAME"
+  save_kv BUCKET_NAME  "$BUCKET_NAME"
+  save_kv SITE_NAME    "$SITE_NAME"
+  save_kv SITE_URL     "$SITE_URL"
+  mark_done INPUTS
+else
+  ok "inputs (project=$PROJECT_NAME, db=$DB_NAME, site=$SITE_URL)"
+fi
+
+# ── 2. tokens ───────────────────────────────────────────────────────
+if ! is_done TOKENS; then
+  say "Generating admin + indexnow tokens"
+  ADMIN_TOKEN="$(openssl rand -hex 32)"
+  INDEXNOW_KEY="$(openssl rand -hex 32)"
+  save_kv ADMIN_TOKEN  "$ADMIN_TOKEN"
+  save_kv INDEXNOW_KEY "$INDEXNOW_KEY"
+  echo "  ADMIN_TOKEN  (paste into admin UI):  $ADMIN_TOKEN"
+  echo "  INDEXNOW_KEY (served at /<key>.txt): $INDEXNOW_KEY"
+  mark_done TOKENS
+else
+  ok "tokens"
+fi
+
+# ── 3. optional provider keys ───────────────────────────────────────
+if ! is_done PROVIDERS; then
+  echo ""
+  echo "  Workers AI is on by default. Add keys for other providers if you want them"
+  echo "  in the fallback chain. Leave blank to skip."
+  echo ""
+  ask_optional_secret() {
+    local label="$1" var
+    read -rsp "  $label (blank to skip): " var || true
+    echo ""
+    printf '%s' "$var"
+  }
+  OPENAI_API_KEY="$(ask_optional_secret 'OpenAI API key (gpt-5, gpt-image-1)')"
+  ANTHROPIC_API_KEY="$(ask_optional_secret 'Anthropic API key (Claude)')"
+  GEMINI_API_KEY="$(ask_optional_secret 'Google Gemini API key (Gemini + Imagen)')"
+  GROQ_API_KEY="$(ask_optional_secret 'Groq API key')"
+  DEEPSEEK_API_KEY="$(ask_optional_secret 'DeepSeek API key')"
+  MISTRAL_API_KEY="$(ask_optional_secret 'Mistral API key')"
+  TOGETHER_API_KEY="$(ask_optional_secret 'Together AI API key')"
+  CEREBRAS_API_KEY="$(ask_optional_secret 'Cerebras API key')"
+
+  [[ -n "$OPENAI_API_KEY"    ]] && save_kv OPENAI_API_KEY    "$OPENAI_API_KEY"
+  [[ -n "$ANTHROPIC_API_KEY" ]] && save_kv ANTHROPIC_API_KEY "$ANTHROPIC_API_KEY"
+  [[ -n "$GEMINI_API_KEY"    ]] && save_kv GEMINI_API_KEY    "$GEMINI_API_KEY"
+  [[ -n "$GROQ_API_KEY"      ]] && save_kv GROQ_API_KEY      "$GROQ_API_KEY"
+  [[ -n "$DEEPSEEK_API_KEY"  ]] && save_kv DEEPSEEK_API_KEY  "$DEEPSEEK_API_KEY"
+  [[ -n "$MISTRAL_API_KEY"   ]] && save_kv MISTRAL_API_KEY   "$MISTRAL_API_KEY"
+  [[ -n "$TOGETHER_API_KEY"  ]] && save_kv TOGETHER_API_KEY  "$TOGETHER_API_KEY"
+  [[ -n "$CEREBRAS_API_KEY"  ]] && save_kv CEREBRAS_API_KEY  "$CEREBRAS_API_KEY"
+  mark_done PROVIDERS
+else
+  ok "provider keys"
+fi
+
+# ── 4. .env mirror ──────────────────────────────────────────────────
+if ! is_done ENV; then
+  say "Writing .env"
+  {
+    echo "# Local-only mirror of the secrets pushed to Cloudflare. Never commit."
+    echo "SITE_NAME=$SITE_NAME"
+    echo "SITE_URL=$SITE_URL"
+    echo "ADMIN_TOKEN=$ADMIN_TOKEN"
+    echo "INDEXNOW_KEY=$INDEXNOW_KEY"
+    [[ -n "${OPENAI_API_KEY:-}"    ]] && echo "OPENAI_API_KEY=$OPENAI_API_KEY"
+    [[ -n "${ANTHROPIC_API_KEY:-}" ]] && echo "ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY"
+    [[ -n "${GEMINI_API_KEY:-}"    ]] && echo "GEMINI_API_KEY=$GEMINI_API_KEY"
+    [[ -n "${GROQ_API_KEY:-}"      ]] && echo "GROQ_API_KEY=$GROQ_API_KEY"
+    [[ -n "${DEEPSEEK_API_KEY:-}"  ]] && echo "DEEPSEEK_API_KEY=$DEEPSEEK_API_KEY"
+    [[ -n "${MISTRAL_API_KEY:-}"   ]] && echo "MISTRAL_API_KEY=$MISTRAL_API_KEY"
+    [[ -n "${TOGETHER_API_KEY:-}"  ]] && echo "TOGETHER_API_KEY=$TOGETHER_API_KEY"
+    [[ -n "${CEREBRAS_API_KEY:-}"  ]] && echo "CEREBRAS_API_KEY=$CEREBRAS_API_KEY"
+  } > .env
+  mark_done ENV
+else
+  ok ".env"
+fi
+
+# ── 5. D1 ───────────────────────────────────────────────────────────
+if ! is_done D1; then
+  say "Creating D1 database \"$DB_NAME\""
+  EXISTING_ID="$(resolve_db_id "$DB_NAME")"
+  if [[ -n "$EXISTING_ID" ]]; then
+    warn "D1 database $DB_NAME already exists — using it"
+    DB_ID="$EXISTING_ID"
+  else
+    wrangler d1 create "$DB_NAME"
+    DB_ID="$(resolve_db_id "$DB_NAME")"
+  fi
+  [[ -n "$DB_ID" ]] || die "Could not resolve D1 ID for $DB_NAME"
+  save_kv DB_ID "$DB_ID"
+  echo "  database_id: $DB_ID"
+  mark_done D1
+else
+  ok "D1 ($DB_ID)"
+fi
+
+# ── 6. R2 ───────────────────────────────────────────────────────────
+if ! is_done R2; then
+  say "Creating R2 bucket \"$BUCKET_NAME\""
+  if wrangler r2 bucket create "$BUCKET_NAME" 2>&1 | tee /tmp/r2.out | grep -q "already exists"; then
+    warn "R2 bucket already exists — using it"
+  fi
+  mark_done R2
+else
+  ok "R2 bucket"
+fi
+
+# ── 7. patch wrangler.toml ──────────────────────────────────────────
+if ! is_done TOML; then
+  say "Patching wrangler.toml"
+  python3 - "$DB_ID" "$DB_NAME" "$BUCKET_NAME" "$PROJECT_NAME" <<'PY'
 import re, sys
 db_id, db_name, bucket_name, project_name = sys.argv[1:5]
 src = open('wrangler.toml').read()
@@ -178,64 +238,89 @@ src = re.sub(r'(name\s*=\s*")[^"]+(")', rf'\g<1>{project_name}\g<2>', src, count
 src = re.sub(r'(database_name\s*=\s*")[^"]+(")', rf'\g<1>{db_name}\g<2>', src)
 src = re.sub(r'(database_id\s*=\s*")[^"]+(")', rf'\g<1>{db_id}\g<2>', src)
 src = re.sub(r'(bucket_name\s*=\s*")[^"]+(")', rf'\g<1>{bucket_name}\g<2>', src)
-sys.stdout.write(src)
+open('wrangler.toml','w').write(src)
 PY
-mv "$TMP" wrangler.toml
-echo "  wrangler.toml updated"
-
-# ── create Pages project (so secret put / deploy has something to target) ─
-say "Ensuring Cloudflare Pages project \"$PROJECT_NAME\" exists"
-if ! wrangler pages project list 2>/dev/null | awk '{print $2}' | grep -qx "$PROJECT_NAME"; then
-  wrangler pages project create "$PROJECT_NAME" --production-branch=main \
-    || warn "pages project create returned non-zero — may already exist; continuing"
+  echo "  wrangler.toml updated"
+  mark_done TOML
+else
+  ok "wrangler.toml"
 fi
 
-# ── apply schema ────────────────────────────────────────────────────
-say "Applying schema/init.sql"
-wrangler d1 execute "$DB_NAME" --remote --file=schema/init.sql
+# ── 8. Pages project ────────────────────────────────────────────────
+if ! is_done PROJECT; then
+  say "Ensuring Pages project \"$PROJECT_NAME\" exists"
+  if wrangler pages project list 2>/dev/null | awk '{print $2}' | grep -qx "$PROJECT_NAME"; then
+    warn "project already exists"
+  else
+    wrangler pages project create "$PROJECT_NAME" --production-branch=main \
+      || die "pages project create failed"
+  fi
+  mark_done PROJECT
+else
+  ok "Pages project"
+fi
 
-# ── push secrets ────────────────────────────────────────────────────
-say "Pushing secrets to Pages project \"$PROJECT_NAME\""
-printf '%s' "$ADMIN_TOKEN" | wrangler pages secret put ADMIN_TOKEN --project-name="$PROJECT_NAME"
-printf '%s' "$INDEXNOW_KEY" | wrangler pages secret put INDEXNOW_KEY --project-name="$PROJECT_NAME"
-printf '%s' "$SITE_NAME" | wrangler pages secret put SITE_NAME --project-name="$PROJECT_NAME"
-printf '%s' "$SITE_URL" | wrangler pages secret put SITE_URL --project-name="$PROJECT_NAME"
+# ── 9. schema ───────────────────────────────────────────────────────
+if ! is_done SCHEMA; then
+  say "Applying schema/init.sql"
+  wrangler d1 execute "$DB_NAME" --remote --file=schema/init.sql
+  mark_done SCHEMA
+else
+  ok "schema applied"
+fi
 
-push_optional() {
-  local name="$1" val="$2"
-  [[ -z "$val" ]] && return 0
-  printf '%s' "$val" | wrangler pages secret put "$name" --project-name="$PROJECT_NAME"
-}
-push_optional OPENAI_API_KEY    "$OPENAI_KEY"
-push_optional ANTHROPIC_API_KEY "$ANTHROPIC_KEY"
-push_optional GEMINI_API_KEY    "$GEMINI_KEY"
-push_optional GROQ_API_KEY      "$GROQ_KEY"
-push_optional DEEPSEEK_API_KEY  "$DEEPSEEK_KEY"
-push_optional MISTRAL_API_KEY   "$MISTRAL_KEY"
-push_optional TOGETHER_API_KEY  "$TOGETHER_KEY"
-push_optional CEREBRAS_API_KEY  "$CEREBRAS_KEY"
+# ── 10. secrets ─────────────────────────────────────────────────────
+if ! is_done SECRETS; then
+  say "Pushing secrets to Pages project \"$PROJECT_NAME\""
+  push_secret ADMIN_TOKEN       "$ADMIN_TOKEN"        "$PROJECT_NAME"
+  push_secret INDEXNOW_KEY      "$INDEXNOW_KEY"       "$PROJECT_NAME"
+  push_secret SITE_NAME         "$SITE_NAME"          "$PROJECT_NAME"
+  push_secret SITE_URL          "$SITE_URL"           "$PROJECT_NAME"
+  push_secret OPENAI_API_KEY    "${OPENAI_API_KEY:-}" "$PROJECT_NAME"
+  push_secret ANTHROPIC_API_KEY "${ANTHROPIC_API_KEY:-}" "$PROJECT_NAME"
+  push_secret GEMINI_API_KEY    "${GEMINI_API_KEY:-}" "$PROJECT_NAME"
+  push_secret GROQ_API_KEY      "${GROQ_API_KEY:-}"   "$PROJECT_NAME"
+  push_secret DEEPSEEK_API_KEY  "${DEEPSEEK_API_KEY:-}" "$PROJECT_NAME"
+  push_secret MISTRAL_API_KEY   "${MISTRAL_API_KEY:-}" "$PROJECT_NAME"
+  push_secret TOGETHER_API_KEY  "${TOGETHER_API_KEY:-}" "$PROJECT_NAME"
+  push_secret CEREBRAS_API_KEY  "${CEREBRAS_API_KEY:-}" "$PROJECT_NAME"
+  mark_done SECRETS
+else
+  ok "secrets pushed"
+fi
 
-# ── deploy Pages ────────────────────────────────────────────────────
-say "Deploying Pages site"
-wrangler pages deploy public --project-name="$PROJECT_NAME" --commit-dirty=true
+# ── 11. deploy Pages ────────────────────────────────────────────────
+if ! is_done DEPLOY; then
+  say "Deploying Pages site"
+  wrangler pages deploy public --project-name="$PROJECT_NAME" --commit-dirty=true
+  mark_done DEPLOY
+else
+  ok "Pages deployed"
+fi
 
-# ── deploy cron worker (optional) ───────────────────────────────────
-echo ""
-if ask_yes_default "Deploy the cron Worker now?"; then
-  say "Deploying cron Worker"
-  (
-    cd cron-worker
-    # Push the same shared secrets so the Worker can call our admin API.
-    HOST=$(echo "$SITE_URL" | sed -E 's|^https?://||;s|/.*||')
-    printf '%s' "$ADMIN_TOKEN" | wrangler secret put ADMIN_TOKEN
-    printf '%s' "https://$HOST/api/admin/blog" | wrangler secret put BLOG_URL
-    printf '%s' "https://$HOST/api/admin/prog/generate-next" | wrangler secret put PROG_URL
-    wrangler deploy
-  )
+# ── 12. deploy cron Worker ──────────────────────────────────────────
+if ! is_done CRON; then
+  echo ""
+  if ask_yes_default "Deploy the cron Worker now?"; then
+    say "Deploying cron Worker"
+    HOST="${SITE_URL#http://}"
+    HOST="${HOST#https://}"
+    HOST="${HOST%%/*}"
+    (
+      cd cron-worker
+      printf '%s' "$ADMIN_TOKEN" | wrangler secret put ADMIN_TOKEN
+      printf '%s' "https://$HOST/api/admin/blog" | wrangler secret put BLOG_URL
+      printf '%s' "https://$HOST/api/admin/prog/generate-next" | wrangler secret put PROG_URL
+      wrangler deploy
+    )
+  fi
+  mark_done CRON
+else
+  ok "cron Worker"
 fi
 
 echo ""
-say "Done."
-echo "  Admin: $SITE_URL/admin"
-echo "  Token: $ADMIN_TOKEN"
-echo "  (Token also saved in .env)"
+say "All done."
+echo "  Admin:  $SITE_URL/admin"
+echo "  Token:  $ADMIN_TOKEN"
+echo "  State:  $STATE_FILE (delete to re-run setup from scratch)"
