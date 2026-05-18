@@ -19,6 +19,7 @@ import { generateContent, generateImage } from '../../_lib/ai.js';
 import { sanitiseMarkdownLinks } from '../../_lib/links/sanitise.js';
 import { buildAliases } from '../../_lib/links/aliases.js';
 import { renderContentPage } from '../../_lib/page_render.js';
+import { loadSettings } from '../../_lib/settings.js';
 
 const DEFAULT_TOPIC = 'Practical tips for someone starting out';
 
@@ -30,11 +31,14 @@ export const onRequestPost = async ({ request, env }) => {
 
   const kind = body.kind === 'programmatic' ? 'programmatic' : 'article';
   const seed = String(body.topic || DEFAULT_TOPIC).slice(0, 240);
-  const provider = body.provider ? String(body.provider) : undefined;
+  const settings = await loadSettings(env);
+  const provider = body.provider ? String(body.provider) : (settings.default_ai_provider || undefined);
   const brand = {
     name: body.brand?.name || env.SITE_NAME,
     url:  body.brand?.url  || env.SITE_URL,
-    cta:  body.brand?.cta  || env.SITE_CTA || 'Sign up to get started.',
+    cta:  body.brand?.cta  || settings.site_cta,
+    tone: body.brand?.tone || settings.site_tone || undefined,
+    audience: body.brand?.audience || settings.site_audience || undefined,
     aliases: buildAliases(env),
   };
 

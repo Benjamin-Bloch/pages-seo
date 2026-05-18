@@ -3,224 +3,396 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>pages-seo — programmatic SEO on Cloudflare, by Benjamin Bloch</title>
-<meta name="description" content="An open-source toolkit I built to run a daily AI blog and thousands of programmatic landing pages on Cloudflare Pages. Workers AI by default, eight other LLMs as fallbacks, free tier covers it." />
+<meta name="theme-color" content="#0a0a0a" />
+
+<title>pages-seo · open-source programmatic SEO on Cloudflare</title>
+<meta name="description" content="Self-hosted programmatic SEO toolkit on Cloudflare Pages. Daily AI blog, keyword-driven landing pages, sitemap, IndexNow. 9 LLM providers. Free tier covers it. Built by Benjamin Bloch." />
+<meta name="keywords" content="programmatic seo, ai blog generator, cloudflare pages, workers ai, self-hosted seo, open source seo tool, automated content, indexnow" />
+<meta name="author" content="Benjamin Bloch" />
 <link rel="canonical" href="https://seo.benjaminb.xyz/" />
-<meta property="og:title" content="pages-seo — programmatic SEO on Cloudflare" />
-<meta property="og:description" content="Self-hosted SEO machine: daily AI blog, programmatic landing pages, sitemap, IndexNow. Runs on Cloudflare's free tier." />
-<meta property="og:url" content="https://seo.benjaminb.xyz/" />
+
 <meta property="og:type" content="website" />
-<meta name="twitter:card" content="summary" />
+<meta property="og:title" content="pages-seo · self-hosted programmatic SEO on Cloudflare" />
+<meta property="og:description" content="Daily AI blog + programmatic landing pages on your own domain. 9 LLM providers. Free tier covers it. MIT licensed." />
+<meta property="og:url" content="https://seo.benjaminb.xyz/" />
+<meta property="og:site_name" content="pages-seo" />
+<meta property="og:image" content="https://seo.benjaminb.xyz/og.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="pages-seo · programmatic SEO on Cloudflare" />
+<meta name="twitter:description" content="Self-hosted SEO machine: daily AI blog, programmatic pages, sitemap, IndexNow. Runs on Cloudflare's free tier." />
+<meta name="twitter:image" content="https://seo.benjaminb.xyz/og.png" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/style.css" />
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "name": "pages-seo",
+      "description": "Open-source programmatic SEO toolkit for Cloudflare Pages. Runs a daily AI blog, generates keyword-driven landing pages, ships sitemap and IndexNow integration.",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "Cloudflare Workers",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "softwareVersion": "1.0",
+      "license": "https://opensource.org/licenses/MIT",
+      "downloadUrl": "https://github.com/Benjamin-Bloch/pages-seo",
+      "author": { "@type": "Person", "name": "Benjamin Bloch", "url": "https://benjaminb.xyz" },
+      "url": "https://seo.benjaminb.xyz/"
+    },
+    {
+      "@type": "WebSite",
+      "name": "pages-seo",
+      "url": "https://seo.benjaminb.xyz/",
+      "publisher": { "@type": "Person", "name": "Benjamin Bloch", "url": "https://benjaminb.xyz" }
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        { "@type": "Question", "name": "How much does pages-seo cost to run?",
+          "acceptedAnswer": { "@type": "Answer", "text": "On Cloudflare's free tier with Workers AI it's $0/month until you exceed the free quotas (~10k Workers AI requests/day, 100k Pages requests/day, 5GB D1 storage)." } },
+        { "@type": "Question", "name": "Do I have to use Workers AI?",
+          "acceptedAnswer": { "@type": "Answer", "text": "No. Workers AI is the default but you can plug in OpenAI, Anthropic, Gemini, Groq, DeepSeek, Mistral, Together AI, or Cerebras. They're tried as a fallback chain." } },
+        { "@type": "Question", "name": "Will search engines penalise AI-generated content?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Google's published position is that AI content is fine if it's helpful. pages-seo ships SEO essentials including Article schema, structured headings, FAQ blocks, IndexNow pings and canonical URLs." } }
+      ]
+    }
+  ]
+}
+</script>
 </head>
+
 <body>
 
-<header class="nav">
-  <a class="brand" href="/"><span class="brand-mark">·</span> pages-seo</a>
-  <nav>
+<header class="nav" data-reveal>
+  <a class="brand" href="/">
+    <span class="brand-dot"></span> pages-seo
+  </a>
+  <nav class="nav-links">
     <a href="#how">How it works</a>
     <a href="#example">Example</a>
     <a href="#stack">Stack</a>
     <a href="#install">Install</a>
-    <a class="external" href="https://github.com/Benjamin-Bloch/pages-seo" rel="noopener">GitHub ↗</a>
-    <a class="external dim" href="https://benjaminb.xyz" rel="noopener">← benjaminb.xyz</a>
+    <a class="link-cta" href="https://github.com/Benjamin-Bloch/pages-seo" rel="noopener">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5A11.5 11.5 0 0 0 .5 12a11.5 11.5 0 0 0 7.9 10.9c.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2A11.4 11.4 0 0 1 12 5.8c1 0 2 .1 3 .4 2.3-1.5 3.3-1.2 3.3-1.2.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5Z"/></svg>
+      GitHub
+    </a>
+    <a class="link-muted" href="https://benjaminb.xyz" rel="noopener">← benjaminb.xyz</a>
   </nav>
 </header>
 
 <main>
 
 <section class="hero">
-  <div class="eyebrow">A Benjamin Bloch project · MIT licensed · open source</div>
-  <h1>
-    Programmatic SEO,<br/>
-    on <span class="hl">Cloudflare's free tier</span>.
-  </h1>
-  <p class="lede">
-    <strong>pages-seo</strong> is an open-source toolkit that runs the full SEO loop on Cloudflare Pages — a daily AI blog, programmatic landing pages, sitemap, IndexNow, RSS, embed widget. Built to be self-hosted on a domain you own, with no per-page SaaS fees.
-  </p>
-  <div class="cta-row">
-    <a class="btn primary" href="#install">Install in 5 minutes</a>
-    <a class="btn" href="#example">See a real post</a>
-    <a class="btn ghost" href="https://github.com/Benjamin-Bloch/pages-seo" rel="noopener">View source ↗</a>
-  </div>
-  <div class="hero-terminal">
-    <div class="term-bar"><span></span><span></span><span></span></div>
-    <code><span class="prompt">~ </span>git clone github.com/Benjamin-Bloch/pages-seo</code>
-    <code><span class="prompt">~ </span>cd pages-seo &amp;&amp; bash setup.sh</code>
-    <code class="comment"># answer 5 prompts · wait ~4 minutes</code>
-    <code><span class="prompt">~ </span>open https://your-site.pages.dev/admin</code>
-  </div>
-</section>
+  <div class="hero-grid">
+    <div class="hero-text" data-reveal>
+      <div class="eyebrow">
+        <span class="pulse"></span>
+        A Benjamin Bloch project · MIT licensed
+      </div>
+      <h1>
+        <span class="serif">Programmatic SEO</span>,<br/>
+        on Cloudflare's <span class="gradient">free tier</span>.
+      </h1>
+      <p class="lede">
+        An open-source toolkit that runs the full SEO loop on Cloudflare Pages — a daily AI blog, programmatic landing pages, sitemap, IndexNow, RSS, embed widget. Self-hosted on a domain you own, with no per-page SaaS fees.
+      </p>
+      <div class="cta-row">
+        <a class="btn primary" href="#install">
+          Install in 5 minutes
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </a>
+        <a class="btn" href="#example">See a live example</a>
+      </div>
+      <ul class="ticks">
+        <li><strong>$0/mo</strong> on free tier</li>
+        <li><strong>9 LLMs</strong>, fallback chain</li>
+        <li><strong>5-min</strong> install</li>
+      </ul>
+    </div>
 
-<section class="ticks">
-  <ul>
-    <li>Workers AI default — <strong>no API key required to start</strong></li>
-    <li>9 LLM providers, automatic fallback chain</li>
-    <li>Single static landing + admin dashboard + cron Worker</li>
-    <li>Resumable installer — picks up exactly where it failed</li>
-  </ul>
+    <div class="terminal" data-reveal data-reveal-delay="100">
+      <div class="term-bar">
+        <span></span><span></span><span></span>
+        <em>~/pages-seo</em>
+      </div>
+      <div class="term-body">
+        <code><span class="p">~</span> git clone github.com/Benjamin-Bloch/pages-seo</code>
+        <code><span class="p">~</span> cd pages-seo</code>
+        <code><span class="p">~</span> bash setup.sh</code>
+        <code class="dim">▸ Cloudflare Pages project name: <span class="cursor">_</span></code>
+        <code class="dim">▸ Generating admin token...</code>
+        <code class="dim">▸ Creating D1 database "my-site"</code>
+        <code class="dim">▸ Creating R2 bucket</code>
+        <code class="dim">▸ Patching wrangler.toml</code>
+        <code class="dim">▸ Applying schema</code>
+        <code class="dim">▸ Pushing secrets</code>
+        <code class="dim">▸ Deploying Pages site</code>
+        <code class="ok">✓ All done · my-site.pages.dev</code>
+      </div>
+    </div>
+  </div>
+
+  <div class="logos" data-reveal>
+    <span class="logos-label">Runs on</span>
+    <span class="logo-pill">Cloudflare Pages</span>
+    <span class="logo-pill">D1 SQLite</span>
+    <span class="logo-pill">R2 Storage</span>
+    <span class="logo-pill">Workers AI</span>
+    <span class="logo-pill">+ 8 other LLMs</span>
+  </div>
 </section>
 
 <section id="how" class="how">
-  <h2>How it works</h2>
-  <p class="section-lede">Four phases — set up once, then it runs on its own.</p>
+  <div class="section-head" data-reveal>
+    <span class="section-tag">01 — How it works</span>
+    <h2>Set up once. <em class="serif-i">Runs itself.</em></h2>
+    <p class="section-lede">Four phases. One command to install, one cron schedule to run. Resumable installer means a failed step just means re-running — you don't start over.</p>
+  </div>
   <ol class="steps">
-    <li>
-      <strong>Install</strong>
-      <p>One command (<code>bash setup.sh</code>) provisions a Cloudflare Pages project, a D1 database, an R2 bucket, applies the schema, pushes secrets and deploys. Every step writes to <code>.setup-state</code>; if any step fails (network, auth, quota), just re-run and it resumes from the failure.</p>
+    <li data-reveal>
+      <div class="step-head"><span class="step-num">01</span><strong>Install</strong></div>
+      <p><code>bash setup.sh</code> provisions a Cloudflare Pages project, a D1 database, an R2 bucket, applies the schema, pushes secrets, and deploys. Every step writes to <code>.setup-state</code>; if any step fails (network, auth, quota), just re-run and it resumes from the failure.</p>
     </li>
-    <li>
-      <strong>Generate</strong>
+    <li data-reveal>
+      <div class="step-head"><span class="step-num">02</span><strong>Generate</strong></div>
       <p>A scheduled Cloudflare Worker calls a four-step chain — pick topic → write text → render hero image → publish — with each step idempotent and short enough to fit Cloudflare's request budget. Survives Pages Functions' aggressive isolate kills.</p>
     </li>
-    <li>
-      <strong>Distribute</strong>
+    <li data-reveal>
+      <div class="step-head"><span class="step-num">03</span><strong>Distribute</strong></div>
       <p>New posts appear in <code>/sitemap.xml</code> immediately. IndexNow pings Bing, Yandex and Seznam on every publish. Google picks them up via the sitemap. The RSS feed exposes posts to readers and aggregators.</p>
     </li>
-    <li>
-      <strong>Iterate</strong>
+    <li data-reveal>
+      <div class="step-head"><span class="step-num">04</span><strong>Iterate</strong></div>
       <p>The admin dashboard tracks your queue, published pages, jobs in flight, and per-provider statistics. A dry-run endpoint lets you preview AI output (with full HTML rendering) before it ever touches your database.</p>
     </li>
   </ol>
 </section>
 
 <section id="example" class="example">
-  <h2>What it actually produces</h2>
-  <p class="section-lede">A real blog post written by Workers AI through pages-seo. <a href="https://my-royal-bath.pages.dev/blog/luxury-bathroom-design" rel="noopener">View it live ↗</a></p>
-  <article class="prose">
-    <div class="prose-header">
-      <span class="badge">Workers AI · Llama 3.3 70B</span>
-      <span class="badge muted">2,792 chars · auto-generated</span>
+  <div class="section-head" data-reveal>
+    <span class="section-tag">02 — Example</span>
+    <h2>A real post, <em class="serif-i">unedited.</em></h2>
+    <p class="section-lede">Written end-to-end by Workers AI through pages-seo, no human touch. Live at <a href="https://my-royal-bath.pages.dev/blog/luxury-bathroom-design" rel="noopener">my-royal-bath.pages.dev</a> — a real demo site running this toolkit.</p>
+  </div>
+  <article class="post-mock" data-reveal>
+    <div class="post-meta">
+      <span class="badge primary">Workers AI · Llama 3.3 70B</span>
+      <span class="badge">2,792 chars</span>
+      <span class="badge">12 paragraphs · 4 H2 · 1 FAQ</span>
     </div>
-    <h2>Creating a Luxury Bathroom Design That Feels Like a Spa Retreat</h2>
-    <p class="post-date">Generated · published · indexed · all without human intervention</p>
-
-    <h3>Introduction to Luxury Bathroom Design</h3>
-    <p>A well-designed luxury bathroom can be a serene oasis, providing a spa-like retreat from the stresses of everyday life. When it comes to luxury bathroom design, the goal is to create a space that combines style, functionality, and comfort.</p>
-
-    <h3>Choosing the Right Materials and Fixtures</h3>
-    <p>Luxury bathrooms call for high-end materials — marble, granite, hardwood — paired with statement fixtures. The key ones:</p>
-    <ul>
-      <li>Freestanding tubs and walk-in showers</li>
-      <li>Wall-mounted toilets and bidets</li>
-      <li>Rain showerheads and body sprays</li>
-      <li>Heated floors and towel warmers</li>
-    </ul>
-
-    <h3>Frequently Asked Questions</h3>
-    <p><strong>What are some popular luxury bathroom design trends?</strong><br/>Spa-like retreats, statement fixtures, and high-end materials. The most-searched element in 2026 is heated flooring.</p>
-
-    <p class="cta-inline">Ready to start your own luxury bathroom project? <a href="#">Browse the Royal Bath collection.</a></p>
+    <h2 class="post-h1">Creating a Luxury Bathroom Design That Feels Like a Spa Retreat</h2>
+    <p class="post-date">Auto-generated · published · indexed · all without human intervention</p>
+    <div class="post-body">
+      <h3>Introduction to Luxury Bathroom Design</h3>
+      <p>A well-designed luxury bathroom can be a serene oasis, providing a spa-like retreat from the stresses of everyday life. When it comes to luxury bathroom design, the goal is to create a space that combines style, functionality, and comfort.</p>
+      <h3>Choosing the Right Materials and Fixtures</h3>
+      <p>Luxury bathrooms call for high-end materials — marble, granite, hardwood — paired with statement fixtures. The key ones:</p>
+      <ul>
+        <li>Freestanding tubs and walk-in showers</li>
+        <li>Wall-mounted toilets and bidets</li>
+        <li>Rain showerheads and body sprays</li>
+        <li>Heated floors and towel warmers</li>
+      </ul>
+      <h3>Frequently Asked Questions</h3>
+      <p><strong>What are some popular luxury bathroom design trends?</strong><br/>Spa-like retreats, statement fixtures, and high-end materials.</p>
+      <div class="cta-strip">
+        Ready to start your own luxury bathroom project? <a href="https://my-royal-bath.pages.dev" rel="noopener">Browse the Royal Bath collection →</a>
+      </div>
+    </div>
   </article>
-  <p class="caption">
+  <p class="caption" data-reveal>
     Every field — title, slug, meta description, primary + secondary keywords, body, image prompt, alt text — comes from the model. The CTA paragraph and link target come from <em>your</em> config: they're injected into the prompt for every post so the LLM always closes with a call-to-action you control.
   </p>
 </section>
 
 <section id="stack" class="stack">
-  <h2>The stack</h2>
-  <p class="section-lede">Every component runs on Cloudflare, except the LLM call (your choice).</p>
+  <div class="section-head" data-reveal>
+    <span class="section-tag">03 — Architecture</span>
+    <h2>The stack.</h2>
+    <p class="section-lede">Every component runs on Cloudflare except the LLM call. That call is your choice — Workers AI, OpenAI, Anthropic Claude, Google Gemini, or any of five more.</p>
+  </div>
   <div class="stack-grid">
-    <div class="stack-card">
+    <article class="stack-card" data-reveal>
+      <span class="stack-num">→</span>
       <h3>Cloudflare Pages</h3>
       <p>Serves the public site, blog, programmatic pages, sitemap, robots.txt and the admin SPA. File-based routing through <code>functions/</code>.</p>
-    </div>
-    <div class="stack-card">
+    </article>
+    <article class="stack-card" data-reveal>
+      <span class="stack-num">→</span>
       <h3>D1 (SQLite at the edge)</h3>
       <p>Stores generated posts, programmatic pages, the keyword queue, job state, and an audit log. Six tables; ~50 lines of SQL.</p>
-    </div>
-    <div class="stack-card">
+    </article>
+    <article class="stack-card" data-reveal>
+      <span class="stack-num">→</span>
       <h3>R2 (object storage)</h3>
-      <p>Hero images. Served via a Pages Function that sets immutable cache headers — Cloudflare's CDN handles repeat fetches.</p>
-    </div>
-    <div class="stack-card">
+      <p>Hero images. Served via a Pages Function with immutable cache headers — Cloudflare's CDN handles repeat fetches.</p>
+    </article>
+    <article class="stack-card" data-reveal>
+      <span class="stack-num">→</span>
       <h3>Workers AI</h3>
       <p>Default text + image generation. Llama 3.3 70B for text, Flux 1 schnell for images. Free tier covers most use cases.</p>
-    </div>
-    <div class="stack-card">
+    </article>
+    <article class="stack-card" data-reveal>
+      <span class="stack-num">→</span>
       <h3>Scheduled Worker</h3>
-      <p>Separate Worker that calls the admin API on cron triggers. Drives the daily blog at 08:00 UTC, retries at 10/14/18:00.</p>
-    </div>
-    <div class="stack-card">
+      <p>Separate Worker that calls the admin API on cron triggers. Daily blog at 08:00 UTC, retries at 10/14/18:00, programmatic batch at 09:00.</p>
+    </article>
+    <article class="stack-card" data-reveal>
+      <span class="stack-num">→</span>
       <h3>Optional LLM keys</h3>
       <p>OpenAI · Anthropic · Gemini · Groq · DeepSeek · Mistral · Together · Cerebras. Drop in a key and it joins the fallback chain.</p>
+    </article>
+  </div>
+</section>
+
+<section class="vs">
+  <div class="section-head" data-reveal>
+    <span class="section-tag">04 — Why</span>
+    <h2>Why not <em class="serif-i">just buy a SaaS?</em></h2>
+    <p class="section-lede">Most programmatic SEO platforms charge $0.05–$2 per generated page. For 1,000 pages that's $50–$2,000, plus a monthly subscription, plus they own your URLs.</p>
+  </div>
+  <div class="vs-table" data-reveal>
+    <div class="vs-row vs-head">
+      <span>&nbsp;</span>
+      <span>pages-seo</span>
+      <span>Typical SaaS</span>
+    </div>
+    <div class="vs-row">
+      <span>Cost per page</span>
+      <span class="good">$0 free tier</span>
+      <span class="bad">$0.05–$2</span>
+    </div>
+    <div class="vs-row">
+      <span>Monthly fee</span>
+      <span class="good">$0 free tier</span>
+      <span class="bad">$30–$300</span>
+    </div>
+    <div class="vs-row">
+      <span>You own the URLs</span>
+      <span class="good">Yes</span>
+      <span class="bad">Often shared</span>
+    </div>
+    <div class="vs-row">
+      <span>Direct database access</span>
+      <span class="good">Yes (your D1)</span>
+      <span class="bad">API only</span>
+    </div>
+    <div class="vs-row">
+      <span>LLM provider choice</span>
+      <span class="good">9 supported</span>
+      <span class="bad">Vendor-locked</span>
+    </div>
+    <div class="vs-row">
+      <span>Source code</span>
+      <span class="good">MIT on GitHub</span>
+      <span class="bad">Closed</span>
+    </div>
+    <div class="vs-row">
+      <span>Vendor risk</span>
+      <span class="good">Cloudflare + your code</span>
+      <span class="bad">Single SaaS</span>
     </div>
   </div>
 </section>
 
-<section class="metrics">
-  <h2>Why I built this</h2>
-  <p class="section-lede">SaaS programmatic-SEO tools charge $0.05–$2 per generated page. For 1,000 pages that's $50–$2,000, plus a monthly subscription, plus they own your URLs. pages-seo runs the same workflow on Cloudflare's free tier and you own everything.</p>
-  <table>
-    <thead>
-      <tr><th></th><th>pages-seo</th><th>Typical SaaS</th></tr>
-    </thead>
-    <tbody>
-      <tr><td>Cost per generated page</td><td class="good">$0 (Workers AI free tier)</td><td>$0.05 – $2</td></tr>
-      <tr><td>Hosting fee</td><td class="good">$0 (Cloudflare free tier)</td><td>$30–$300 / month</td></tr>
-      <tr><td>Content + URL ownership</td><td class="good">100% yours</td><td>Often shared</td></tr>
-      <tr><td>Database access</td><td class="good">Direct (your D1)</td><td>API only</td></tr>
-      <tr><td>LLM provider choice</td><td class="good">9 supported</td><td>Vendor-locked</td></tr>
-      <tr><td>Source code</td><td class="good">MIT, on GitHub</td><td>Closed</td></tr>
-      <tr><td>Vendor risk</td><td class="good">Cloudflare + your code</td><td>Single SaaS</td></tr>
-    </tbody>
-  </table>
-</section>
-
 <section id="install" class="install">
-  <h2>Install</h2>
-  <p class="section-lede">One command. Resumable. Setup script auto-installs wrangler and runs <code>wrangler login</code> for you if needed.</p>
-  <pre><code><span class="comment"># 1. clone the repo</span>
+  <div class="section-head" data-reveal>
+    <span class="section-tag">05 — Install</span>
+    <h2>One command. <em class="serif-i">Resumable.</em></h2>
+    <p class="section-lede">The setup script auto-installs wrangler and runs <code>wrangler login</code> for you if needed. If any step fails, just re-run — it picks up where it died.</p>
+  </div>
+  <div class="install-grid">
+    <pre data-reveal><code><span class="c"># 1. clone the repo</span>
 git clone https://github.com/Benjamin-Bloch/pages-seo
 cd pages-seo
 
-<span class="comment"># 2. run any of the three flavours</span>
-bash setup.sh        <span class="comment"># or: python3 setup.py · node setup.js</span>
+<span class="c"># 2. run any flavour</span>
+bash setup.sh
+<span class="c"># python3 setup.py · node setup.js</span>
 
-<span class="comment"># 3. paste the printed ADMIN_TOKEN at /admin</span>
-open https://&lt;your-site&gt;.pages.dev/admin</code></pre>
-  <p class="dim">The script asks for a project name, your domain, and (optionally) keys for any of the nine AI providers. It generates an admin token, creates the Cloudflare resources, applies the schema, pushes secrets, and deploys. If a step fails, just re-run — it picks up from where it left off.</p>
-  <div class="cta-row">
-    <a class="btn primary" href="https://github.com/Benjamin-Bloch/pages-seo" rel="noopener">Start on GitHub ↗</a>
-    <a class="btn" href="https://github.com/Benjamin-Bloch/pages-seo#readme" rel="noopener">Read the docs ↗</a>
+<span class="c"># 3. open the admin panel</span>
+open https://&lt;your&gt;.pages.dev/admin</code></pre>
+    <div class="install-side" data-reveal data-reveal-delay="100">
+      <h3>What setup does</h3>
+      <ul class="checklist">
+        <li>Creates Cloudflare Pages project</li>
+        <li>Provisions D1 database + R2 bucket</li>
+        <li>Generates admin token + IndexNow key</li>
+        <li>Pushes all secrets to Cloudflare</li>
+        <li>Applies the database schema</li>
+        <li>Deploys the site</li>
+        <li>Deploys the cron Worker (optional)</li>
+      </ul>
+      <a class="btn primary full" href="https://github.com/Benjamin-Bloch/pages-seo" rel="noopener">
+        Start on GitHub
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+      </a>
+    </div>
   </div>
 </section>
 
 <section class="faq">
-  <h2>FAQ</h2>
-  <details><summary>How much does it actually cost to run?</summary>
-    <p>On Cloudflare's free tier with Workers AI as the LLM: <strong>$0/month</strong>, until you exceed the free quotas (~10k Workers AI requests/day, 100k Pages requests/day, 5GB D1 storage). Past that you're on Workers Paid ($5/month) plus single-digit cents per million additional operations.</p>
-  </details>
-  <details><summary>Do I have to use Workers AI?</summary>
-    <p>No. It's the default because the free tier makes it the lowest-friction option, but you can route everything through OpenAI, Anthropic Claude, Google Gemini, Groq, DeepSeek, Mistral, Together AI, or Cerebras. Set the API key as a Pages secret and it joins the fallback chain in registry order. Adding a tenth provider is one entry in <code>functions/_lib/ai.js</code>.</p>
-  </details>
-  <details><summary>How good is the generated content?</summary>
-    <p>Workers AI (Llama 3.3 70B) produces SEO-coherent, structurally clean copy — title, meta, slug, keywords, H2/H3, FAQ, CTA all in place. The prose is generic. For higher-quality output, plug in Claude or GPT-5 — same toolkit, same workflow, just different output quality.</p>
-  </details>
-  <details><summary>Will search engines penalise AI content?</summary>
-    <p>Google's published position is that AI content is fine if it's useful. The toolkit ships with the SEO essentials baked in: Article + Breadcrumb schema, structured headings, FAQ blocks, primary/secondary keyword targeting, IndexNow pings, canonical URLs. Quality is on the model you choose.</p>
-  </details>
-  <details><summary>Can I edit posts manually?</summary>
-    <p>Yes. Posts live in your D1 database — edit via the admin UI's post detail view, or run SQL directly with <code>wrangler d1 execute</code>. Hero images live in R2; replace by uploading a new file with the same key.</p>
-  </details>
-  <details><summary>Is the admin dashboard secure?</summary>
-    <p>Bearer-token auth with a 64-char hex token generated at install. Stored as a Cloudflare Pages secret on the server, in localStorage on your machine. No accounts, no sessions, no password reset flow. Rotate the token via <code>wrangler pages secret put ADMIN_TOKEN</code> if it leaks.</p>
-  </details>
-  <details><summary>Why is this on a subdomain of your portfolio?</summary>
-    <p>Because you already came from <a href="https://benjaminb.xyz" rel="noopener">benjaminb.xyz</a> — you're not a random visitor I need to convert. This page exists to show one specific project in detail. Star the GitHub repo if it's useful to you.</p>
-  </details>
+  <div class="section-head" data-reveal>
+    <span class="section-tag">06 — FAQ</span>
+    <h2>Questions.</h2>
+  </div>
+  <div class="faq-list">
+    <details data-reveal><summary>How much does it actually cost to run?</summary>
+      <p>On Cloudflare's free tier with Workers AI: <strong>$0/month</strong>, until you exceed the free quotas (~10k Workers AI requests/day, 100k Pages requests/day, 5GB D1 storage). Past that you're on Workers Paid ($5/month) plus single-digit cents per million additional operations.</p>
+    </details>
+    <details data-reveal><summary>Do I have to use Workers AI?</summary>
+      <p>No. It's the default because the free tier makes it the lowest-friction option. You can route everything through OpenAI, Anthropic Claude, Google Gemini, Groq, DeepSeek, Mistral, Together AI, or Cerebras. Adding a tenth provider is one entry in <code>functions/_lib/ai.js</code>.</p>
+    </details>
+    <details data-reveal><summary>How good is the generated content?</summary>
+      <p>Workers AI (Llama 3.3 70B) produces SEO-coherent, structurally clean copy — title, meta, slug, keywords, H2/H3, FAQ, CTA all in place. The prose is generic. For higher-quality output, plug in Claude or GPT-5 — same toolkit, same workflow, just different output.</p>
+    </details>
+    <details data-reveal><summary>Will search engines penalise AI content?</summary>
+      <p>Google's published position is that AI content is fine if it's useful. The toolkit ships with Article + Breadcrumb schema, structured headings, FAQ blocks, primary/secondary keyword targeting, IndexNow pings, canonical URLs. Quality is on the model you choose.</p>
+    </details>
+    <details data-reveal><summary>Can I edit posts manually?</summary>
+      <p>Yes. Posts live in your D1 database — edit via the admin UI's post detail view, or run SQL directly with <code>wrangler d1 execute</code>. Hero images live in R2; replace by uploading a new file with the same key.</p>
+    </details>
+    <details data-reveal><summary>Is the admin dashboard secure?</summary>
+      <p>Bearer-token auth with a 64-char hex token generated at install. Stored as a Cloudflare Pages secret on the server, in localStorage on your machine. No accounts, no sessions, no password reset flow. Rotate the token via <code>wrangler pages secret put ADMIN_TOKEN</code> if it leaks.</p>
+    </details>
+  </div>
 </section>
 
 </main>
 
 <footer>
-  <p>
-    <a href="https://github.com/Benjamin-Bloch/pages-seo" rel="noopener">GitHub</a> ·
-    <a href="https://github.com/Benjamin-Bloch/pages-seo/blob/main/LICENCE" rel="noopener">MIT</a> ·
-    Built on <a href="https://pages.cloudflare.com" rel="noopener">Cloudflare Pages</a> ·
-    <a href="https://benjaminb.xyz" rel="noopener">benjaminb.xyz</a>
-  </p>
+  <div class="footer-inner">
+    <div>
+      <strong>pages-seo</strong>
+      <p>An open-source programmatic SEO toolkit. A project by <a href="https://benjaminb.xyz" rel="noopener">Benjamin Bloch</a>.</p>
+    </div>
+    <div class="footer-links">
+      <a href="https://github.com/Benjamin-Bloch/pages-seo" rel="noopener">GitHub</a>
+      <a href="https://github.com/Benjamin-Bloch/pages-seo/blob/main/LICENCE" rel="noopener">MIT licence</a>
+      <a href="https://github.com/Benjamin-Bloch/pages-seo#readme" rel="noopener">Docs</a>
+      <a href="https://benjaminb.xyz" rel="noopener">benjaminb.xyz</a>
+    </div>
+  </div>
 </footer>
+
+<script>
+  // Light scroll-triggered reveal. Falls back to instant-visible if no IO.
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+      });
+    }, { rootMargin: '-40px' });
+    document.querySelectorAll('[data-reveal]').forEach((el) => io.observe(el));
+  } else {
+    document.querySelectorAll('[data-reveal]').forEach((el) => el.classList.add('in'));
+  }
+</script>
 
 </body>
 </html>

@@ -1,0 +1,51 @@
+// Read/write the single-row settings store. Used by the LLM prompt
+// builders to layer brand/voice/length config on top of env vars.
+//
+// Reading is "settings table → env var → hard default", so an env var
+// (e.g. SITE_CTA) is the fallback if the DB row isn't set yet. This
+// preserves the original behaviour for installs that haven't touched
+// the settings page.
+import { nowSec } from './util.js';
+
+const FALLBACK = {
+  site_cta:         (env) => env.SITE_CTA || 'Sign up to get started.',
+  site_tone:        (_)   => '',
+  site_audience:    (_)   => '',
+  site_signup_url:  (env) => env.SITE_SIGNUP_URL || '/signup',
+  site_pricing_url: (env) => env.SITE_PRICING_URL || '/pricing',
+  site_contact_url: (env) => env.SITE_CONTACT_URL || '/contact',
+  article_min_words:   () => '900',
+  article_max_words:   () => '1300',
+  prog_min_words:      () => '700',
+  prog_max_words:      () => '1000',
+  default_ai_provider: () => '',
+};
+
+const KEYS = Object.keys(FALLBACK);
+
+export async function loadSettings(env) {
+  const out = {};
+  try {
+    const rows = await env.DB.prepare('SELECT key, value FROM settings').all();
+    for (const row of (rows?.results || [])) {
+      if (row.value != null) out[row.key] = row.value;
+    }
+  } catch {
+    // table missing or DB unavailable — fall through to env fallbacks
+  }
+  for (const k of KEYS) {
+    if (out[k] == null || out[k] === '') out[k] = FALLBACK[k](env);
+  }
+  return out;
+}
+
+export async function setSetting(env, key, value) {
+  if (!KEYS.includes(key)) throw new Error('unknown_setting: ' + key);
+  const t = nowSec();
+  await env.DB.prepare(
+    `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at`
+  ).bind(key, value == null ? '' : String(value), t).run();
+}
+
+export function listSettingKeys() { return [...KEYS]; }

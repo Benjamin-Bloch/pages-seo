@@ -5,6 +5,7 @@ import { adminGate } from '../../../_lib/auth.js';
 import { generateContent } from '../../../_lib/ai.js';
 import { sanitiseMarkdownLinks } from '../../../_lib/links/sanitise.js';
 import { buildAliases } from '../../../_lib/links/aliases.js';
+import { loadSettings } from '../../../_lib/settings.js';
 
 export const onRequestPost = async ({ request, env }) => {
   const gate = adminGate(env, request); if (gate) return gate;
@@ -36,18 +37,21 @@ export const onRequestPost = async ({ request, env }) => {
   // the model returns, the sanitiser expands the aliases and validates
   // every link is on the whitelist before the row hits the DB.
   const aliases = buildAliases(env);
+  const settings = await loadSettings(env);
 
   let post;
   try {
     post = await generateContent(env, {
       kind: 'article',
       seed: job.topic_angle,
-      provider: body.provider,
+      provider: body.provider || settings.default_ai_provider || undefined,
       brand: {
         name: env.SITE_NAME || 'this site',
         url: env.SITE_URL || '/',
-        cta: env.SITE_CTA || 'Sign up to get started.',
-        aliases, // available to the prompt builder
+        cta: settings.site_cta,
+        tone: settings.site_tone || undefined,
+        audience: settings.site_audience || undefined,
+        aliases,
       },
     });
   } catch (e) {

@@ -96,6 +96,52 @@
     if (name === 'blog') { loadJobs(); loadPosts(); }
     if (name === 'prog') { loadQueue(); }
     if (name === 'seo') { renderWidgetSnippet(); }
+    if (name === 'settings') { loadSettings(); }
+  }
+
+  // ── settings ────────────────────────────────────────────────────
+  async function loadSettings() {
+    const { status, body } = await api('/api/admin/settings');
+    if (status !== 200) return;
+    // Populate the provider <select> from /api/admin/providers.
+    const providers = await api('/api/admin/providers');
+    const sel = $('select[data-setting="default_ai_provider"]');
+    if (sel) {
+      const cur = body.settings?.default_ai_provider || '';
+      // Clear all but the first <option>.
+      while (sel.options.length > 1) sel.remove(1);
+      for (const name of (providers.body?.text || [])) {
+        const o = document.createElement('option');
+        o.value = name; o.textContent = name;
+        if (name === cur) o.selected = true;
+        sel.appendChild(o);
+      }
+    }
+    // Populate every [data-setting] input/textarea with the loaded value.
+    $$('[data-setting]').forEach((el) => {
+      if (el.tagName === 'SELECT') return; // handled above
+      const key = el.dataset.setting;
+      el.value = body.settings?.[key] ?? '';
+    });
+  }
+
+  async function saveSettings() {
+    const status = $('#settings-status');
+    setText(status, 'saving…');
+    const payload = {};
+    $$('[data-setting]').forEach((el) => {
+      payload[el.dataset.setting] = (el.value || '').toString();
+    });
+    const r = await api('/api/admin/settings', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+    if (r.status === 200) {
+      setText(status, `saved ${r.body?.updated?.length || 0} field(s)`);
+      setTimeout(() => setText(status, ''), 2500);
+    } else {
+      setText(status, `error: ${r.body?.error || r.status}`);
+    }
   }
 
   // ── overview ────────────────────────────────────────────────────
@@ -382,6 +428,10 @@
 
     // seo tab
     $('#ping-go').addEventListener('click', pingIndexNow);
+
+    // settings tab
+    const saveBtn = $('#settings-save');
+    if (saveBtn) saveBtn.addEventListener('click', saveSettings);
 
     activateTab('overview');
   }

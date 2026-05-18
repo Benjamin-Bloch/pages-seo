@@ -34,44 +34,103 @@ function aliasBlock(aliases) {
   ].join('\n');
 }
 
+// Shared chunks used across both prompt builders.
+
+const BANNED_PHRASES_BLOCK = [
+  'BANNED PHRASES — never use these or any close variant:',
+  '  - "in today\'s fast-paced", "in today\'s digital landscape", "in today\'s world"',
+  '  - "elevate", "unlock", "leverage", "delve into", "navigate the complexities"',
+  '  - "in conclusion", "to wrap up", "all in all"',
+  '  - "game-changer", "cutting-edge", "state-of-the-art", "next-level"',
+  '  - "robust", "seamless", "innovative", "revolutionary"',
+  '  - "it\'s important to note", "it\'s worth mentioning", "it goes without saying"',
+  '  - "whether you\'re a beginner or", "no matter your skill level"',
+  '  - "ultimate guide", "comprehensive overview", "definitive resource"',
+  '  - opening with "Are you...", "Have you ever...", "Imagine if..."',
+  '  - any sentence that could appear in any article about any topic',
+].join('\n');
+
+const CONCRETENESS_BLOCK = [
+  'CONCRETENESS RULES (this is the #1 thing — most AI writing fails here):',
+  '  - Every paragraph must contain at least one specific number, brand name, year, price,',
+  '    measurement, or named example. No "many people" — say "37% of buyers". No "a long time"',
+  '    — say "since 2019". No "high-quality materials" — say "Carrara marble" or "Italian leather".',
+  '  - When you make a claim, ground it: name the source ("according to Statista"),',
+  '    cite the year, or give a real example.',
+  '  - Use real product/brand/place names where relevant. Be specific. If you don\'t know a real one,',
+  '    use a plausibly-real-sounding one rather than a generic placeholder.',
+  '  - Comparisons must be quantified. Not "more expensive" but "around 2.3× the price".',
+].join('\n');
+
+function voiceBlock(brand) {
+  const tone = brand?.tone || 'plain-spoken expert: direct, knowledgeable, no marketing fluff';
+  const audience = brand?.audience || 'someone actively researching this topic, ready to buy or build, not a beginner';
+  return [
+    `VOICE: ${tone}`,
+    `READER: ${audience}`,
+    'Write like you\'re explaining to a smart friend who asked a real question. Short paragraphs.',
+    'Vary sentence length (mix 4-word and 25-word sentences). Use contractions. No hedging.',
+  ].join('\n');
+}
+
+function jsonSchemaBlock(primaryQueryHint = '...') {
+  return [
+    'Return STRICT JSON only — no markdown fences, no prose outside the braces. Shape:',
+    '{',
+    `  "primary_query": "${primaryQueryHint}",`,
+    '  "secondary_keywords": "kw1, kw2, kw3, kw4, kw5",',
+    '  "title": "...",',
+    '  "slug": "...",',
+    '  "meta_description": "...",',
+    '  "body_markdown": "...",',
+    '  "hero_image_prompt": "...",',
+    '  "hero_image_alt": "..."',
+    '}',
+  ].join('\n');
+}
+
 function buildArticlePrompt(angle, brand) {
   const brandName = brand?.name || 'this site';
   const brandUrl = brand?.url || '/';
   const cta = brand?.cta || 'Sign up to get started.';
   const aliases = aliasBlock(brand?.aliases);
   return [
-    `You are writing a high-quality blog post for ${brandName} (${brandUrl}).`,
-    `Today's topic angle: ${angle}`,
+    `# Brief`,
+    `You are a senior content writer for ${brandName} (${brandUrl}).`,
+    `Today's topic angle: "${angle}"`,
+    ``,
+    `# Reader context`,
+    voiceBlock(brand),
     ``,
     aliases,
-    `SEO requirements:`,
-    `- Pick ONE primary search query a real user would type in 2026.`,
-    `- Pick 5 secondary long-tail keywords. Comma-separated, lower-case, no #hashtags.`,
-    `- The primary query MUST appear: in the title (verbatim or very close), in the first 100 words of the body, in at least one H2, in the meta description, and in the slug.`,
-    `- Secondary keywords appear at least once each, naturally.`,
-    ``,
-    `Voice:`,
-    `- Knowledgeable, plain-spoken, no fluff. No "in today's fast-paced digital landscape" filler.`,
-    `- 900-1300 words. Markdown body. No code fences around the whole document.`,
-    `- 4-6 H2 sub-headings, short paragraphs (2-4 sentences), occasional bullet lists.`,
-    `- Include a short FAQ-style H2 near the end.`,
-    `- Close with one short paragraph that links to "${brandUrl}" and includes the call-to-action: "${cta}"`,
-    ``,
-    `Hero image prompt: a wide cinematic concept image suitable as a blog header. Photorealistic, atmospheric, no people's faces, no text.`,
-    `Hero image alt text: 80-120 chars, descriptive.`,
-    ``,
-    `Return STRICT JSON only:`,
-    `{`,
-    `  "primary_query": "...",`,
-    `  "secondary_keywords": "kw1, kw2, kw3, kw4, kw5",`,
-    `  "title": "...",`,
-    `  "slug": "...",`,
-    `  "meta_description": "...",`,
-    `  "body_markdown": "...",`,
-    `  "hero_image_prompt": "...",`,
-    `  "hero_image_alt": "..."`,
-    `}`,
-    `No prose outside the JSON.`,
+    `# SEO`,
+    '- Pick ONE primary search query — a real query a user would type in 2026, with commercial intent if possible.',
+    '- Pick 5 secondary long-tail keywords, comma-separated, lower-case, no hashtags.',
+    '- The primary query MUST appear in: the title (verbatim or very close), the first 100 words, at least one H2, the meta description, and the slug.',
+    '- Secondary keywords each appear at least once, woven in naturally.',
+    '- Title: 50-70 chars, contains the primary query, written like a real headline not a keyword stuffing.',
+    '- Meta description: 140-160 chars, contains the primary query, gives the reader a concrete reason to click.',
+    '',
+    `# Structure`,
+    '- 900-1300 words total.',
+    '- Open with a hook paragraph that names the primary query and gives the reader ONE specific takeaway (not a setup like "let\'s explore...").',
+    '- 4-6 H2 sub-headings. Each H2 introduces a single concrete idea, not a generic theme.',
+    '- Short paragraphs (2-4 sentences). Mix in 1-2 bullet lists where it makes sense — never just for filler.',
+    '- One FAQ-style H2 near the end with 3-4 specific reader questions and direct answers.',
+    '- Close with one short paragraph (3-4 sentences) that links to "' + brandUrl + '" and naturally includes the call-to-action: "' + cta + '"',
+    '- Markdown body. No code fences around the whole document.',
+    '',
+    BANNED_PHRASES_BLOCK,
+    '',
+    CONCRETENESS_BLOCK,
+    '',
+    `# Hero image`,
+    'hero_image_prompt: a wide cinematic photorealistic concept image suitable as a blog header for this topic. Specific scene, specific lighting, specific composition. No faces, no text overlays.',
+    'hero_image_alt: 80-120 chars, descriptive enough that a screen-reader user gets the gist.',
+    '',
+    `# Output`,
+    jsonSchemaBlock(),
+    'No prose outside the JSON. Be specific. Be useful. Be the article a real expert would write.',
   ].join('\n');
 }
 
@@ -81,30 +140,39 @@ function buildProgrammaticPrompt(keyword, brand) {
   const cta = brand?.cta || 'Sign up to get started.';
   const aliases = aliasBlock(brand?.aliases);
   return [
-    `You are writing a programmatic-SEO landing page for ${brandName} (${brandUrl}) targeting the keyword: "${keyword}"`,
-    ``,
+    `# Brief`,
+    `You are building a programmatic SEO landing page for ${brandName} (${brandUrl}).`,
+    `Target keyword (verbatim, this is the search query): "${keyword}"`,
+    'This page needs to rank for that exact query and serve the reader who typed it.',
+    '',
+    `# Reader context`,
+    voiceBlock(brand),
+    'The reader typed this exact keyword into Google. They have a specific question or intent. Address it head-on in the first paragraph — do NOT bury the answer.',
+    '',
     aliases,
-    `The page should rank for that exact keyword and serve a reader who typed it.`,
-    `Length: 700-1000 words. Markdown body. No code fences.`,
-    `Structure: hook paragraph that names the keyword, 3-5 H2 sub-headings, short paragraphs, occasional bullet lists.`,
-    `Title — 50-70 chars, contains the keyword.`,
-    `Meta description — 140-160 chars, contains the keyword, summarises the page.`,
-    `Slug — kebab-case, derived from the keyword.`,
-    `Close with one paragraph that links to "${brandUrl}" and includes the CTA: "${cta}"`,
-    `Hero image prompt: photorealistic concept image related to the keyword. No people's faces. No text in the image.`,
-    `Hero image alt: 80-120 chars.`,
-    ``,
-    `Return STRICT JSON only:`,
-    `{`,
-    `  "primary_query": "${keyword}",`,
-    `  "secondary_keywords": "...",`,
-    `  "title": "...",`,
-    `  "slug": "...",`,
-    `  "meta_description": "...",`,
-    `  "body_markdown": "...",`,
-    `  "hero_image_prompt": "...",`,
-    `  "hero_image_alt": "..."`,
-    `}`,
+    `# Structure`,
+    '- 700-1000 words. Markdown body. No code fences.',
+    '- Hook paragraph (2-3 sentences) that names the keyword verbatim and gives the reader one concrete answer or commitment.',
+    '- 3-5 H2 sub-headings, each introducing one concrete idea relevant to the keyword.',
+    '- Short paragraphs (2-4 sentences). 1-2 bullet lists where it helps.',
+    '- One H2 with 2-3 reader questions answered directly (FAQ style).',
+    '- Close with one paragraph that links to "' + brandUrl + '" and naturally includes the CTA: "' + cta + '"',
+    '',
+    `# Constraints`,
+    '- Title: 50-70 chars, contains the keyword.',
+    '- Meta description: 140-160 chars, contains the keyword, summarises the page concretely.',
+    '- Slug: kebab-case, derived from the keyword.',
+    '',
+    BANNED_PHRASES_BLOCK,
+    '',
+    CONCRETENESS_BLOCK,
+    '',
+    `# Hero image`,
+    'hero_image_prompt: photorealistic concept image directly related to "' + keyword + '". Specific scene, no faces, no text in the image.',
+    'hero_image_alt: 80-120 chars.',
+    '',
+    `# Output`,
+    jsonSchemaBlock(keyword),
   ].join('\n');
 }
 

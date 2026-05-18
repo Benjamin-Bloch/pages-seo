@@ -29,6 +29,7 @@
       <button class="tab" data-tab="blog">Daily blog</button>
       <button class="tab" data-tab="prog">Programmatic</button>
       <button class="tab" data-tab="seo">SEO</button>
+      <button class="tab" data-tab="settings">Settings</button>
     </nav>
     <button id="lock" class="btn btn-ghost btn-sm">Lock</button>
   </header>
@@ -180,6 +181,91 @@
         <h2>Drop the latest posts on any site</h2>
         <p>One-line script. Cross-origin enabled.</p>
         <pre id="widget-snippet" class="log"></pre>
+      </div>
+    </section>
+
+    <!-- ============ SETTINGS ============ -->
+    <section data-page="settings" class="page" hidden>
+      <div class="card">
+        <div class="card-eyebrow">Brand voice</div>
+        <h2>Tone &amp; audience</h2>
+        <p>Layered on top of every LLM prompt. Tell the model who's writing and who's reading — output quality jumps immediately. Leave any field blank to use the built-in default.</p>
+        <div class="form-grid">
+          <label>
+            <span>Site CTA</span>
+            <input data-setting="site_cta" type="text" placeholder="Sign up to get started." />
+            <small>Injected into the closing paragraph of every post.</small>
+          </label>
+          <label>
+            <span>Voice / tone</span>
+            <textarea data-setting="site_tone" rows="2" placeholder="warm but authoritative interior-design voice, like a senior editor at Architectural Digest"></textarea>
+            <small>Free-form description. The more specific, the better.</small>
+          </label>
+          <label>
+            <span>Target reader</span>
+            <textarea data-setting="site_audience" rows="2" placeholder="someone planning a £20k+ bathroom renovation, comparing materials and brands"></textarea>
+            <small>What does the reader already know? What's their intent?</small>
+          </label>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">Length</div>
+        <h2>Post length targets</h2>
+        <p>Hints to the model. Workers AI tends to undershoot; cloud models hit these reliably.</p>
+        <div class="form-grid form-grid-cols">
+          <label>
+            <span>Blog post min words</span>
+            <input data-setting="article_min_words" type="number" min="100" max="5000" placeholder="900" />
+          </label>
+          <label>
+            <span>Blog post max words</span>
+            <input data-setting="article_max_words" type="number" min="100" max="5000" placeholder="1300" />
+          </label>
+          <label>
+            <span>Programmatic min words</span>
+            <input data-setting="prog_min_words" type="number" min="100" max="5000" placeholder="700" />
+          </label>
+          <label>
+            <span>Programmatic max words</span>
+            <input data-setting="prog_max_words" type="number" min="100" max="5000" placeholder="1000" />
+          </label>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">Provider</div>
+        <h2>Preferred AI provider</h2>
+        <p>The toolkit tries this provider first for every job. If it fails, the rest of the configured providers are tried in registry order. Leave blank to use the default (Workers AI).</p>
+        <label>
+          <span>Default provider</span>
+          <select data-setting="default_ai_provider">
+            <option value="">(use registry order)</option>
+          </select>
+        </label>
+      </div>
+      <div class="card">
+        <div class="card-eyebrow">Internal link aliases</div>
+        <h2>URLs the LLM can reference by name</h2>
+        <p>When the model writes <code>[Sign up](signup)</code> it gets expanded to your signup URL. Useful if your signup/pricing/contact pages live at non-standard paths.</p>
+        <div class="form-grid form-grid-cols">
+          <label>
+            <span>Signup URL</span>
+            <input data-setting="site_signup_url" type="text" placeholder="/signup" />
+          </label>
+          <label>
+            <span>Pricing URL</span>
+            <input data-setting="site_pricing_url" type="text" placeholder="/pricing" />
+          </label>
+          <label>
+            <span>Contact URL</span>
+            <input data-setting="site_contact_url" type="text" placeholder="/contact" />
+          </label>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row">
+          <button id="settings-save" class="btn btn-primary">Save settings</button>
+          <span id="settings-status" class="status"></span>
+        </div>
       </div>
     </section>
 

@@ -30,12 +30,21 @@ STATE_FILE = Path(".setup-state")
 # ── output helpers ──────────────────────────────────────────────────
 
 
-def say(msg: str) -> None:  print(f"\033[1;36m▸ {msg}\033[0m")
-def ok(msg: str)  -> None:  print(f"\033[1;32m✓ {msg}\033[0m")
-def warn(msg: str) -> None: print(f"\033[1;33m! {msg}\033[0m")
-def die(msg: str) -> None:
+def say(msg: str)  -> None: print(f"\033[1;36m▸\033[0m \033[1m{msg}\033[0m")
+def ok(msg: str)   -> None: print(f"  \033[1;32m✓\033[0m {msg}")
+def warn(msg: str) -> None: print(f"  \033[1;33m!\033[0m {msg}")
+def die(msg: str)  -> None:
     print(f"\033[1;31m✗ {msg}\033[0m", file=sys.stderr)
     sys.exit(1)
+
+
+def banner() -> None:
+    print()
+    print("\033[1;36m╭──────────────────────────────────────────────╮\033[0m")
+    print("\033[1;36m│\033[0m  \033[1mpages-seo · install\033[0m                       \033[1;36m│\033[0m")
+    print("\033[1;36m│\033[0m  \033[2mone-shot resumable setup for Cloudflare\033[0m    \033[1;36m│\033[0m")
+    print("\033[1;36m╰──────────────────────────────────────────────╯\033[0m")
+    print()
 
 
 def ask(prompt: str, default: str = "") -> str:
@@ -187,13 +196,13 @@ def main() -> None:
     if not Path("wrangler.toml").exists():
         die("wrangler.toml not found. Run setup from the repo root.")
 
-    say("pages-seo setup")
+    banner()
     state = load_state()
     if state:
-        print("  Found .setup-state — resuming. (Delete it to start over.)")
+        print("  \033[2mResuming from .setup-state. Delete it to start over.\033[0m\n")
     else:
-        print("  No previous state found. This will walk through the full setup.")
-    print()
+        print("  \033[2mWalking through the full setup. Each step is resumable\033[0m")
+        print("  \033[2mif it fails — just re-run `python3 setup.py`.\033[0m\n")
 
     # 1. inputs ----------------------------------------------------------
     if not is_done(state, "INPUTS"):
@@ -361,10 +370,14 @@ def main() -> None:
         ok("cron Worker")
 
     print()
-    say("All done.")
-    print(f"  Admin:  {site_url}/admin")
-    print(f"  Token:  {admin_token}")
-    print(f"  State:  {STATE_FILE} (delete to re-run from scratch)")
+    print("\033[1;32m╭──────────────────────────────────────────────╮\033[0m")
+    print("\033[1;32m│\033[0m  \033[1m✓ All done\033[0m                                  \033[1;32m│\033[0m")
+    print("\033[1;32m╰──────────────────────────────────────────────╯\033[0m\n")
+    print(f"  Admin URL  \033[1m{site_url}/admin\033[0m")
+    print(f"  Token      \033[2m{admin_token}\033[0m")
+    print(f"  State      \033[2m{STATE_FILE} (delete to re-run from scratch)\033[0m\n")
+    print("  \033[2mNext: open the admin URL, paste the token, then go to\033[0m")
+    print("  \033[2mthe \033[0m\033[1mSettings\033[0m\033[2m tab and configure your brand voice.\033[0m\n")
 
 
 if __name__ == "__main__":

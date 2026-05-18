@@ -17,10 +17,16 @@ cd "$(dirname "$0")"
 STATE_FILE=".setup-state"
 
 # ── helpers ─────────────────────────────────────────────────────────
-say()  { printf "\033[1;36m▸ %s\033[0m\n" "$*"; }
-ok()   { printf "\033[1;32m✓ %s\033[0m\n" "$*"; }
-warn() { printf "\033[1;33m! %s\033[0m\n" "$*"; }
-die()  { printf "\033[1;31m✗ %s\033[0m\n" "$*"; exit 1; }
+say()    { printf "\033[1;36m▸\033[0m \033[1m%s\033[0m\n" "$*"; }
+ok()     { printf "  \033[1;32m✓\033[0m %s\n" "$*"; }
+warn()   { printf "  \033[1;33m!\033[0m %s\n" "$*"; }
+die()    { printf "\033[1;31m✗ %s\033[0m\n" "$*"; exit 1; }
+banner() {
+  printf '\n\033[1;36m╭──────────────────────────────────────────────╮\033[0m\n'
+  printf '\033[1;36m│\033[0m  \033[1mpages-seo · install\033[0m                       \033[1;36m│\033[0m\n'
+  printf '\033[1;36m│\033[0m  \033[2mone-shot resumable setup for Cloudflare\033[0m    \033[1;36m│\033[0m\n'
+  printf '\033[1;36m╰──────────────────────────────────────────────╯\033[0m\n\n'
+}
 
 # Portable yes-default prompt (macOS bash 3.2 has no ${var,,}).
 ask_yes_default() {
@@ -104,15 +110,15 @@ fi
 
 [[ -f wrangler.toml ]] || die "wrangler.toml not found. Run from repo root."
 
-say "pages-seo setup"
+banner
 load_state
 
 if [[ -f "$STATE_FILE" ]]; then
-  echo "  Found .setup-state — resuming. (Delete it to start over.)"
+  printf "  \033[2mResuming from .setup-state. Delete it to start over.\033[0m\n\n"
 else
-  echo "  No previous state found. This will walk through the full setup."
+  printf "  \033[2mWalking through the full setup. Each step is resumable\033[0m\n"
+  printf "  \033[2mif it fails — just re-run \`bash setup.sh\`.\033[0m\n\n"
 fi
-echo ""
 
 # ── 1. inputs ───────────────────────────────────────────────────────
 if ! is_done INPUTS; then
@@ -325,8 +331,11 @@ else
   ok "cron Worker"
 fi
 
-echo ""
-say "All done."
-echo "  Admin:  $SITE_URL/admin"
-echo "  Token:  $ADMIN_TOKEN"
-echo "  State:  $STATE_FILE (delete to re-run setup from scratch)"
+printf '\n\033[1;32m╭──────────────────────────────────────────────╮\033[0m\n'
+printf '\033[1;32m│\033[0m  \033[1m✓ All done\033[0m                                  \033[1;32m│\033[0m\n'
+printf '\033[1;32m╰──────────────────────────────────────────────╯\033[0m\n\n'
+printf '  Admin URL  \033[1m%s/admin\033[0m\n' "$SITE_URL"
+printf '  Token      \033[2m%s\033[0m\n' "$ADMIN_TOKEN"
+printf '  State      \033[2m%s (delete to re-run from scratch)\033[0m\n\n' "$STATE_FILE"
+printf '  \033[2mNext: open the admin URL, paste the token, then go to\033[0m\n'
+printf '  \033[2mthe \033[0m\033[1mSettings\033[0m\033[2m tab and configure your brand voice.\033[0m\n\n'

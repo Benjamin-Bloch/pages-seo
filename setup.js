@@ -23,10 +23,18 @@ chdir(here);
 
 const STATE_FILE = '.setup-state';
 
-const say  = (m) => console.log(`\x1b[1;36m▸ ${m}\x1b[0m`);
-const ok   = (m) => console.log(`\x1b[1;32m✓ ${m}\x1b[0m`);
-const warn = (m) => console.log(`\x1b[1;33m! ${m}\x1b[0m`);
+const say  = (m) => console.log(`\x1b[1;36m▸\x1b[0m \x1b[1m${m}\x1b[0m`);
+const ok   = (m) => console.log(`  \x1b[1;32m✓\x1b[0m ${m}`);
+const warn = (m) => console.log(`  \x1b[1;33m!\x1b[0m ${m}`);
 const die  = (m) => { console.error(`\x1b[1;31m✗ ${m}\x1b[0m`); process.exit(1); };
+function banner() {
+  console.log();
+  console.log('\x1b[1;36m╭──────────────────────────────────────────────╮\x1b[0m');
+  console.log('\x1b[1;36m│\x1b[0m  \x1b[1mpages-seo · install\x1b[0m                       \x1b[1;36m│\x1b[0m');
+  console.log('\x1b[1;36m│\x1b[0m  \x1b[2mone-shot resumable setup for Cloudflare\x1b[0m    \x1b[1;36m│\x1b[0m');
+  console.log('\x1b[1;36m╰──────────────────────────────────────────────╯\x1b[0m');
+  console.log();
+}
 
 const rl = createInterface({ input, output });
 const ask = async (q, def = '') => {
@@ -152,14 +160,14 @@ async function main() {
   await ensureWranglerLoggedIn();
   if (!existsSync('wrangler.toml')) die('wrangler.toml not found. Run setup from the repo root.');
 
-  say('pages-seo setup');
+  banner();
   const state = loadState();
   if (Object.keys(state).length) {
-    console.log('  Found .setup-state — resuming. (Delete it to start over.)');
+    console.log('  \x1b[2mResuming from .setup-state. Delete it to start over.\x1b[0m\n');
   } else {
-    console.log('  No previous state found. This will walk through the full setup.');
+    console.log('  \x1b[2mWalking through the full setup. Each step is resumable\x1b[0m');
+    console.log('  \x1b[2mif it fails — just re-run `node setup.js`.\x1b[0m\n');
   }
-  console.log();
 
   // 1. inputs
   if (!isDone(state, 'INPUTS')) {
@@ -340,10 +348,14 @@ async function main() {
   }
 
   console.log();
-  say('All done.');
-  console.log(`  Admin:  ${siteUrl}/admin`);
-  console.log(`  Token:  ${adminToken}`);
-  console.log(`  State:  ${STATE_FILE} (delete to re-run from scratch)`);
+  console.log('\x1b[1;32m╭──────────────────────────────────────────────╮\x1b[0m');
+  console.log('\x1b[1;32m│\x1b[0m  \x1b[1m✓ All done\x1b[0m                                  \x1b[1;32m│\x1b[0m');
+  console.log('\x1b[1;32m╰──────────────────────────────────────────────╯\x1b[0m\n');
+  console.log(`  Admin URL  \x1b[1m${siteUrl}/admin\x1b[0m`);
+  console.log(`  Token      \x1b[2m${adminToken}\x1b[0m`);
+  console.log(`  State      \x1b[2m${STATE_FILE} (delete to re-run from scratch)\x1b[0m\n`);
+  console.log('  \x1b[2mNext: open the admin URL, paste the token, then go to\x1b[0m');
+  console.log('  \x1b[2mthe \x1b[0m\x1b[1mSettings\x1b[0m\x1b[2m tab and configure your brand voice.\x1b[0m\n');
   rl.close();
 }
 

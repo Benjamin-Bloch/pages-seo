@@ -102,6 +102,26 @@ CREATE TABLE IF NOT EXISTS prog_keywords (
 CREATE INDEX IF NOT EXISTS idx_prog_kw_status
   ON prog_keywords(status, created_at);
 
+-- Brand/voice/SEO settings. Single-row key/value store the admin UI
+-- edits. The blog + programmatic generation chain reads these and
+-- injects them into the LLM prompt so every post inherits the same
+-- voice, tone, audience, and CTA without re-passing per-request.
+-- Common keys:
+--   site_cta         — call-to-action injected into the closing paragraph
+--   site_tone        — voice description (e.g. "warm but authoritative…")
+--   site_audience    — who you're writing for
+--   site_signup_url  — overrides /signup alias
+--   site_pricing_url — overrides /pricing alias
+--   site_contact_url — overrides /contact alias
+--   article_min_words, article_max_words   — length targets (numeric strings)
+--   prog_min_words, prog_max_words         — length targets for prog pages
+--   default_ai_provider                    — preferred provider name
+CREATE TABLE IF NOT EXISTS settings (
+  key             TEXT PRIMARY KEY,
+  value           TEXT,
+  updated_at      INTEGER NOT NULL
+);
+
 -- Audit log: every action (cron, manual, errors) for visibility.
 CREATE TABLE IF NOT EXISTS audit_log (
   id              TEXT PRIMARY KEY,

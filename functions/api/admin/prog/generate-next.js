@@ -9,6 +9,7 @@ import { generateContent, generateImage } from '../../../_lib/ai.js';
 import { pingIndexNow } from '../../../_lib/indexnow.js';
 import { sanitiseMarkdownLinks } from '../../../_lib/links/sanitise.js';
 import { buildAliases } from '../../../_lib/links/aliases.js';
+import { loadSettings } from '../../../_lib/settings.js';
 
 export const onRequestPost = async ({ request, env, waitUntil }) => {
   const gate = adminGate(env, request); if (gate) return gate;
@@ -27,15 +28,19 @@ export const onRequestPost = async ({ request, env, waitUntil }) => {
   ).bind(t0, next.id).run();
 
   const aliases = buildAliases(env);
+  const settings = await loadSettings(env);
   let content;
   try {
     content = await generateContent(env, {
       kind: 'programmatic',
       seed: next.keyword,
+      provider: settings.default_ai_provider || undefined,
       brand: {
         name: env.SITE_NAME || 'this site',
         url: env.SITE_URL || '/',
-        cta: env.SITE_CTA || 'Sign up to get started.',
+        cta: settings.site_cta,
+        tone: settings.site_tone || undefined,
+        audience: settings.site_audience || undefined,
         aliases,
       },
     });
