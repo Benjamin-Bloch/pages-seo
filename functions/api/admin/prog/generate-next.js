@@ -4,14 +4,14 @@
 // Designed to be called repeatedly by the cron Worker (which iterates
 // across multiple short HTTP calls) or manually from the admin UI.
 import { json, newId, nowSec, slugify, audit } from '../../../_lib/util.js';
-import { requireAdmin } from '../../../_lib/auth.js';
+import { adminGate } from '../../../_lib/auth.js';
 import { generateContent, generateImage } from '../../../_lib/ai.js';
 import { pingIndexNow } from '../../../_lib/indexnow.js';
 import { sanitiseMarkdownLinks } from '../../../_lib/links/sanitise.js';
 import { buildAliases } from '../../../_lib/links/aliases.js';
 
 export const onRequestPost = async ({ request, env, waitUntil }) => {
-  if (!requireAdmin(env, request)) return json(401, { error: 'unauthorized' });
+  const gate = adminGate(env, request); if (gate) return gate;
 
   // Atomically claim the oldest pending keyword. The status flip from
   // pending → processing blocks parallel workers from picking the same row.

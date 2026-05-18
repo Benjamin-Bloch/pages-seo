@@ -1,9 +1,9 @@
 // GET — list keywords in the queue (any status).
 import { json } from '../../../_lib/util.js';
-import { requireAdmin } from '../../../_lib/auth.js';
+import { adminGate } from '../../../_lib/auth.js';
 
 export const onRequestGet = async ({ request, env }) => {
-  if (!requireAdmin(env, request)) return json(401, { error: 'unauthorized' });
+  const gate = adminGate(env, request); if (gate) return gate;
   const url = new URL(request.url);
   const status = url.searchParams.get('status') || 'pending';
   const limit = Math.min(500, parseInt(url.searchParams.get('limit'), 10) || 100);

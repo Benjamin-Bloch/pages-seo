@@ -28,30 +28,58 @@
   }
 
   // ── token gate ──────────────────────────────────────────────────
-  async function checkToken() {
-    if (!token()) return false;
-    const { status } = await api('/api/admin/whoami');
-    return status === 200;
+  // Returns { ok: true, info } when authenticated and configured,
+  // { ok: false, reason: 'config', missing: [...] } when deployment is
+  // missing required settings (SITE_NAME / SITE_URL / ADMIN_TOKEN),
+  // { ok: false, reason: 'unauth' } when the stored token is wrong/missing.
+  async function whoamiStatus() {
+    if (!token()) {
+      // Even with no token, hit whoami once so we can detect a 503 config error.
+      const { status, body } = await api('/api/admin/whoami');
+      if (status === 503) return { ok: false, reason: 'config', missing: body?.missing || [] };
+      return { ok: false, reason: 'unauth' };
+    }
+    const { status, body } = await api('/api/admin/whoami');
+    if (status === 200) return { ok: true, info: body };
+    if (status === 503) return { ok: false, reason: 'config', missing: body?.missing || [] };
+    return { ok: false, reason: 'unauth' };
   }
 
-  async function showGate() {
+  function showConfigError(missing) {
+    $('#gate').hidden = false;
+    $('#dash').hidden = true;
+    const err = $('#gate-err');
+    const input = $('#gate-token');
+    const go = $('#gate-go');
+    input.disabled = true;
+    go.disabled = true;
+    err.textContent =
+      'Setup is not complete. Missing: ' + (missing.join(', ') || 'unknown') +
+      '. Run setup.sh / setup.py / setup.js, or push the missing secrets with `wrangler pages secret put <NAME>`, then redeploy.';
+  }
+
+  async function showGate(initial) {
     $('#gate').hidden = false;
     $('#dash').hidden = true;
     const input = $('#gate-token');
     const err = $('#gate-err');
+    const go = $('#gate-go');
+    input.disabled = false;
+    go.disabled = false;
     input.value = '';
-    err.textContent = '';
+    err.textContent = initial?.note || '';
     input.focus();
-    $('#gate-go').onclick = unlock;
+    go.onclick = unlock;
     input.onkeydown = (e) => { if (e.key === 'Enter') unlock(); };
 
     async function unlock() {
       const v = input.value.trim();
       if (!v) { err.textContent = 'Token required.'; return; }
       setToken(v);
-      const ok = await checkToken();
-      if (ok) { mount(); }
-      else { setToken(''); err.textContent = 'Invalid token.'; }
+      const r = await whoamiStatus();
+      if (r.ok) { mount(); return; }
+      if (r.reason === 'config') { showConfigError(r.missing); return; }
+      setToken(''); err.textContent = 'Invalid token.';
     }
   }
 
@@ -360,7 +388,9 @@
 
   // ── boot ────────────────────────────────────────────────────────
   (async () => {
-    if (await checkToken()) mount();
-    else showGate();
+    const r = await whoamiStatus();
+    if (r.ok) { mount(); return; }
+    if (r.reason === 'config') { showConfigError(r.missing); return; }
+    showGate();
   })();
 })();

@@ -1,0 +1,94 @@
+// Dry-run blog generation. Calls the AI provider chain end-to-end with
+// a synthetic brand+topic, runs the markdown sanitiser, and returns the
+// fully-rendered HTML preview. Does NOT touch D1 or R2 — safe to call
+// repeatedly while tuning prompts or testing a new provider.
+//
+// POST body (all optional):
+//   { topic?: string, kind?: 'article'|'programmatic', provider?: string,
+//     brand?: { name, url, cta }, with_image?: boolean }
+//
+// Response:
+//   { ok, content, html, image_data_url? }
+//
+// `with_image: true` also generates the hero (slower; ~5-20s on
+// Workers AI) and inlines it as a data: URL so the preview is fully
+// self-contained.
+import { json } from '../../_lib/util.js';
+import { adminGate } from '../../_lib/auth.js';
+import { generateContent, generateImage } from '../../_lib/ai.js';
+import { sanitiseMarkdownLinks } from '../../_lib/links/sanitise.js';
+import { buildAliases } from '../../_lib/links/aliases.js';
+import { renderContentPage } from '../../_lib/page_render.js';
+
+const DEFAULT_TOPIC = 'Practical tips for someone starting out';
+
+export const onRequestPost = async ({ request, env }) => {
+  const gate = adminGate(env, request); if (gate) return gate;
+
+  let body = {};
+  try { body = await request.json(); } catch { /* empty body ok */ }
+
+  const kind = body.kind === 'programmatic' ? 'programmatic' : 'article';
+  const seed = String(body.topic || DEFAULT_TOPIC).slice(0, 240);
+  const provider = body.provider ? String(body.provider) : undefined;
+  const brand = {
+    name: body.brand?.name || env.SITE_NAME,
+    url:  body.brand?.url  || env.SITE_URL,
+    cta:  body.brand?.cta  || env.SITE_CTA || 'Sign up to get started.',
+    aliases: buildAliases(env),
+  };
+
+  let content;
+  try {
+    content = await generateContent(env, { kind, seed, provider, brand });
+  } catch (e) {
+    return json(502, { error: 'text_failed', detail: String(e?.message || e).slice(0, 400) });
+  }
+  content.body_markdown = sanitiseMarkdownLinks(content.body_markdown, { aliases: brand.aliases });
+
+  let imageDataUrl = null;
+  let imageError = null;
+  if (body.with_image) {
+    try {
+      const img = await generateImage(env, { prompt: content.hero_image_prompt, provider });
+      // Inline as data URL so the preview is portable. ~1-2MB typical.
+      let bin = '';
+      const chunk = 0x8000;
+      for (let i = 0; i < img.bytes.length; i += chunk) {
+        bin += String.fromCharCode.apply(null, img.bytes.subarray(i, i + chunk));
+      }
+      imageDataUrl = 'data:image/png;base64,' + btoa(bin);
+    } catch (e) {
+      imageError = String(e?.message || e).slice(0, 400);
+    }
+  }
+
+  const pseudoPost = {
+    slug: content.slug,
+    title: content.title,
+    meta_description: content.meta_description,
+    body_markdown: content.body_markdown,
+    hero_image_key: null, // we inline the image below instead of /image/<key>
+    hero_image_alt: content.hero_image_alt,
+    keywords: content.keywords,
+    published_at: Math.floor(Date.now() / 1000),
+    status: 'preview',
+    urlPath: (kind === 'blog' || kind === 'article' ? '/blog/' : '/p/') + content.slug,
+  };
+  let html = renderContentPage({ env, request, post: pseudoPost, kind: kind === 'programmatic' ? 'prog' : 'blog' });
+  if (imageDataUrl) {
+    // Splice the inline image into the rendered HTML — the renderer
+    // skipped it because hero_image_key was null.
+    const safeAlt = (pseudoPost.hero_image_alt || pseudoPost.title).replace(/"/g, '&quot;');
+    html = html.replace('<article class="prose">',
+      `<img class="hero" src="${imageDataUrl}" alt="${safeAlt}" /><article class="prose">`);
+  }
+
+  return json(200, {
+    ok: true,
+    content,
+    image_data_url: imageDataUrl,
+    image_error: imageError,
+    html,
+  });
+};

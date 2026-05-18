@@ -1,11 +1,11 @@
 // Step 3/4 — generate hero image and upload to R2. Non-fatal if it fails
 // (the job advances to image_done without a key).
 import { json, nowSec } from '../../../_lib/util.js';
-import { requireAdmin } from '../../../_lib/auth.js';
+import { adminGate } from '../../../_lib/auth.js';
 import { generateImage } from '../../../_lib/ai.js';
 
 export const onRequestPost = async ({ request, env }) => {
-  if (!requireAdmin(env, request)) return json(401, { error: 'unauthorized' });
+  const gate = adminGate(env, request); if (gate) return gate;
   let body;
   try { body = await request.json(); } catch { return json(400, { error: 'bad_json' }); }
   const jobId = String(body.job_id || '');

@@ -1,10 +1,10 @@
 // Step 1/4 — pick a topic and create a job row.
 import { json, newId, nowSec } from '../../../_lib/util.js';
-import { requireAdmin } from '../../../_lib/auth.js';
+import { adminGate } from '../../../_lib/auth.js';
 import { pickNextTopic } from '../../../_lib/topics.js';
 
 export const onRequestPost = async ({ request, env }) => {
-  if (!requireAdmin(env, request)) return json(401, { error: 'unauthorized' });
+  const gate = adminGate(env, request); if (gate) return gate;
   let body = {};
   try { body = await request.json(); } catch { /* empty body ok */ }
   let topic;

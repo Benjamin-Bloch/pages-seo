@@ -1,9 +1,9 @@
 // Hard-delete an unfinished job + its R2 image if any.
 import { json } from '../../../_lib/util.js';
-import { requireAdmin } from '../../../_lib/auth.js';
+import { adminGate } from '../../../_lib/auth.js';
 
 export const onRequestPost = async ({ request, env }) => {
-  if (!requireAdmin(env, request)) return json(401, { error: 'unauthorized' });
+  const gate = adminGate(env, request); if (gate) return gate;
   let body;
   try { body = await request.json(); } catch { return json(400, { error: 'bad_json' }); }
   const id = String(body.id || '').trim();

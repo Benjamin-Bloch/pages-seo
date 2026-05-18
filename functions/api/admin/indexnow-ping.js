@@ -1,6 +1,6 @@
 // Pings IndexNow with the full sitemap (or a caller-supplied URL list).
 import { json, audit } from '../../_lib/util.js';
-import { requireAdmin } from '../../_lib/auth.js';
+import { adminGate } from '../../_lib/auth.js';
 import { pingIndexNow } from '../../_lib/indexnow.js';
 
 function extractLocs(xml) {
@@ -15,7 +15,7 @@ function extractLocs(xml) {
 }
 
 export const onRequestPost = async ({ request, env }) => {
-  if (!requireAdmin(env, request)) return json(401, { error: 'unauthorized' });
+  const gate = adminGate(env, request); if (gate) return gate;
   let body = {};
   try { body = await request.json(); } catch { /* empty body ok */ }
   let urls;

@@ -1,11 +1,11 @@
 // Step 4/4 — insert into blog_posts, mark topic used, ping IndexNow.
 import { json, newId, nowSec, audit } from '../../../_lib/util.js';
-import { requireAdmin } from '../../../_lib/auth.js';
+import { adminGate } from '../../../_lib/auth.js';
 import { markTopicUsed } from '../../../_lib/topics.js';
 import { pingIndexNow } from '../../../_lib/indexnow.js';
 
 export const onRequestPost = async ({ request, env, waitUntil }) => {
-  if (!requireAdmin(env, request)) return json(401, { error: 'unauthorized' });
+  const gate = adminGate(env, request); if (gate) return gate;
   let body;
   try { body = await request.json(); } catch { return json(400, { error: 'bad_json' }); }
   const jobId = String(body.job_id || '');

@@ -1,10 +1,10 @@
 // Upload a keyword list. Body: { keywords: ["how to ...","best ...", ...] }
 // or { csv: "kw1\nkw2\nkw3" }. Returns counts of inserted vs duplicate.
 import { json, newId, nowSec, audit } from '../../../_lib/util.js';
-import { requireAdmin } from '../../../_lib/auth.js';
+import { adminGate } from '../../../_lib/auth.js';
 
 export const onRequestPost = async ({ request, env }) => {
-  if (!requireAdmin(env, request)) return json(401, { error: 'unauthorized' });
+  const gate = adminGate(env, request); if (gate) return gate;
   let body;
   try { body = await request.json(); } catch { return json(400, { error: 'bad_json' }); }
 

@@ -54,6 +54,7 @@ When it's done, open `https://<your-domain>/admin`, paste the `ADMIN_TOKEN`, and
 | Force the next programmatic page | Admin → Programmatic → "Run next" |
 | Ping IndexNow for one URL | Admin → SEO → "Ping IndexNow" |
 | Get the embed snippet | Admin → SEO → "Widget snippet" |
+| Preview a sample post for your brand | `POST /api/admin/preview-sample` (dry-run; no D1 / R2 writes) |
 
 The cron Worker runs the blog chain at 08:00 UTC, retries at 10/14/18:00 (resume-only), and generates programmatic pages at 09:00 UTC. Edit `cron-worker/wrangler.jsonc` to change the schedule.
 
