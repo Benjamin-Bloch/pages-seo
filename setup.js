@@ -87,11 +87,35 @@ function writeEnv(values) {
   writeFileSync('.env', lines.join('\n') + '\n');
 }
 
-async function main() {
-  if (capture('which', ['wrangler']).code !== 0) {
-    die('wrangler CLI not found. Run: npm install -g wrangler');
+function hasCmd(name) { return capture('which', [name]).code === 0; }
+
+async function ensureWrangler() {
+  if (hasCmd('wrangler')) return;
+  warn('wrangler CLI not found.');
+  if (!hasCmd('npm')) die('Install Node.js + wrangler (npm install -g wrangler) and re-run.');
+  if (!(await askYes("Install it now with 'npm install -g wrangler'?", true))) {
+    die('Install wrangler (npm install -g wrangler) and re-run.');
   }
-  if (!wranglerLoggedIn()) die('wrangler is not logged in. Run: wrangler login');
+  const r = spawnSync('npm', ['install', '-g', 'wrangler'], { stdio: 'inherit' });
+  if (r.status !== 0) die('npm install failed. Install wrangler manually and re-run.');
+}
+
+async function ensureWranglerLoggedIn() {
+  if (wranglerLoggedIn()) return;
+  warn('wrangler is not logged in to Cloudflare.');
+  if (!(await askYes("Run 'wrangler login' now?", true))) {
+    die("Run 'wrangler login' then re-run setup.");
+  }
+  // `wrangler login` is interactive and opens a browser — inherit stdio.
+  const r = spawnSync('wrangler', ['login'], { stdio: 'inherit' });
+  if (r.status !== 0 || !wranglerLoggedIn()) {
+    die('wrangler still not logged in. Re-run setup once login completes.');
+  }
+}
+
+async function main() {
+  await ensureWrangler();
+  await ensureWranglerLoggedIn();
   if (!existsSync('wrangler.toml')) die('wrangler.toml not found. Run setup from the repo root.');
 
   say('pages-seo setup');

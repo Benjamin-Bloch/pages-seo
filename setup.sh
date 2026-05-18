@@ -35,8 +35,30 @@ ask_secret() {
 }
 
 # ── preflight ───────────────────────────────────────────────────────
-command -v wrangler >/dev/null || die "wrangler CLI not found. Run: npm install -g wrangler"
-wrangler whoami >/dev/null 2>&1 || die "wrangler is not logged in. Run: wrangler login"
+if ! command -v wrangler >/dev/null; then
+  warn "wrangler CLI not found."
+  if command -v npm >/dev/null; then
+    read -rp "  Install it now with 'npm install -g wrangler'? (Y/n): " yn
+    if [[ "${yn,,}" != "n" ]]; then
+      npm install -g wrangler || die "npm install failed. Install wrangler manually and re-run."
+    else
+      die "Install wrangler (npm install -g wrangler) and re-run."
+    fi
+  else
+    die "Install Node.js + wrangler (npm install -g wrangler) and re-run."
+  fi
+fi
+
+if ! wrangler whoami >/dev/null 2>&1; then
+  warn "wrangler is not logged in to Cloudflare."
+  read -rp "  Run 'wrangler login' now? (Y/n): " yn
+  if [[ "${yn,,}" != "n" ]]; then
+    wrangler login || die "wrangler login failed. Re-run setup once you've logged in."
+    wrangler whoami >/dev/null 2>&1 || die "wrangler still not logged in. Re-run setup once login completes."
+  else
+    die "Run 'wrangler login' then re-run setup."
+  fi
+fi
 
 cd "$(dirname "$0")"
 [[ -f wrangler.toml ]] || die "wrangler.toml not found. Run setup from the repo root."

@@ -101,11 +101,38 @@ def write_env(values: dict[str, str]) -> None:
 # ── main ─────────────────────────────────────────────────────────────
 
 
+def has_cmd(name: str) -> bool:
+    return bool(subprocess.run(["which", name], capture_output=True).stdout.strip())
+
+
+def ensure_wrangler() -> None:
+    if has_cmd("wrangler"):
+        return
+    warn("wrangler CLI not found.")
+    if not has_cmd("npm"):
+        die("Install Node.js + wrangler (npm install -g wrangler) and re-run.")
+    if not ask_yes("Install it now with 'npm install -g wrangler'?", default_yes=True):
+        die("Install wrangler (npm install -g wrangler) and re-run.")
+    r = subprocess.run(["npm", "install", "-g", "wrangler"])
+    if r.returncode != 0:
+        die("npm install failed. Install wrangler manually and re-run.")
+
+
+def ensure_wrangler_logged_in() -> None:
+    if wrangler_logged_in():
+        return
+    warn("wrangler is not logged in to Cloudflare.")
+    if not ask_yes("Run 'wrangler login' now?", default_yes=True):
+        die("Run 'wrangler login' then re-run setup.")
+    # `wrangler login` is interactive and opens a browser — inherit stdio.
+    r = subprocess.run(["wrangler", "login"])
+    if r.returncode != 0 or not wrangler_logged_in():
+        die("wrangler still not logged in. Re-run setup once login completes.")
+
+
 def main() -> None:
-    if not subprocess.run(["which", "wrangler"], capture_output=True).stdout:
-        die("wrangler CLI not found. Run: npm install -g wrangler")
-    if not wrangler_logged_in():
-        die("wrangler is not logged in. Run: wrangler login")
+    ensure_wrangler()
+    ensure_wrangler_logged_in()
 
     repo_root = Path(__file__).parent.resolve()
     os.chdir(repo_root)
