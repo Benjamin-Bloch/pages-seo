@@ -1814,6 +1814,209 @@
     return { init, state };
   })();
 
+  // ── command palette (Cmd-K) ──────────────────────────────────
+  // A registry of named actions. Each command is one entry — adding a
+  // new command is just a push() in registerDefaultCommands(). Match
+  // is a simple subsequence fuzz on `label + keywords`. The DSL parser
+  // (part 4) plugs in when input starts with "/" — that path turns the
+  // typed string into a synthetic command.
+  const Palette = (() => {
+    const cmds = [];
+    let activeIdx = 0;
+    let lastResults = [];
+
+    function register(cmd) {
+      cmds.push({
+        id: cmd.id,
+        label: cmd.label,
+        hint: cmd.hint || '',
+        keywords: (cmd.keywords || '').toLowerCase(),
+        action: cmd.action,
+        slash: cmd.slash || null,
+      });
+    }
+
+    function fuzz(needle, haystack) {
+      // Subsequence match: every char of needle appears in order in
+      // haystack. Returns a score (0 = no match, higher = better).
+      needle = needle.toLowerCase().replace(/\s+/g, '');
+      haystack = haystack.toLowerCase();
+      if (!needle) return 1; // empty needle matches all (sorted by registration)
+      let i = 0, score = 0, lastIdx = -1;
+      for (const ch of needle) {
+        const idx = haystack.indexOf(ch, lastIdx + 1);
+        if (idx < 0) return 0;
+        score += idx === lastIdx + 1 ? 3 : 1; // consecutive chars score higher
+        lastIdx = idx;
+      }
+      // Prefix bonus.
+      if (haystack.startsWith(needle)) score += 10;
+      return score;
+    }
+
+    function filter(q) {
+      const ranked = cmds
+        .map((c) => ({ c, score: fuzz(q, c.label + ' ' + c.keywords) }))
+        .filter((x) => x.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 12);
+      return ranked.map((x) => x.c);
+    }
+
+    function render() {
+      const ul = $('#palette-results');
+      const input = $('#palette-input');
+      const q = input.value || '';
+      lastResults = filter(q);
+      clearChildren(ul);
+      if (!lastResults.length) {
+        const li = document.createElement('li'); li.className = 'empty';
+        li.textContent = q.startsWith('/') ? 'Unknown slash command.' : 'No matches.';
+        ul.appendChild(li);
+        return;
+      }
+      lastResults.forEach((c, i) => {
+        const li = document.createElement('li');
+        if (i === activeIdx) li.classList.add('active');
+        const lab = document.createElement('span'); lab.className = 'label';
+        const strong = document.createElement('strong'); strong.textContent = c.label;
+        lab.appendChild(strong);
+        if (c.hint) { const sm = document.createElement('small'); sm.textContent = c.hint; lab.appendChild(sm); }
+        const h = document.createElement('span'); h.className = 'hint';
+        h.textContent = c.slash || c.id;
+        li.append(lab, h);
+        li.onclick = () => run(c);
+        li.onmouseenter = () => { activeIdx = i; rerenderActive(); };
+        ul.appendChild(li);
+      });
+    }
+
+    function rerenderActive() {
+      const items = $$('#palette-results li');
+      items.forEach((el, i) => el.classList.toggle('active', i === activeIdx));
+    }
+
+    async function run(c) {
+      close();
+      try { await c.action(); }
+      catch (e) { console.error('[palette] action failed', c.id, e); }
+    }
+
+    function open() {
+      const root = $('#palette');
+      if (!root) return;
+      activeIdx = 0;
+      root.hidden = false;
+      const input = $('#palette-input');
+      input.value = '';
+      render();
+      // small delay so the focus call isn't preempted by the keydown
+      // that opened us.
+      setTimeout(() => input.focus(), 30);
+    }
+    function close() {
+      const root = $('#palette');
+      if (root) root.hidden = true;
+    }
+    function isOpen() { return !$('#palette')?.hidden; }
+
+    function bindKeys() {
+      window.addEventListener('keydown', (e) => {
+        // Open: Cmd-K or Ctrl-K from anywhere. "/" only when no input
+        // is focused (otherwise typing "/" in a text field opens it).
+        const inField = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)
+          || document.activeElement?.isContentEditable;
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+          e.preventDefault(); open(); return;
+        }
+        if (e.key === '/' && !inField && !isOpen()) {
+          e.preventDefault(); open(); return;
+        }
+        if (!isOpen()) return;
+        if (e.key === 'Escape') { e.preventDefault(); close(); return; }
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          activeIdx = Math.min(activeIdx + 1, lastResults.length - 1);
+          rerenderActive();
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          activeIdx = Math.max(activeIdx - 1, 0);
+          rerenderActive();
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          const c = lastResults[activeIdx];
+          if (c) run(c);
+        }
+      });
+      $('#palette-input')?.addEventListener('input', () => {
+        activeIdx = 0; render();
+      });
+      $$('[data-palette-close]').forEach((el) => el.addEventListener('click', close));
+    }
+
+    function registerDefaultCommands() {
+      // Tab jumps
+      const jumps = [
+        ['tab:overview', 'Open Overview',        'overview'],
+        ['tab:blog',     'Open Daily blog',      'blog'],
+        ['tab:prog',     'Open Programmatic',    'prog'],
+        ['tab:seo',      'Open SEO',             'seo'],
+        ['tab:brand',    'Open Brand DNA',       'brand'],
+        ['tab:usage',    'Open Usage',           'usage'],
+        ['tab:covers',   'Open Covers',          'covers'],
+        ['tab:settings', 'Open Settings',        'settings'],
+      ];
+      for (const [id, label, name] of jumps) {
+        register({ id, label, hint: `Tab · ${name}`, keywords: 'go to ' + name,
+          slash: `/go ${name}`, action: () => activateTab(name) });
+      }
+
+      // Common actions
+      register({
+        id: 'blog.generate', label: 'Generate today\'s blog post', hint: 'Runs the full chain',
+        keywords: 'new write daily', slash: '/blog generate',
+        action: async () => { activateTab('blog'); await runBlogChain(); },
+      });
+      register({
+        id: 'prog.next', label: 'Generate next programmatic page', hint: 'Pops the highest-priority pending keyword',
+        keywords: 'run next keyword landing', slash: '/prog next',
+        action: async () => { activateTab('prog'); await runProgNext(); },
+      });
+      register({
+        id: 'prog.queue.refresh', label: 'Refresh pending queue', hint: 'Re-fetch keyword queue',
+        keywords: 'reload', slash: '/queue refresh',
+        action: () => { activateTab('prog'); loadQueue(); },
+      });
+      register({
+        id: 'indexnow.ping', label: 'Ping IndexNow', hint: 'Push sitemap to Bing / Yandex / Seznam',
+        keywords: 'submit search engine bing', slash: '/seo ping',
+        action: async () => { activateTab('seo'); await pingIndexNow(); },
+      });
+      register({
+        id: 'usage.refresh', label: 'Refresh usage stats', hint: 'Reload spend + budget',
+        keywords: 'spend budget cost', slash: '/usage refresh',
+        action: () => { activateTab('usage'); loadUsage(); },
+      });
+      register({
+        id: 'pricing.refresh', label: 'Refresh pricing from models.dev', hint: 'Update LLM rate catalogue',
+        keywords: 'rates llm cost catalogue', slash: '/pricing refresh',
+        action: async () => { activateTab('settings'); await refreshPricing(); },
+      });
+      register({
+        id: 'brand.regenerate', label: 'Regenerate Brand DNA', hint: 'Re-scrape source URL',
+        keywords: 'rebuild profile', slash: '/brand generate',
+        action: async () => { activateTab('brand'); await generateBrand(); },
+      });
+      register({
+        id: 'lock', label: 'Lock admin', hint: 'Clear the stored token',
+        keywords: 'logout sign out', slash: '/lock',
+        action: () => { setToken(''); showGate(); },
+      });
+    }
+
+    return { open, close, register, registerDefaults: registerDefaultCommands, bindKeys };
+  })();
+
   // ── mount ───────────────────────────────────────────────────────
   function mount() {
     $('#gate').hidden = true;
@@ -1869,6 +2072,10 @@
     if (bClear)      bClear.addEventListener('click', clearBrandFields);
     if (bFilterDry)  bFilterDry.addEventListener('click', () => runBrandFilter(true));
     if (bFilterGo)   bFilterGo.addEventListener('click', () => runBrandFilter(false));
+
+    // Command palette: register default commands + bind Cmd-K / "/"
+    Palette.registerDefaults();
+    Palette.bindKeys();
 
     activateTab('overview');
   }
