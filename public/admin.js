@@ -98,6 +98,7 @@
     if (name === 'seo') { renderWidgetSnippet(); }
     if (name === 'brand') { loadBrand(); }
     if (name === 'usage') { loadUsage(); }
+    if (name === 'covers') { Cover.init(); }
     if (name === 'settings') { loadSettings(); loadProviderGrid(); }
   }
 
@@ -911,6 +912,654 @@
     b.addEventListener('click', onClick);
     return b;
   }
+
+  // ── cover editor ────────────────────────────────────────────────
+  // Self-contained canvas editor. Drives:
+  //   - asset uploads (background + logo) to /api/admin/cover/upload
+  //   - template save/load via /api/admin/cover/templates
+  //   - client-side rendering of the final PNG, then push to
+  //     /api/admin/cover/apply for a specific blog post or job
+  // The state lives on `Cover.state`; the canvas is redrawn from state
+  // on every interaction. No layout libraries, no DnD libraries.
+  const Cover = (() => {
+    const CANVAS_ID = 'cover-canvas';
+    const FONT_FAMILIES = [
+      'system-ui',
+      'Georgia, serif',
+      'Inter, sans-serif',
+      '"Times New Roman", serif',
+      '"Helvetica Neue", Arial, sans-serif',
+      '"Courier New", monospace',
+      '"Trebuchet MS", sans-serif',
+      'Impact, sans-serif',
+    ];
+    const DEFAULT_TEMPLATE = () => ({
+      width: 1200, height: 630,
+      background: null,
+      layers: [],
+    });
+
+    const state = {
+      template: DEFAULT_TEMPLATE(),
+      selectedId: null,
+      images: new Map(),
+      assets: { background: [], logo: [] },
+      templates: [],
+      ctx: null,
+      drag: null,
+      mounted: false,
+      posts: [],
+    };
+
+    function uid() { return 'l' + Math.random().toString(36).slice(2, 9); }
+
+    async function loadImage(url) {
+      if (!url) return null;
+      if (state.images.has(url)) return state.images.get(url);
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      const ready = new Promise((res, rej) => {
+        img.onload = () => res(img);
+        img.onerror = () => rej(new Error('image_load_failed: ' + url));
+      });
+      img.src = url;
+      try { await ready; state.images.set(url, img); return img; }
+      catch { return null; }
+    }
+
+    function substituteTitle(text, title) {
+      return String(text || '').replace(/\{title\}/gi, title || '');
+    }
+
+    function wrapLines(ctx, text, maxWidth) {
+      const lines = [];
+      for (const para of String(text).split('\n')) {
+        const words = para.split(/\s+/).filter(Boolean);
+        let line = '';
+        for (const w of words) {
+          const trial = line ? line + ' ' + w : w;
+          if (ctx.measureText(trial).width <= maxWidth) line = trial;
+          else {
+            if (line) lines.push(line);
+            line = w;
+          }
+        }
+        if (line) lines.push(line);
+        if (!words.length) lines.push('');
+      }
+      return lines;
+    }
+
+    async function draw(previewTitle = '') {
+      const canvas = $('#' + CANVAS_ID);
+      if (!canvas) return;
+      const { width, height } = state.template;
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width; canvas.height = height;
+      }
+      const ctx = canvas.getContext('2d');
+      state.ctx = ctx;
+      ctx.clearRect(0, 0, width, height);
+
+      if (state.template.background?.url) {
+        const img = await loadImage(state.template.background.url);
+        if (img) {
+          const r = Math.max(width / img.width, height / img.height);
+          const w = img.width * r, h = img.height * r;
+          ctx.drawImage(img, (width - w) / 2, (height - h) / 2, w, h);
+        }
+      } else {
+        ctx.fillStyle = '#111';
+        ctx.fillRect(0, 0, width, height);
+      }
+
+      for (const layer of state.template.layers) {
+        if (layer.kind === 'box') {
+          ctx.fillStyle = layer.fill || 'rgba(0,0,0,0.55)';
+          if (layer.radius) {
+            roundRect(ctx, layer.x, layer.y, layer.w, layer.h, layer.radius);
+            ctx.fill();
+          } else {
+            ctx.fillRect(layer.x, layer.y, layer.w, layer.h);
+          }
+        } else if (layer.kind === 'text') {
+          const fontSize = layer.size || 60;
+          const family = layer.family || FONT_FAMILIES[0];
+          const weight = layer.weight || '600';
+          ctx.font = `${weight} ${fontSize}px ${family}`;
+          ctx.fillStyle = layer.color || '#ffffff';
+          ctx.textBaseline = 'top';
+          ctx.textAlign = layer.align || 'left';
+          const display = substituteTitle(layer.text, previewTitle);
+          const lines = wrapLines(ctx, display, layer.w || width - layer.x);
+          const lineHeight = fontSize * (layer.lineHeight || 1.15);
+          let drawX = layer.x;
+          if (layer.align === 'center') drawX = layer.x + (layer.w || 0) / 2;
+          if (layer.align === 'right')  drawX = layer.x + (layer.w || 0);
+          for (let i = 0; i < lines.length; i++) {
+            if (layer.shadow) {
+              ctx.shadowColor = 'rgba(0,0,0,0.6)';
+              ctx.shadowBlur = 8;
+              ctx.shadowOffsetY = 2;
+            }
+            ctx.fillText(lines[i], drawX, layer.y + i * lineHeight);
+            ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+          }
+        } else if (layer.kind === 'logo' && layer.url) {
+          const img = await loadImage(layer.url);
+          if (img) {
+            const r = Math.min(layer.w / img.width, layer.h / img.height);
+            const w = img.width * r, h = img.height * r;
+            ctx.drawImage(img, layer.x + (layer.w - w) / 2, layer.y + (layer.h - h) / 2, w, h);
+          }
+        }
+      }
+
+      if (state.selectedId && !state._renderingFinal) {
+        const sel = state.template.layers.find((l) => l.id === state.selectedId);
+        if (sel) {
+          ctx.strokeStyle = '#3aa7ff';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([6, 4]);
+          ctx.strokeRect(sel.x, sel.y, sel.w, sel.h);
+          ctx.setLineDash([]);
+          ctx.fillStyle = '#3aa7ff';
+          ctx.fillRect(sel.x + sel.w - 8, sel.y + sel.h - 8, 14, 14);
+        }
+      }
+    }
+
+    function roundRect(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y,     x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x,     y + h, r);
+      ctx.arcTo(x,     y + h, x,     y,     r);
+      ctx.arcTo(x,     y,     x + w, y,     r);
+      ctx.closePath();
+    }
+
+    function renderLayersPanel() {
+      const ul = $('#cover-layers');
+      if (!ul) return;
+      clearChildren(ul);
+      const layers = state.template.layers;
+      if (!layers.length) {
+        const li = document.createElement('li'); li.className = 'dim';
+        li.textContent = 'No layers. Add one with the buttons below.';
+        ul.appendChild(li);
+        renderInspector(null);
+        return;
+      }
+      [...layers].reverse().forEach((l) => {
+        const li = document.createElement('li');
+        li.className = 'cover-layer' + (l.id === state.selectedId ? ' selected' : '');
+        const label = document.createElement('span');
+        label.className = 'cover-layer-label';
+        label.textContent = l.kind === 'text'
+          ? '📝 ' + (l.text || '(empty)').slice(0, 30)
+          : l.kind === 'box'  ? '⬛ Box'
+          : l.kind === 'logo' ? '🖼  Logo'
+          : l.kind;
+        li.appendChild(label);
+        li.onclick = () => { state.selectedId = l.id; redraw(); };
+        const actions = document.createElement('span'); actions.className = 'cover-layer-actions';
+        const up = document.createElement('button'); up.className = 'pri-btn'; up.textContent = '↑';
+        up.title = 'Move forward'; up.onclick = (e) => { e.stopPropagation(); moveLayer(l.id, 1); };
+        const dn = document.createElement('button'); dn.className = 'pri-btn'; dn.textContent = '↓';
+        dn.title = 'Move backward'; dn.onclick = (e) => { e.stopPropagation(); moveLayer(l.id, -1); };
+        const del = document.createElement('button'); del.className = 'pri-btn pri-drop'; del.textContent = '✕';
+        del.title = 'Delete'; del.onclick = (e) => { e.stopPropagation(); removeLayer(l.id); };
+        actions.append(up, dn, del);
+        li.appendChild(actions);
+        ul.appendChild(li);
+      });
+      renderInspector(state.template.layers.find((l) => l.id === state.selectedId) || null);
+    }
+
+    function moveLayer(id, dir) {
+      const i = state.template.layers.findIndex((l) => l.id === id);
+      if (i < 0) return;
+      const j = i + dir;
+      if (j < 0 || j >= state.template.layers.length) return;
+      const arr = state.template.layers;
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+      redraw();
+    }
+    function removeLayer(id) {
+      state.template.layers = state.template.layers.filter((l) => l.id !== id);
+      if (state.selectedId === id) state.selectedId = null;
+      redraw();
+    }
+
+    function renderInspector(layer) {
+      const root = $('#cover-inspector');
+      if (!root) return;
+      clearChildren(root);
+      const h = document.createElement('h3'); h.textContent = 'Inspector';
+      root.appendChild(h);
+      if (!layer) {
+        const p = document.createElement('p'); p.className = 'dim';
+        p.textContent = 'Select a layer to edit its style.';
+        root.appendChild(p);
+        return;
+      }
+      const wrap = document.createElement('div'); wrap.className = 'cover-inspector-grid';
+      const addField = (label, input, fullWidth) => {
+        const l = document.createElement('label');
+        if (fullWidth) l.classList.add('full');
+        const s = document.createElement('span'); s.textContent = label;
+        l.append(s, input);
+        wrap.appendChild(l);
+      };
+      const numIn = (val, on) => {
+        const i = document.createElement('input'); i.type = 'number'; i.value = val ?? 0;
+        i.oninput = () => { on(parseFloat(i.value) || 0); redraw(); };
+        return i;
+      };
+      addField('X', numIn(layer.x, (v) => layer.x = v));
+      addField('Y', numIn(layer.y, (v) => layer.y = v));
+      addField('Width',  numIn(layer.w, (v) => layer.w = v));
+      addField('Height', numIn(layer.h, (v) => layer.h = v));
+
+      if (layer.kind === 'text') {
+        const ta = document.createElement('textarea'); ta.rows = 2; ta.value = layer.text || '';
+        ta.placeholder = 'Use {title} to substitute the post title';
+        ta.oninput = () => { layer.text = ta.value; redraw(); };
+        addField('Text', ta, true);
+        addField('Size', numIn(layer.size, (v) => layer.size = v));
+        const family = document.createElement('select');
+        for (const f of FONT_FAMILIES) {
+          const o = document.createElement('option'); o.value = f; o.textContent = f.split(',')[0];
+          if (layer.family === f) o.selected = true;
+          family.appendChild(o);
+        }
+        family.onchange = () => { layer.family = family.value; redraw(); };
+        addField('Family', family);
+        const weight = document.createElement('select');
+        for (const w of ['300', '400', '500', '600', '700', '800']) {
+          const o = document.createElement('option'); o.value = w; o.textContent = w;
+          if ((layer.weight || '600') === w) o.selected = true;
+          weight.appendChild(o);
+        }
+        weight.onchange = () => { layer.weight = weight.value; redraw(); };
+        addField('Weight', weight);
+        const align = document.createElement('select');
+        for (const a of ['left', 'center', 'right']) {
+          const o = document.createElement('option'); o.value = a; o.textContent = a;
+          if ((layer.align || 'left') === a) o.selected = true;
+          align.appendChild(o);
+        }
+        align.onchange = () => { layer.align = align.value; redraw(); };
+        addField('Align', align);
+        const colour = document.createElement('input'); colour.type = 'color';
+        colour.value = layer.color || '#ffffff';
+        colour.oninput = () => { layer.color = colour.value; redraw(); };
+        addField('Colour', colour);
+        const shadow = document.createElement('input'); shadow.type = 'checkbox';
+        shadow.checked = !!layer.shadow;
+        shadow.onchange = () => { layer.shadow = shadow.checked; redraw(); };
+        addField('Shadow', shadow);
+      } else if (layer.kind === 'box') {
+        const fill = document.createElement('input'); fill.type = 'color';
+        const rgbMatch = (layer.fill || '#000000').match(/^#([0-9a-f]{6,8})$/i);
+        fill.value = rgbMatch ? '#' + rgbMatch[1].slice(0, 6) : '#000000';
+        fill.oninput = () => {
+          const a = layer._alpha != null ? layer._alpha : 0.55;
+          layer.fill = hexToRgba(fill.value, a); redraw();
+        };
+        addField('Fill', fill);
+        const alpha = document.createElement('input'); alpha.type = 'range';
+        alpha.min = '0'; alpha.max = '1'; alpha.step = '0.05';
+        alpha.value = String(layer._alpha != null ? layer._alpha : 0.55);
+        alpha.oninput = () => {
+          layer._alpha = parseFloat(alpha.value);
+          layer.fill = hexToRgba(fill.value, layer._alpha); redraw();
+        };
+        addField('Alpha', alpha);
+        addField('Radius', numIn(layer.radius || 0, (v) => layer.radius = v));
+      } else if (layer.kind === 'logo') {
+        const sel = document.createElement('select');
+        const placeholder = document.createElement('option');
+        placeholder.value = ''; placeholder.textContent = '(no logo)';
+        sel.appendChild(placeholder);
+        for (const a of state.assets.logo) {
+          const o = document.createElement('option'); o.value = a.url; o.textContent = a.original_name || a.id;
+          if (layer.url === a.url) o.selected = true;
+          sel.appendChild(o);
+        }
+        sel.onchange = () => { layer.url = sel.value || null; layer.asset_id = null; redraw(); };
+        addField('Source', sel, true);
+      }
+      root.appendChild(wrap);
+    }
+
+    function hexToRgba(hex, a) {
+      const m = String(hex).match(/^#?([0-9a-f]{6})$/i);
+      if (!m) return 'rgba(0,0,0,' + a + ')';
+      const n = parseInt(m[1], 16);
+      const r = (n >> 16) & 0xff, g = (n >> 8) & 0xff, b = n & 0xff;
+      return `rgba(${r}, ${g}, ${b}, ${a})`;
+    }
+
+    function bindCanvas() {
+      const canvas = $('#' + CANVAS_ID);
+      if (!canvas) return;
+      const hitTest = (px, py) => {
+        for (let i = state.template.layers.length - 1; i >= 0; i--) {
+          const l = state.template.layers[i];
+          if (px >= l.x && px <= l.x + l.w && py >= l.y && py <= l.y + l.h) return l;
+        }
+        return null;
+      };
+      const handleHit = (l, px, py) => {
+        return px >= l.x + l.w - 16 && py >= l.y + l.h - 16;
+      };
+      const toCanvas = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const sx = canvas.width  / rect.width;
+        const sy = canvas.height / rect.height;
+        return { x: (e.clientX - rect.left) * sx, y: (e.clientY - rect.top) * sy };
+      };
+      canvas.addEventListener('mousedown', (e) => {
+        const { x, y } = toCanvas(e);
+        const hit = hitTest(x, y);
+        if (!hit) { state.selectedId = null; redraw(); return; }
+        state.selectedId = hit.id;
+        const resize = handleHit(hit, x, y);
+        state.drag = { id: hit.id, startX: x, startY: y, origX: hit.x, origY: hit.y,
+          origW: hit.w, origH: hit.h, mode: resize ? 'resize' : 'move' };
+        redraw();
+      });
+      window.addEventListener('mousemove', (e) => {
+        if (!state.drag) return;
+        const { x, y } = toCanvas(e);
+        const layer = state.template.layers.find((l) => l.id === state.drag.id);
+        if (!layer) return;
+        const dx = x - state.drag.startX, dy = y - state.drag.startY;
+        if (state.drag.mode === 'move') {
+          layer.x = Math.round(state.drag.origX + dx);
+          layer.y = Math.round(state.drag.origY + dy);
+        } else {
+          layer.w = Math.max(20, Math.round(state.drag.origW + dx));
+          layer.h = Math.max(20, Math.round(state.drag.origH + dy));
+        }
+        redraw();
+      });
+      window.addEventListener('mouseup', () => { state.drag = null; });
+    }
+
+    function addLayer(kind) {
+      const { width, height } = state.template;
+      const base = { id: uid(), kind, x: 80, y: 80 };
+      if (kind === 'text') {
+        Object.assign(base, {
+          w: width - 160, h: 200,
+          text: '{title}',
+          size: 72, family: 'Georgia, serif', weight: '700',
+          align: 'left', color: '#ffffff', shadow: true, lineHeight: 1.15,
+        });
+      } else if (kind === 'box') {
+        Object.assign(base, {
+          w: width - 160, h: 250,
+          fill: 'rgba(0,0,0,0.55)', _alpha: 0.55, radius: 12,
+        });
+      } else if (kind === 'logo') {
+        const w = 200, h = 80;
+        Object.assign(base, {
+          x: width - w - 40, y: height - h - 40, w, h,
+          url: state.assets.logo[0]?.url || null,
+        });
+      }
+      state.template.layers.push(base);
+      state.selectedId = base.id;
+      redraw();
+    }
+
+    let _redrawScheduled = false;
+    function redraw(previewTitle) {
+      if (_redrawScheduled) return;
+      _redrawScheduled = true;
+      requestAnimationFrame(async () => {
+        _redrawScheduled = false;
+        try { await draw(previewTitle); } catch { /* swallow */ }
+        renderLayersPanel();
+      });
+    }
+
+    async function loadAssets() {
+      const [bgs, logos] = await Promise.all([
+        api('/api/admin/cover/upload?kind=background'),
+        api('/api/admin/cover/upload?kind=logo'),
+      ]);
+      state.assets.background = bgs.body?.assets || [];
+      state.assets.logo       = logos.body?.assets || [];
+      renderAssetGrid('background', '#cover-bg-grid');
+      renderAssetGrid('logo',       '#cover-logo-grid');
+    }
+
+    function renderAssetGrid(kind, sel) {
+      const grid = $(sel);
+      if (!grid) return;
+      clearChildren(grid);
+      const list = state.assets[kind];
+      if (!list.length) {
+        const d = document.createElement('div'); d.className = 'dim';
+        d.textContent = `No ${kind}s yet.`;
+        grid.appendChild(d);
+        return;
+      }
+      for (const a of list) {
+        const card = document.createElement('div'); card.className = 'cover-asset';
+        const img = document.createElement('img'); img.src = a.url; img.loading = 'lazy';
+        const use = document.createElement('button'); use.className = 'btn btn-sm';
+        use.textContent = kind === 'background' ? 'Use as bg' : 'Add as logo';
+        use.onclick = () => {
+          if (kind === 'background') {
+            state.template.background = { asset_id: a.id, url: a.url };
+          } else {
+            addLayer('logo');
+            const l = state.template.layers[state.template.layers.length - 1];
+            l.url = a.url; l.asset_id = a.id;
+          }
+          redraw();
+        };
+        const del = document.createElement('button'); del.className = 'btn btn-sm btn-ghost';
+        del.textContent = '✕';
+        del.onclick = async () => {
+          if (!confirm('Delete this asset?')) return;
+          await api('/api/admin/cover/upload?id=' + encodeURIComponent(a.id), { method: 'DELETE' });
+          loadAssets();
+        };
+        card.append(img, use, del);
+        grid.appendChild(card);
+      }
+    }
+
+    async function uploadAsset(kind, file) {
+      const status = $('#cover-upload-status');
+      status.className = 'status'; status.textContent = `Uploading ${kind}…`;
+      const b64 = await fileToBase64(file);
+      const { status: code, body } = await api('/api/admin/cover/upload', {
+        method: 'POST',
+        body: JSON.stringify({
+          kind, filename: file.name, content_type: file.type, base64: b64,
+        }),
+      });
+      if (code !== 200 || !body?.ok) {
+        status.className = 'status bad';
+        status.textContent = 'Upload failed: ' + (body?.error || code);
+        return;
+      }
+      status.className = 'status good';
+      status.textContent = `Uploaded ${kind}.`;
+      setTimeout(() => { status.textContent = ''; }, 2000);
+      loadAssets();
+    }
+
+    function fileToBase64(file) {
+      return new Promise((res, rej) => {
+        const fr = new FileReader();
+        fr.onload = () => res(String(fr.result).replace(/^data:[^;]+;base64,/, ''));
+        fr.onerror = () => rej(new Error('read_failed'));
+        fr.readAsDataURL(file);
+      });
+    }
+
+    async function loadTemplates() {
+      const { body } = await api('/api/admin/cover/templates');
+      state.templates = body?.templates || [];
+      renderTemplateList();
+    }
+
+    function renderTemplateList() {
+      const ul = $('#cover-templates');
+      if (!ul) return;
+      clearChildren(ul);
+      if (!state.templates.length) {
+        const li = document.createElement('li'); li.className = 'dim';
+        li.textContent = 'No templates saved yet.';
+        ul.appendChild(li);
+        return;
+      }
+      for (const t of state.templates) {
+        const li = document.createElement('li');
+        const name = document.createElement('strong'); name.textContent = t.name;
+        if (t.is_default) {
+          const badge = document.createElement('span'); badge.className = 'pill good';
+          badge.textContent = 'default'; name.appendChild(document.createTextNode(' '));
+          name.appendChild(badge);
+        }
+        const load = document.createElement('button'); load.className = 'btn btn-sm';
+        load.textContent = 'Load';
+        load.onclick = () => {
+          if (!t.spec) return;
+          state.template = JSON.parse(JSON.stringify(t.spec));
+          for (const l of state.template.layers) l.id = l.id || uid();
+          $('#cover-template-name').value = t.name;
+          $('#cover-template-default').checked = !!t.is_default;
+          state.selectedId = null;
+          redraw();
+        };
+        const del = document.createElement('button'); del.className = 'btn btn-sm btn-ghost';
+        del.textContent = 'Delete';
+        del.onclick = async () => {
+          if (!confirm('Delete template "' + t.name + '"?')) return;
+          await api('/api/admin/cover/templates?id=' + encodeURIComponent(t.id), { method: 'DELETE' });
+          loadTemplates();
+        };
+        li.append(name, load, del);
+        ul.appendChild(li);
+      }
+    }
+
+    async function saveTemplate() {
+      const name = $('#cover-template-name').value.trim();
+      const status = $('#cover-save-status');
+      if (!name) { status.className = 'status bad'; status.textContent = 'Name the template first.'; return; }
+      const spec = JSON.parse(JSON.stringify(state.template));
+      for (const l of spec.layers) { delete l._alpha; }
+      const is_default = $('#cover-template-default').checked;
+      status.className = 'status'; status.textContent = 'Saving…';
+      const { status: code, body } = await api('/api/admin/cover/templates', {
+        method: 'POST',
+        body: JSON.stringify({ name, spec, is_default }),
+      });
+      if (code !== 200 || !body?.ok) {
+        status.className = 'status bad'; status.textContent = 'Save failed: ' + (body?.error || code); return;
+      }
+      status.className = 'status good';
+      status.textContent = 'Saved.';
+      setTimeout(() => { status.textContent = ''; }, 2000);
+      loadTemplates();
+    }
+
+    async function loadPosts() {
+      const r = await api('/api/admin/blog/list');
+      state.posts = (r.body?.posts || []).filter((p) => p.status === 'published').slice(0, 50);
+      const sel = $('#cover-preview-post');
+      if (!sel) return;
+      while (sel.options.length > 1) sel.remove(1);
+      for (const p of state.posts) {
+        const o = document.createElement('option'); o.value = p.id; o.textContent = p.title.slice(0, 70);
+        sel.appendChild(o);
+      }
+    }
+
+    async function runPreview() {
+      const titleField = $('#cover-preview-title').value.trim();
+      const postId = $('#cover-preview-post').value;
+      let title = titleField;
+      if (!title && postId) {
+        title = state.posts.find((p) => p.id === postId)?.title || '';
+      }
+      redraw(title);
+    }
+
+    async function applyToTarget() {
+      const postId = $('#cover-preview-post').value;
+      const status = $('#cover-save-status');
+      if (!postId) { status.className = 'status bad'; status.textContent = 'Pick a blog post first.'; return; }
+      const post = state.posts.find((p) => p.id === postId);
+      if (!post) { status.className = 'status bad'; status.textContent = 'Post not found.'; return; }
+      status.className = 'status'; status.textContent = 'Rendering…';
+      state._renderingFinal = true;
+      await draw(post.title);
+      state._renderingFinal = false;
+      const canvas = $('#' + CANVAS_ID);
+      const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
+      if (!blob) { status.className = 'status bad'; status.textContent = 'Render failed.'; return; }
+      const b64 = await new Promise((res, rej) => {
+        const fr = new FileReader();
+        fr.onload = () => res(String(fr.result));
+        fr.onerror = () => rej(new Error('read_failed'));
+        fr.readAsDataURL(blob);
+      });
+      const { status: code, body } = await api('/api/admin/cover/apply', {
+        method: 'POST',
+        body: JSON.stringify({ target: 'post', id: postId, base64: b64 }),
+      });
+      if (code !== 200 || !body?.ok) {
+        status.className = 'status bad'; status.textContent = 'Apply failed: ' + (body?.error || code);
+        redraw();
+        return;
+      }
+      status.className = 'status good';
+      status.textContent = `Applied to "${post.title.slice(0, 40)}…". New key: ${body.hero_image_key}`;
+      redraw();
+    }
+
+    function applyPreset() {
+      const sel = $('#cover-canvas-preset'); if (!sel) return;
+      const [w, h] = sel.value.split('x').map(Number);
+      state.template.width = w; state.template.height = h;
+      $('#cover-canvas-size').textContent = `${w} × ${h}`;
+      redraw();
+    }
+
+    async function init() {
+      if (state.mounted) { redraw(); return; }
+      state.mounted = true;
+      bindCanvas();
+      $('#cover-upload-bg')?.addEventListener('change', (e) => {
+        const f = e.target.files[0]; if (f) uploadAsset('background', f); e.target.value = '';
+      });
+      $('#cover-upload-logo')?.addEventListener('change', (e) => {
+        const f = e.target.files[0]; if (f) uploadAsset('logo', f); e.target.value = '';
+      });
+      $$('button[data-add-layer]').forEach((b) => {
+        b.addEventListener('click', () => addLayer(b.dataset.addLayer));
+      });
+      $('#cover-canvas-preset')?.addEventListener('change', applyPreset);
+      $('#cover-preview-go')?.addEventListener('click', runPreview);
+      $('#cover-save-template')?.addEventListener('click', saveTemplate);
+      $('#cover-apply-go')?.addEventListener('click', applyToTarget);
+      await Promise.all([loadAssets(), loadTemplates(), loadPosts()]);
+      redraw();
+    }
+
+    return { init, state };
+  })();
 
   // ── mount ───────────────────────────────────────────────────────
   function mount() {

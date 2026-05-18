@@ -31,6 +31,7 @@
       <button class="tab" data-tab="seo">SEO</button>
       <button class="tab" data-tab="brand">Brand DNA</button>
       <button class="tab" data-tab="usage">Usage</button>
+      <button class="tab" data-tab="covers">Covers</button>
       <button class="tab" data-tab="settings">Settings</button>
     </nav>
     <button id="lock" class="btn btn-ghost btn-sm">Lock</button>
@@ -356,6 +357,92 @@
           <thead><tr><th>When</th><th>Provider</th><th>Kind</th><th>Source</th><th>Tokens</th><th>Cost</th><th>OK</th></tr></thead>
           <tbody id="usage-recent"><tr><td colspan="7" class="dim">Loading…</td></tr></tbody>
         </table>
+      </div>
+    </section>
+
+    <!-- ============ COVERS ============ -->
+    <section data-page="covers" class="page" hidden>
+      <div class="card">
+        <div class="card-eyebrow">Step 1 · Upload</div>
+        <h2>Backgrounds &amp; logos</h2>
+        <p>Drop images here, or click the buttons. Backgrounds become the hero canvas; logos can be placed anywhere on top.</p>
+        <div class="cover-upload-row">
+          <label class="btn">
+            Upload background
+            <input type="file" id="cover-upload-bg" accept="image/*" hidden />
+          </label>
+          <label class="btn">
+            Upload logo
+            <input type="file" id="cover-upload-logo" accept="image/*" hidden />
+          </label>
+          <span id="cover-upload-status" class="status"></span>
+        </div>
+        <div class="cover-assets">
+          <div class="cover-asset-group">
+            <h3>Backgrounds</h3>
+            <div id="cover-bg-grid" class="cover-asset-grid"><div class="dim">No backgrounds yet.</div></div>
+          </div>
+          <div class="cover-asset-group">
+            <h3>Logos</h3>
+            <div id="cover-logo-grid" class="cover-asset-grid"><div class="dim">No logos yet.</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-eyebrow">Step 2 · Compose</div>
+        <h2>Editor</h2>
+        <div class="cover-editor">
+          <div class="cover-canvas-wrap">
+            <canvas id="cover-canvas" width="1200" height="630"></canvas>
+            <div class="cover-canvas-foot">
+              <span id="cover-canvas-size">1200 × 630</span>
+              <select id="cover-canvas-preset">
+                <option value="1200x630">1200 × 630 (OG default)</option>
+                <option value="1920x1080">1920 × 1080</option>
+                <option value="1080x1080">1080 × 1080</option>
+                <option value="1080x1350">1080 × 1350 (portrait)</option>
+              </select>
+            </div>
+          </div>
+          <aside class="cover-side">
+            <div class="cover-side-section">
+              <h3>Layers</h3>
+              <ul id="cover-layers" class="cover-layers"></ul>
+              <div class="cover-add-row">
+                <button class="btn btn-sm" data-add-layer="text">+ Text</button>
+                <button class="btn btn-sm" data-add-layer="box">+ Box</button>
+                <button class="btn btn-sm" data-add-layer="logo">+ Logo</button>
+              </div>
+            </div>
+            <div class="cover-side-section" id="cover-inspector">
+              <h3>Inspector</h3>
+              <p class="dim">Select a layer to edit its style.</p>
+            </div>
+          </aside>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-eyebrow">Step 3 · Preview &amp; save</div>
+        <h2>Try it with a real blog post</h2>
+        <p>Substitute a <code>{title}</code> token in any text layer to test how the cover looks for an actual post.</p>
+        <div class="row form-row">
+          <select id="cover-preview-post"><option value="">(pick a blog post or use the field below)</option></select>
+          <input id="cover-preview-title" type="text" placeholder="Or type a title to preview" />
+          <button id="cover-preview-go" class="btn">Preview</button>
+        </div>
+        <div class="row form-row">
+          <input id="cover-template-name" type="text" placeholder="Template name (e.g. Blog default)" />
+          <label class="cover-default-toggle"><input type="checkbox" id="cover-template-default" /> Default for new posts</label>
+          <button id="cover-save-template" class="btn btn-primary">Save template</button>
+          <button id="cover-apply-go" class="btn">Apply to chosen post</button>
+          <span id="cover-save-status" class="status"></span>
+        </div>
+        <div class="cover-template-list">
+          <h3>Saved templates</h3>
+          <ul id="cover-templates" class="cover-templates"><li class="dim">None yet.</li></ul>
+        </div>
       </div>
     </section>
 

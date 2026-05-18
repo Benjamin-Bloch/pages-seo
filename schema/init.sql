@@ -130,6 +130,43 @@ CREATE TABLE IF NOT EXISTS settings (
   updated_at      INTEGER NOT NULL
 );
 
+-- Cover image editor: uploaded background/logo assets, plus saved
+-- composition templates.
+--
+-- Workflow:
+--   1. Admin uploads background images + logos via /api/admin/cover/upload.
+--      The bytes go to R2; one row per asset in cover_assets.
+--   2. Admin builds a template in the canvas editor: chooses a bg + logo,
+--      adds text layers, drags everything into place. Saves to
+--      cover_templates with a JSON spec (see functions/_lib/cover_render.js
+--      for the spec shape).
+--   3. When generating a blog post, the admin can pick a saved template;
+--      the editor renders the final PNG client-side from { title } +
+--      template, and uploads it as the post's hero_image_key.
+CREATE TABLE IF NOT EXISTS cover_assets (
+  id              TEXT PRIMARY KEY,
+  kind            TEXT NOT NULL,                 -- background | logo
+  r2_key          TEXT NOT NULL,                 -- R2 object key
+  original_name   TEXT,
+  mime            TEXT,
+  size_bytes      INTEGER NOT NULL DEFAULT 0,
+  width           INTEGER,                       -- optional, client-supplied
+  height          INTEGER,
+  created_at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_cover_assets_kind ON cover_assets(kind, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS cover_templates (
+  id              TEXT PRIMARY KEY,
+  name            TEXT NOT NULL,
+  is_default      INTEGER NOT NULL DEFAULT 0,    -- 1 = use for new posts unless overridden
+  spec_json       TEXT NOT NULL,                 -- JSON: { width, height, layers: [...] }
+  thumb_r2_key    TEXT,                          -- optional preview PNG
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_cover_templates_updated ON cover_templates(updated_at DESC);
+
 -- Per-call AI usage log. Every LLM/image generation writes one row.
 -- We compute cost client-side from a per-provider price table (see
 -- functions/_lib/usage.js + the pricing_* keys in `settings`). Workers
