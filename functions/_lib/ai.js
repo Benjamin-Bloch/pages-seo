@@ -74,6 +74,20 @@ function voiceBlock(brand) {
   ].join('\n');
 }
 
+// Agent body-markup hint. Emitted as an optional capability — the
+// model can use standard Markdown OR these tags interchangeably. We
+// don't *require* the tags because Markdown is the LLM's native
+// output and forcing custom syntax always lowers quality.
+const AGENT_MARKUP_HINT = [
+  'BODY MARKUP (optional, additive to Markdown):',
+  '  /.box.amber./ Important highlight /./  → amber-bordered callout box',
+  '  /.box./ Standard pull-out /./          → plain bordered box',
+  '  /.callout./ Side note /./              → left-bordered aside',
+  '  /.divider./                            → horizontal rule',
+  '  Standard Markdown (# heading, **bold**, lists) still works for everything else.',
+  '  Use boxes/callouts sparingly — at most one per post, only when the content really benefits.',
+].join('\n');
+
 // Renders the long-form brand DNA (business type, key themes, topics
 // to avoid, service area) into a prompt block. Only emits sections
 // that are actually populated — empty fields don't burn tokens.
@@ -190,6 +204,8 @@ function buildArticlePrompt(angle, brand) {
     '',
     BANNED_PHRASES_BLOCK,
     '',
+    AGENT_MARKUP_HINT,
+    '',
     CONCRETENESS_BLOCK,
     '',
     `# Hero image`,
@@ -234,6 +250,8 @@ function buildProgrammaticPrompt(keyword, brand) {
     '- Slug: kebab-case, derived from the keyword.',
     '',
     BANNED_PHRASES_BLOCK,
+    '',
+    AGENT_MARKUP_HINT,
     '',
     CONCRETENESS_BLOCK,
     '',

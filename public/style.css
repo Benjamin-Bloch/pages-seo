@@ -127,6 +127,25 @@ pre code{background:transparent;padding:0;color:var(--ink)}
 .prose a:hover{text-decoration:underline}
 .prose code{background:var(--bg-soft);padding:1px 6px;border-radius:3px}
 
+/* Agent-markup blocks (see functions/_lib/agent_markup.js) */
+.prose .agent-box{
+  border:1px solid var(--line);
+  background:var(--bg-soft);
+  padding:18px 22px;border-radius:10px;
+  margin:24px 0;color:var(--ink);
+}
+.prose .agent-box.amber{border-color:rgba(229,159,57,0.4);background:rgba(229,159,57,0.07)}
+.prose .agent-box.green{border-color:rgba(91,210,154,0.4);background:rgba(91,210,154,0.07)}
+.prose .agent-box.red  {border-color:rgba(241,103,103,0.4);background:rgba(241,103,103,0.07)}
+.prose .agent-box.blue {border-color:rgba(118,179,255,0.4);background:rgba(118,179,255,0.07)}
+.prose .agent-box.grey {border-color:var(--line);background:var(--bg)}
+.prose .agent-callout{
+  border-left:3px solid var(--accent);
+  padding:12px 18px;margin:24px 0;
+  background:rgba(255,255,255,0.02);font-size:0.97em;color:var(--ink);
+}
+.prose hr{border:0;border-top:1px solid var(--line);margin:36px 0}
+
 /* ── Mobile tightening ───────────────────────────────────────────── */
 @media (max-width:600px){
   .nav{padding:14px 16px;gap:12px}

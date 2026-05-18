@@ -27,20 +27,43 @@ function inline(s) {
   return out;
 }
 
+// Exposed so the agent-markup renderer can reuse the same inline rules
+// inside custom blocks. Keep this in sync if `inline` changes.
+export const inlineRender = inline;
+
 // Pre-pass: Llama-class models sometimes emit a heading and the next
 // paragraph on a single line, e.g. "# Title Body text starts here". We
 // can't safely re-segment arbitrary prose, but we *can* enforce a line
 // break before any `#`/`##`/`###` that appears mid-line — markdown
 // headings must start a line anyway.
 function splitInlineHeadings(md) {
-  // Insert a newline before any `#`-style heading that follows a non-newline.
-  return md.replace(/([^\n])(\n?)(#{1,6}\s+)/g, (_, prev, nl, h) => {
+  // Insert a newline before any `#`-style heading that follows a real
+  // non-newline character. Exclude `#` from the "previous char" class
+  // so we don't shred multi-`#` openers — e.g. `##` would otherwise
+  // match as (#)(?)(# ) and turn into "#\n# " (a stray empty h1
+  // followed by a real h1 instead of the intended h2).
+  return md.replace(/([^\n#])(\n?)(#{1,6}\s+)/g, (_, prev, nl, h) => {
     if (nl) return prev + nl + h;
     return prev + '\n' + h;
   });
 }
 
+// agent_markup imports inlineRender from this file. ES modules handle
+// this circular reference correctly because inlineRender is assigned
+// during top-level execution before agent_markup's parse functions
+// are called.
+import * as agentMarkup from './agent_markup.js';
+
 export function renderMarkdown(md) {
+  const src = String(md || '').replace(/\r\n/g, '\n');
+  // Fast path: no custom tags → straight to Markdown.
+  if (!agentMarkup.hasAgentMarkup(src)) return renderMarkdownInner(src);
+  const { md: stripped, blocks } = agentMarkup.extractBlocks(src);
+  const html = renderMarkdownInner(stripped);
+  return agentMarkup.restoreBlocks(html, blocks);
+}
+
+function renderMarkdownInner(md) {
   const normalised = splitInlineHeadings(String(md || '').replace(/\r\n/g, '\n'));
   const lines = normalised.split('\n');
   const out = [];
