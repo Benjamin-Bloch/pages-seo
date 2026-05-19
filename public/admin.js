@@ -138,6 +138,7 @@
     if (name === 'prog') { loadQueue(); }
     if (name === 'seo') { renderWidgetSnippet(); }
     if (name === 'brand') { loadBrand(); }
+    if (name === 'calendar') { Calendar.init(); }
     if (name === 'usage') { loadUsage(); }
     if (name === 'covers') { Cover.init(); }
     if (name === 'embeds') { loadEmbeds(); }
@@ -416,8 +417,14 @@
       status.className = 'status bad'; status.textContent = body?.error || code; return;
     }
     status.className = 'status good';
-    status.textContent = `Saved · ${body.saved} field(s). Every new post will use this.`;
-    setTimeout(() => { status.textContent = ''; status.className = 'status'; }, 4000);
+    if (body.planning) {
+      status.innerHTML = `Saved · ${body.saved} field(s). Planning your <a href="#" data-jump-cal>Content Calendar</a> in the background…`;
+      const link = status.querySelector('[data-jump-cal]');
+      if (link) link.addEventListener('click', (e) => { e.preventDefault(); activateTab('calendar'); });
+    } else {
+      status.textContent = `Saved · ${body.saved} field(s). Every new post will use this.`;
+    }
+    setTimeout(() => { status.textContent = ''; status.className = 'status'; }, 6000);
   }
 
   // ── embeds ────────────────────────────────────────────────────
@@ -2030,8 +2037,258 @@
     const eCreate = $('#embed-create-go');
     if (eCreate) eCreate.addEventListener('click', createEmbed);
 
+    // calendar tab
+    const cPrev = $('#cal-prev'); if (cPrev) cPrev.addEventListener('click', () => Calendar.shiftMonth(-1));
+    const cNext = $('#cal-next'); if (cNext) cNext.addEventListener('click', () => Calendar.shiftMonth(1));
+    const cToday = $('#cal-today'); if (cToday) cToday.addEventListener('click', () => Calendar.gotoToday());
+    const cPlan = $('#cal-plan'); if (cPlan) cPlan.addEventListener('click', () => Calendar.regenerate());
+    const cNew = $('#cal-new'); if (cNew) cNew.addEventListener('click', () => Calendar.openModal({ scheduled_for: Calendar.todayIso() }));
+
     activateTab('overview');
   }
+
+  // ── content calendar ───────────────────────────────────────────
+  const Calendar = (() => {
+    let current = startOfMonth(new Date());
+    let slots = [];
+    let loading = false;
+    let editingId = null;
+
+    function startOfMonth(d) {
+      const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+      return x;
+    }
+    function addMonths(d, n) {
+      return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + n, 1));
+    }
+    function isoOf(d) { return d.toISOString().slice(0, 10); }
+    function todayIso() { return new Date().toISOString().slice(0, 10); }
+    // Monday-first weekday index (0=Mon … 6=Sun).
+    function dowMonFirst(d) { return (d.getUTCDay() + 6) % 7; }
+
+    function fmtRange(monthStart) {
+      // Show "May – June 2026" if the visible grid spans across a month.
+      const monthsShort = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const monthsLong  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      const start = gridStart(monthStart);
+      const end = addDays(start, 41);
+      const sm = start.getUTCMonth(), em = end.getUTCMonth();
+      const sy = start.getUTCFullYear(), ey = end.getUTCFullYear();
+      if (sy === ey && sm === em) return `${monthsLong[sm]} ${sy}`;
+      const a = monthsShort[sm];
+      const b = monthsShort[em];
+      return sy === ey ? `${a} – ${b} ${sy}` : `${a} ${sy} – ${b} ${ey}`;
+    }
+    function addDays(d, n) {
+      return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + n));
+    }
+    function gridStart(monthStart) {
+      // Start the grid on the Monday on/before the 1st of the month.
+      return addDays(monthStart, -dowMonFirst(monthStart));
+    }
+
+    async function load() {
+      if (loading) return;
+      loading = true;
+      const start = gridStart(current);
+      const end   = addDays(start, 41);
+      const { status, body } = await api(`/api/admin/calendar?from=${isoOf(start)}&to=${isoOf(end)}`);
+      loading = false;
+      if (status !== 200) {
+        $('#cal-grid').innerHTML = '<div class="cal-empty">Failed to load calendar.</div>';
+        return;
+      }
+      slots = body.slots || [];
+      render();
+    }
+
+    function slotsForDate(d) {
+      const k = isoOf(d);
+      return slots.filter((s) => s.scheduled_for === k);
+    }
+
+    function render() {
+      $('#cal-range').textContent = fmtRange(current);
+      const grid = $('#cal-grid');
+      grid.innerHTML = '';
+      const start = gridStart(current);
+      const todayK = todayIso();
+
+      for (let i = 0; i < 42; i++) {
+        const day = addDays(start, i);
+        const k = isoOf(day);
+        const otherMonth = day.getUTCMonth() !== current.getUTCMonth();
+        const isToday = k === todayK;
+
+        const cell = document.createElement('div');
+        cell.className = 'cal-cell' + (otherMonth ? ' cal-other-month' : '') + (isToday ? ' cal-today-cell' : '');
+
+        const dayLabel = document.createElement('div');
+        dayLabel.className = 'cal-day';
+        const dayNum = document.createElement('span');
+        const firstOfMonth = day.getUTCDate() === 1;
+        const monthsShort = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        dayNum.textContent = firstOfMonth ? `${monthsShort[day.getUTCMonth()]} ${day.getUTCDate()}` : day.getUTCDate();
+        dayLabel.appendChild(dayNum);
+        if (isToday) {
+          const tag = document.createElement('span');
+          tag.className = 'cal-day-tag';
+          tag.textContent = 'Today';
+          dayLabel.appendChild(tag);
+        }
+        cell.appendChild(dayLabel);
+
+        const cellSlots = slotsForDate(day);
+        for (const s of cellSlots) {
+          if (s.status === 'published' && s.post?.hero_image_key) {
+            const img = document.createElement('img');
+            img.className = 'cal-thumb';
+            img.src = '/image/' + s.post.hero_image_key;
+            img.alt = s.title || '';
+            img.loading = 'lazy';
+            cell.appendChild(img);
+          }
+          const slot = document.createElement('button');
+          slot.type = 'button';
+          slot.className = 'cal-slot cal-slot-' + s.status;
+          const icon = ({
+            scheduled: '📅', generating: '⟳', draft: '📝', published: '✓', skipped: '—',
+          })[s.status] || '•';
+          const iconEl = document.createElement('span');
+          iconEl.className = 'cal-slot-icon';
+          iconEl.textContent = icon;
+          const titleEl = document.createElement('span');
+          titleEl.className = 'cal-slot-title';
+          titleEl.textContent = s.title;
+          slot.appendChild(iconEl);
+          slot.appendChild(titleEl);
+          slot.title = (s.angle || '') + (s.primary_keyword ? `\nKeyword: ${s.primary_keyword}` : '');
+          slot.addEventListener('click', () => openModal(s));
+          cell.appendChild(slot);
+        }
+        if (!cellSlots.length && !otherMonth) {
+          const add = document.createElement('button');
+          add.type = 'button';
+          add.className = 'cal-add';
+          add.textContent = '+';
+          add.title = 'Add an article for this day';
+          add.addEventListener('click', () => openModal({ scheduled_for: k }));
+          cell.appendChild(add);
+        }
+
+        grid.appendChild(cell);
+      }
+    }
+
+    function openModal(slot) {
+      editingId = slot.id || null;
+      $('#cal-modal-title').textContent = editingId ? 'Edit article' : 'New article';
+      $('#cal-mod-title').value = slot.title || '';
+      $('#cal-mod-date').value = slot.scheduled_for || todayIso();
+      $('#cal-mod-keyword').value = slot.primary_keyword || '';
+      $('#cal-mod-angle').value = slot.angle || '';
+      const del = $('#cal-mod-delete');
+      del.hidden = !editingId || slot.status === 'published';
+      const save = $('#cal-mod-save');
+      const isPub = slot.status === 'published';
+      save.textContent = isPub ? 'OK' : 'Save';
+      $('#cal-modal').hidden = false;
+      setTimeout(() => $('#cal-mod-title').focus(), 30);
+    }
+
+    function closeModal() {
+      $('#cal-modal').hidden = true;
+      editingId = null;
+    }
+
+    async function save() {
+      const title = $('#cal-mod-title').value.trim();
+      const date  = $('#cal-mod-date').value.trim();
+      const keyword = $('#cal-mod-keyword').value.trim();
+      const angle = $('#cal-mod-angle').value.trim();
+      if (!title) { $('#cal-mod-title').focus(); return; }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { $('#cal-mod-date').focus(); return; }
+
+      const body = { title, scheduled_for: date, primary_keyword: keyword, angle };
+      let res;
+      if (editingId) {
+        res = await api('/api/admin/calendar', {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ id: editingId, ...body }),
+        });
+      } else {
+        res = await api('/api/admin/calendar', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+      }
+      if (res.status !== 200) {
+        alert(res.body?.detail || res.body?.error || 'Save failed');
+        return;
+      }
+      closeModal();
+      load();
+    }
+
+    async function del() {
+      if (!editingId) return;
+      if (!confirm('Delete this article slot?')) return;
+      const res = await api('/api/admin/calendar?id=' + encodeURIComponent(editingId), { method: 'DELETE' });
+      if (res.status !== 200) {
+        alert(res.body?.detail || res.body?.error || 'Delete failed');
+        return;
+      }
+      closeModal();
+      load();
+    }
+
+    async function regenerate() {
+      const replace = confirm('Replace all future scheduled articles with a fresh plan?\n\nOK = wipe and re-plan.\nCancel = append to existing (no wipe).');
+      const btn = $('#cal-plan');
+      const orig = btn.textContent;
+      btn.disabled = true; btn.textContent = 'Planning…';
+      const res = await api('/api/admin/calendar/plan', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ days: 28, replace }),
+      });
+      btn.disabled = false; btn.textContent = orig;
+      if (res.status !== 200) {
+        if (res.body?.error === 'no_brand_dna') {
+          alert('Save your Brand DNA first — the planner uses it to pick topics.');
+          activateTab('brand');
+          return;
+        }
+        alert(res.body?.detail || res.body?.error || 'Planning failed');
+        return;
+      }
+      load();
+    }
+
+    function shiftMonth(n) { current = addMonths(current, n); load(); }
+    function gotoToday() { current = startOfMonth(new Date()); load(); }
+
+    function bindModalOnce() {
+      if (bindModalOnce.done) return;
+      bindModalOnce.done = true;
+      $('#cal-mod-save').addEventListener('click', save);
+      $('#cal-mod-delete').addEventListener('click', del);
+      $('#cal-mod-cancel').addEventListener('click', closeModal);
+      $('#cal-modal').addEventListener('click', (e) => { if (e.target.id === 'cal-modal') closeModal(); });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !$('#cal-modal').hidden) closeModal();
+      });
+    }
+
+    function init() {
+      bindModalOnce();
+      load();
+    }
+
+    return { init, shiftMonth, gotoToday, regenerate, openModal, todayIso };
+  })();
 
   // ── boot ────────────────────────────────────────────────────────
   // Bind the login form handler immediately, synchronously, before any

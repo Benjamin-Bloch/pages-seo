@@ -78,7 +78,9 @@ async function runBlogChain(env, source, { resumeOnly = false } = {}) {
   } else if (resumeOnly) {
     return { ok: true, source, resumed: false, no_op: true };
   } else {
-    const startR = await call(env, `${base}/start`);
+    // Prefer the next due calendar slot; falls back to the legacy
+    // topic picker on the server side if no slot is due.
+    const startR = await call(env, `${base}/start`, JSON.stringify({ from_calendar: true }));
     jobId = startR?.body?.job_id;
     if (!startR.ok || !jobId) return { ok: false, step: 'start', source, ...startR };
   }

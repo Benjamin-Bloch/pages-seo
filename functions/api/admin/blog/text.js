@@ -76,6 +76,10 @@ export const onRequestPost = async ({ request, env }) => {
     await env.DB.prepare(
       "UPDATE blog_jobs SET status='failed', error=?, updated_at=? WHERE id=?"
     ).bind('text:' + msg, nowSec(), jobId).run();
+    // Release any calendar slot that claimed this job back to 'scheduled'.
+    await env.DB.prepare(
+      "UPDATE content_calendar SET status='scheduled', job_id=NULL, updated_at=? WHERE job_id=?"
+    ).bind(nowSec(), jobId).run().catch(() => {});
     return json(502, { error: 'text_generation_failed', detail: msg });
   }
 

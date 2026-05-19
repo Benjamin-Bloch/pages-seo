@@ -263,3 +263,33 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 CREATE INDEX IF NOT EXISTS idx_audit_action_created
   ON audit_log(action, created_at DESC);
+
+-- Content calendar: planned upcoming articles. One row per slot.
+--
+-- Lifecycle:
+--   scheduled  → planner created it (or admin added one) for a future date
+--   generating → cron is mid-chain (linked via blog_jobs.id)
+--   draft      → admin manually edited and held back
+--   published  → linked to a blog_posts row via post_id
+--
+-- The cron picks slots in `scheduled_for` order, oldest first, where
+-- status='scheduled' AND scheduled_for <= today. One slot per day is
+-- the convention; nothing enforces it (admin can add multiple if they
+-- want a backlog day to catch up).
+CREATE TABLE IF NOT EXISTS content_calendar (
+  id              TEXT PRIMARY KEY,                -- 16-byte hex
+  scheduled_for   TEXT NOT NULL,                   -- YYYY-MM-DD (UTC)
+  title           TEXT NOT NULL,
+  primary_keyword TEXT,
+  angle           TEXT,                            -- 1-2 sentences of editorial direction
+  status          TEXT NOT NULL DEFAULT 'scheduled',
+  source          TEXT,                            -- 'planner' | 'manual'
+  job_id          TEXT,                            -- → blog_jobs.id once cron starts
+  post_id         TEXT,                            -- → blog_posts.id once published
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_calendar_date_status
+  ON content_calendar(scheduled_for, status);
+CREATE INDEX IF NOT EXISTS idx_calendar_status_date
+  ON content_calendar(status, scheduled_for);

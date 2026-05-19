@@ -37,6 +37,10 @@ export const onRequestPost = async ({ request, env, waitUntil }) => {
   await env.DB.prepare(
     "UPDATE blog_jobs SET status='published', blog_post_id=?, updated_at=? WHERE id=?"
   ).bind(postId, t, jobId).run();
+  // If this job came from a calendar slot, close the loop.
+  await env.DB.prepare(
+    "UPDATE content_calendar SET status='published', post_id=?, updated_at=? WHERE job_id=?"
+  ).bind(postId, t, jobId).run().catch(() => {});
   await markTopicUsed(env, job.topic_key).catch(() => {});
 
   // Best-effort IndexNow ping. The host is derived from this request so

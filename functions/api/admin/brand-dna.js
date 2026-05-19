@@ -320,7 +320,7 @@ export const onRequestPost = async ({ env, request, waitUntil }) => {
   } });
 };
 
-export const onRequestPut = async ({ env, request }) => {
+export const onRequestPut = async ({ env, request, waitUntil }) => {
   const gate = await adminGate(env, request); if (gate) return gate;
   let body;
   try { body = await request.json(); } catch { return json(400, { error: 'bad_json' }); }
@@ -337,5 +337,33 @@ export const onRequestPut = async ({ env, request }) => {
   };
   for (const [k, v] of Object.entries(fields)) await setSetting(env, k, v);
   audit(env, 'admin', 'brand_dna_save', null, { source_url: fields.brand_source_url });
-  return json(200, { ok: true, saved: BRAND_DNA_KEYS.length });
+
+  // Auto-plan the content calendar on first save (or any save when the
+  // calendar is empty). Runs in the background so the PUT returns fast.
+  // Skipped if the operator already has future slots — the calendar tab
+  // has its own "Regenerate plan" button for explicit re-plans.
+  let planned = false;
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const future = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM content_calendar
+        WHERE scheduled_for >= ? AND status IN ('scheduled','generating','draft')`
+    ).bind(today).first().catch(() => ({ n: 0 }));
+    if (!future || !future.n) {
+      planned = true;
+      const url = new URL(request.url);
+      waitUntil(
+        fetch(`${url.origin}/api/admin/calendar/plan`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            cookie: request.headers.get('cookie') || '',
+          },
+          body: JSON.stringify({ days: 28, replace: false }),
+        }).catch(() => {})
+      );
+    }
+  } catch { /* best-effort; the calendar tab can always plan manually */ }
+
+  return json(200, { ok: true, saved: BRAND_DNA_KEYS.length, planning: planned });
 };

@@ -40,6 +40,7 @@
       <button class="tab" data-tab="prog">Programmatic</button>
       <button class="tab" data-tab="seo">SEO</button>
       <button class="tab" data-tab="brand">Brand DNA</button>
+      <button class="tab" data-tab="calendar">Calendar</button>
       <button class="tab" data-tab="usage">Usage</button>
       <button class="tab" data-tab="covers">Covers</button>
       <button class="tab" data-tab="embeds">Embeds</button>
@@ -286,6 +287,46 @@
           <span id="brand-filter-status" class="status"></span>
         </div>
         <div id="brand-filter-results" class="filter-results" hidden></div>
+      </div>
+    </section>
+
+    <!-- ============ CALENDAR ============ -->
+    <section data-page="calendar" class="page" hidden>
+      <div class="cal-head">
+        <div>
+          <h2 class="cal-title">Content Calendar</h2>
+          <p class="cal-sub" id="cal-sub">Auto-planned from your Brand DNA. Add, remove or swap anything you want.</p>
+        </div>
+        <div class="cal-actions">
+          <button id="cal-new" class="btn btn-ghost">+ New article</button>
+          <button id="cal-plan" class="btn btn-primary">Regenerate plan</button>
+        </div>
+      </div>
+
+      <div class="cal-shell">
+        <div class="cal-bar">
+          <h3 id="cal-range" class="cal-range">—</h3>
+          <div class="cal-nav">
+            <button id="cal-prev" class="cal-arrow" aria-label="Previous month">‹</button>
+            <button id="cal-today" class="cal-today">Today</button>
+            <button id="cal-next" class="cal-arrow" aria-label="Next month">›</button>
+          </div>
+        </div>
+
+        <div class="cal-week-head">
+          <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+        </div>
+        <div id="cal-grid" class="cal-grid">
+          <div class="cal-empty">Loading…</div>
+        </div>
+
+        <div class="cal-legend">
+          <span class="cal-leg cal-leg-scheduled">📅 Scheduled</span>
+          <span class="cal-leg cal-leg-generating">⟳ Generating</span>
+          <span class="cal-leg cal-leg-draft">📝 Draft</span>
+          <span class="cal-leg cal-leg-published">✓ Published</span>
+          <span class="cal-leg cal-leg-auto">✨ Auto-planned</span>
+        </div>
       </div>
     </section>
 
@@ -648,6 +689,26 @@
     </section>
 
   </main>
+</div>
+
+<!-- Slot editor modal (calendar) -->
+<div id="cal-modal" class="cal-modal-backdrop" hidden>
+  <div class="cal-modal">
+    <h3 id="cal-modal-title">New article</h3>
+    <label>Title<input id="cal-mod-title" type="text" placeholder="How to do X for Y" maxlength="200" /></label>
+    <label>Date<input id="cal-mod-date" type="date" /></label>
+    <label>Primary keyword<input id="cal-mod-keyword" type="text" placeholder="optional — for SEO targeting" maxlength="120" /></label>
+    <label>Angle / brief<textarea id="cal-mod-angle" placeholder="optional — 1–2 sentences to steer the writer" maxlength="500"></textarea></label>
+    <div class="cal-modal-actions">
+      <div class="left">
+        <button id="cal-mod-delete" class="btn btn-ghost danger" hidden>Delete</button>
+      </div>
+      <div class="right">
+        <button id="cal-mod-cancel" class="btn btn-ghost">Cancel</button>
+        <button id="cal-mod-save" class="btn btn-primary">Save</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script src="/admin.js"></script>
