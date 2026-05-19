@@ -375,16 +375,17 @@ section h2 {
   padding: 40px 44px;
   box-shadow: 0 30px 80px -40px rgba(0,0,0,0.18);
 }
-.post-mock { padding: 0; max-width: 780px; margin: 0 auto 24px; }
+.post-mock { padding: 0 0 40px; max-width: 780px; margin: 0 auto 48px; overflow: hidden; }
 .post-mock > * { padding-left: 44px; padding-right: 44px; }
 .post-mock .post-meta { padding-top: 36px; }
 .post-mock .latest-hero {
   display: block; width: 100%; height: auto; aspect-ratio: 1.9;
-  object-fit: cover; margin: 0;
+  object-fit: cover; margin: 0; padding: 0;
   border-top-left-radius: var(--radius); border-top-right-radius: var(--radius);
 }
 .post-mock .latest-hero + .post-meta { padding-top: 24px; }
-.post-mock .cta-strip { margin: 0 -44px -40px; padding: 18px 44px; }
+.post-mock .post-body { padding-bottom: 0; }
+.post-mock .cta-strip { margin: 24px -44px -40px; padding: 18px 44px; }
 .post-meta { display: flex; gap: 8px; flex-wrap: wrap; padding-top: 0; }
 .badge {
   display: inline-block; font-size: 0.72rem; padding: 5px 11px;
@@ -589,7 +590,7 @@ footer {
   .hero { padding: 48px 20px 32px; }
   section { padding: 64px 0; }
   .section-head, .stack-grid, .install-grid, .vs-table, .faq-list, .footer-inner { padding-left: 20px; padding-right: 20px; }
-  .post-mock { padding: 0 16px; }
+  .post-mock { padding: 0 0 28px; margin: 0 16px 32px; }
   .post-mock > * { padding-left: 28px; padding-right: 28px; }
-  .post-mock .cta-strip { margin: 0 -28px -28px; padding: 16px 28px; }
+  .post-mock .cta-strip { margin: 20px -28px -28px; padding: 16px 28px; }
 }

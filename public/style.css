@@ -1,158 +1,232 @@
-/* pages-seo · public stylesheet.
- * Used by index.html, blog index, blog/<slug>, p/<slug>.
- * Single-file CSS, no preprocessor, no framework. ~5 KB minified. */
+/* ──────────────────────────────────────────────────────────────────
+   pages-seo · public stylesheet (blog index, blog/<slug>, p/<slug>).
+   Shares the design tokens with marketing.css so the landing page and
+   the blog look like one site, not two. The marketing site loads its
+   own CSS; this one is loaded by the post template renderer
+   (functions/_lib/page_render.js).
+   ────────────────────────────────────────────────────────────────── */
 
-:root{
-  --bg: #0b0d11;
-  --bg-soft: #11141a;
-  --ink: #e8edf2;
-  --ink-dim: #a3aec0;
-  --ink-faint: #6a7484;
-  --accent: #7afff0;
-  --accent-soft: rgba(122,255,240,0.12);
-  --line: rgba(255,255,255,0.08);
-  --line-2: rgba(255,255,255,0.16);
-  --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-  --maxw: 1080px;
+:root {
+  --bg: #fbfaf7;
+  --bg-2: #f3f1ec;
+  --surface: #ffffff;
+  --ink: #0a0a0a;
+  --ink-2: #1a1a1a;
+  --muted: #6b6760;
+  --muted-2: #9a958c;
+  --line: #e8e5dd;
+  --line-strong: #d4d0c5;
+  --accent: #0a0a0a;
+  --highlight: #f5cf3e;
+  --highlight-soft: #fef3c2;
+  --link: #2c5fb9;
+  --max: 760px;
+  --max-wide: 1080px;
+  --radius: 14px;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-serif: "Instrument Serif", "Iowan Old Style", "Palatino", Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e0f12;
+    --bg-2: #15171c;
+    --surface: #181a1f;
+    --ink: #f0eee8;
+    --ink-2: #d7d5cf;
+    --muted: #a09c93;
+    --muted-2: #6b6760;
+    --line: #262932;
+    --line-strong: #353945;
+    --accent: #f5cf3e;
+    --highlight: #f5cf3e;
+    --highlight-soft: rgba(245, 207, 62, 0.12);
+    --link: #7aa8ff;
+  }
 }
 
-*,*::before,*::after{box-sizing:border-box}
-html{scroll-behavior:smooth}
-html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;-webkit-font-smoothing:antialiased}
-
-a{color:var(--accent);text-decoration:none}
-a:hover{text-decoration:underline}
-img{max-width:100%;height:auto;display:block}
-code{font-family:var(--mono);font-size:.92em;background:var(--bg-soft);padding:2px 6px;border-radius:4px;color:var(--accent)}
-pre{background:var(--bg-soft);border:1px solid var(--line);border-radius:6px;padding:16px;overflow:auto;font-family:var(--mono);font-size:13px;line-height:1.6}
-pre code{background:transparent;padding:0;color:var(--ink)}
-
-/* ── Nav ─────────────────────────────────────────────────────────── */
-.nav{
-  display:flex;align-items:center;justify-content:space-between;gap:24px;
-  max-width:var(--maxw);margin:0 auto;
-  padding:20px 24px;
-  border-bottom:1px solid var(--line);
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; padding: 0;
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 16.5px; line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
 }
-.nav .brand{font-family:var(--mono);font-weight:600;letter-spacing:.04em;font-size:16px;color:var(--accent)}
-.nav nav{display:flex;gap:18px;font-size:14px}
-.nav nav a{color:var(--ink-dim)}
-.nav nav a:hover,.nav nav a[aria-current]{color:var(--ink);text-decoration:none}
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 3px; }
+img { max-width: 100%; height: auto; display: block; }
+.serif { font-family: var(--font-serif); font-weight: 400; }
+.serif-i { font-family: var(--font-serif); font-style: italic; font-weight: 400; }
 
-/* ── Landing page ────────────────────────────────────────────────── */
-.landing{max-width:var(--maxw);margin:0 auto;padding:48px 24px 80px}
-.hero{text-align:center;padding:32px 0 56px}
-.hero .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent)}
-.hero h1{font-size:clamp(36px,6vw,60px);letter-spacing:-0.03em;margin:14px 0 18px;font-weight:600;line-height:1.05}
-.hero .lede{color:var(--ink-dim);font-size:18px;max-width:640px;margin:0 auto 28px}
-.hero .cta{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
-
-.btn{
-  display:inline-flex;align-items:center;gap:8px;
-  padding:11px 20px;border-radius:6px;font-size:14px;font-weight:500;
-  border:1px solid var(--line-2);background:var(--bg-soft);color:var(--ink);
-  transition:transform .15s, border-color .15s, background .15s;
+/* ── Header ─────────────────────────────────────────────────────── */
+.nav {
+  max-width: var(--max-wide); margin: 0 auto;
+  padding: 22px 28px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--line);
 }
-.btn:hover{transform:translateY(-1px);border-color:var(--accent);text-decoration:none}
-.btn-primary{background:var(--accent);color:#06080d;border-color:var(--accent)}
-.btn-primary:hover{background:#9affec}
-.btn-ghost{background:transparent}
-
-/* Feature grid */
-.features{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:18px;margin:48px 0}
-.features article{
-  padding:24px;border:1px solid var(--line);border-radius:8px;
-  background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.04));
+.nav .brand {
+  font-weight: 600; font-size: 1.02rem; letter-spacing: -0.01em;
+  color: var(--ink); display: inline-flex; align-items: center; gap: 10px;
 }
-.features h2{font-size:17px;margin:0 0 8px;font-weight:600;color:var(--ink)}
-.features p{margin:0;color:var(--ink-dim);font-size:14px;line-height:1.6}
-
-.cta-end{margin:64px 0 0;padding:32px;border:1px solid var(--line);border-radius:8px;background:var(--bg-soft)}
-.cta-end h2{margin:0 0 12px;font-size:22px;font-weight:600}
-.cta-end pre{margin:12px 0}
-.cta-end p{margin:12px 0 0;color:var(--ink-dim);font-size:14px}
-
-/* ── Footer ──────────────────────────────────────────────────────── */
-.foot{
-  max-width:var(--maxw);margin:48px auto 0;
-  padding:24px;
-  border-top:1px solid var(--line);
-  color:var(--ink-faint);font-size:13px;font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;
-  display:flex;flex-wrap:wrap;gap:6px 12px;justify-content:center;align-items:center;
+.nav .brand::before {
+  content: ""; display: inline-block; width: 9px; height: 9px;
+  border-radius: 50%; background: var(--ink);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--ink) 12%, transparent);
 }
-.foot a{color:var(--ink-dim)}
-.foot a:hover{color:var(--ink)}
+.nav nav { display: flex; gap: 22px; font-size: 0.92rem; }
+.nav nav a { color: var(--muted); transition: color .15s; }
+.nav nav a:hover, .nav nav a[aria-current] { color: var(--ink); text-decoration: none; }
 
-/* ── Blog index ──────────────────────────────────────────────────── */
-.blog-index{max-width:var(--maxw);margin:0 auto;padding:48px 24px 80px}
-.blog-hero{margin-bottom:36px}
-.blog-hero h1{font-size:clamp(32px,5vw,44px);letter-spacing:-0.02em;margin:0 0 10px;font-weight:600}
-.blog-hero p{color:var(--ink-dim);max-width:640px;font-size:16px;margin:0}
-
-.post-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px}
-.post-card{
-  border:1px solid var(--line);border-radius:8px;overflow:hidden;
-  background:var(--bg-soft);
-  transition:border-color .2s, transform .2s;
+/* ── Blog index page ────────────────────────────────────────────── */
+.blog-index {
+  max-width: var(--max); margin: 0 auto;
+  padding: 64px 28px 80px;
 }
-.post-card:hover{border-color:var(--accent);transform:translateY(-2px)}
-.post-card a{display:block;color:inherit;text-decoration:none}
-.post-card img,.post-card .post-card-img-placeholder{
-  width:100%;aspect-ratio:3 / 2;object-fit:cover;
-  background:linear-gradient(135deg, var(--accent-soft), rgba(122,255,240,0.02));
+.blog-index h1 {
+  font-family: var(--font-serif); font-weight: 400;
+  font-size: clamp(2.4rem, 5vw, 3.6rem);
+  letter-spacing: -0.015em; line-height: 1.05;
+  margin: 0 0 14px;
 }
-.post-card-body{padding:18px}
-.post-card time{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint)}
-.post-card h2{font-size:18px;margin:6px 0 8px;letter-spacing:-0.01em;line-height:1.3;color:var(--ink);font-weight:600}
-.post-card p{color:var(--ink-dim);font-size:14px;line-height:1.55;margin:0}
-.empty-state{padding:60px 20px;text-align:center;color:var(--ink-faint);border:1px dashed var(--line);border-radius:8px;font-family:var(--mono);font-size:13px}
-
-/* ── Single post ─────────────────────────────────────────────────── */
-.post-shell{max-width:760px;margin:0 auto;padding:48px 24px 80px}
-.crumb{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--ink-faint);margin-bottom:18px;text-transform:uppercase}
-.crumb a{color:var(--ink-dim)}.crumb a:hover{color:var(--accent);text-decoration:none}
-.post-title{font-size:clamp(28px,4.5vw,42px);letter-spacing:-0.02em;font-weight:600;margin:0 0 12px;line-height:1.18}
-.post-date{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:28px}
-.post-shell .hero{width:100%;aspect-ratio:3 / 2;object-fit:cover;border-radius:8px;margin-bottom:32px;border:1px solid var(--line);padding:0;text-align:left}
-
-.prose{font-size:16.5px;line-height:1.7;color:var(--ink-dim)}
-.prose h2{font-size:22px;margin:32px 0 12px;color:var(--ink);font-weight:600;letter-spacing:-0.01em}
-.prose h3{font-size:18px;margin:28px 0 10px;color:var(--ink);font-weight:600}
-.prose p{margin:0 0 16px}
-.prose ul,.prose ol{padding-left:22px;margin:0 0 16px}
-.prose li{margin-bottom:6px}
-.prose strong{color:var(--ink);font-weight:500}
-.prose a{color:var(--accent)}
-.prose a:hover{text-decoration:underline}
-.prose code{background:var(--bg-soft);padding:1px 6px;border-radius:3px}
-
-/* Agent-markup blocks (see functions/_lib/agent_markup.js) */
-.prose .agent-box{
-  border:1px solid var(--line);
-  background:var(--bg-soft);
-  padding:18px 22px;border-radius:10px;
-  margin:24px 0;color:var(--ink);
+.blog-index .lede {
+  color: var(--muted); font-size: 1.1rem; margin: 0 0 48px; max-width: 580px;
 }
-.prose .agent-box.amber{border-color:rgba(229,159,57,0.4);background:rgba(229,159,57,0.07)}
-.prose .agent-box.green{border-color:rgba(91,210,154,0.4);background:rgba(91,210,154,0.07)}
-.prose .agent-box.red  {border-color:rgba(241,103,103,0.4);background:rgba(241,103,103,0.07)}
-.prose .agent-box.blue {border-color:rgba(118,179,255,0.4);background:rgba(118,179,255,0.07)}
-.prose .agent-box.grey {border-color:var(--line);background:var(--bg)}
-.prose .agent-callout{
-  border-left:3px solid var(--accent);
-  padding:12px 18px;margin:24px 0;
-  background:rgba(255,255,255,0.02);font-size:0.97em;color:var(--ink);
+.blog-index ul { list-style: none; padding: 0; margin: 0; }
+.blog-index li {
+  padding: 22px 0;
+  border-bottom: 1px solid var(--line);
+  display: flex; gap: 20px; align-items: flex-start;
 }
-.prose hr{border:0;border-top:1px solid var(--line);margin:36px 0}
+.blog-index li img {
+  flex-shrink: 0; width: 200px; aspect-ratio: 1.7; object-fit: cover;
+  border-radius: 8px; background: #000;
+}
+.blog-index li .blog-meta { flex: 1; min-width: 0; }
+.blog-index li h2 {
+  font-size: 1.25rem; font-weight: 600; letter-spacing: -0.01em;
+  margin: 0 0 6px; line-height: 1.3;
+}
+.blog-index li h2 a { color: var(--ink); }
+.blog-index li h2 a:hover { color: var(--link); text-decoration: none; }
+.blog-index li .blog-date {
+  font-family: var(--font-mono); font-size: 0.78rem; color: var(--muted-2);
+  text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px;
+}
+.blog-index li p {
+  color: var(--muted); font-size: 0.96rem; margin: 0; line-height: 1.55;
+}
+@media (max-width: 600px) {
+  .blog-index li { flex-direction: column; gap: 12px; }
+  .blog-index li img { width: 100%; }
+}
 
-/* ── Mobile tightening ───────────────────────────────────────────── */
-@media (max-width:600px){
-  .nav{padding:14px 16px;gap:12px}
-  .landing,.blog-index{padding:32px 16px 60px}
-  .features{grid-template-columns:1fr;gap:12px}
-  .features article{padding:18px}
-  .post-shell{padding:32px 16px 60px}
-  .cta-end{padding:22px}
-  .foot{padding:18px 16px}
+/* ── Blog post page ─────────────────────────────────────────────── */
+.post-shell {
+  max-width: var(--max); margin: 0 auto;
+  padding: 56px 28px 80px;
+}
+.post-shell .crumb {
+  font-family: var(--font-mono); font-size: 0.78rem;
+  color: var(--muted-2); margin-bottom: 18px;
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+.post-shell .crumb a { color: var(--muted-2); }
+.post-shell .crumb a:hover { color: var(--ink); }
+.post-title {
+  font-family: var(--font-serif); font-weight: 400;
+  font-size: clamp(2.2rem, 5vw, 3.4rem);
+  line-height: 1.05; letter-spacing: -0.015em;
+  margin: 0 0 14px; color: var(--ink);
+}
+.post-date {
+  font-family: var(--font-mono); font-size: 0.78rem;
+  color: var(--muted-2); margin: 0 0 36px;
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+.post-shell .hero {
+  width: 100%; aspect-ratio: 1.9; object-fit: cover;
+  border-radius: var(--radius); margin: 0 0 40px;
+  border: 1px solid var(--line); background: var(--bg-2);
+  box-shadow: 0 20px 60px -20px rgba(0,0,0,0.18);
+}
+
+/* ── Prose body ─────────────────────────────────────────────────── */
+.prose { font-size: 1.06rem; line-height: 1.75; color: var(--ink-2); }
+.prose h2 {
+  font-family: var(--font-serif); font-weight: 400;
+  font-size: 1.7rem; letter-spacing: -0.005em;
+  margin: 48px 0 14px; color: var(--ink); line-height: 1.2;
+}
+.prose h3 {
+  font-size: 1.18rem; font-weight: 600; letter-spacing: -0.005em;
+  margin: 32px 0 10px; color: var(--ink);
+}
+.prose p { margin: 0 0 18px; }
+.prose ul, .prose ol { margin: 0 0 20px; padding-left: 26px; }
+.prose li { margin-bottom: 8px; }
+.prose strong { color: var(--ink); font-weight: 600; }
+.prose a { color: var(--link); text-decoration: underline; text-underline-offset: 3px; }
+.prose code {
+  font-family: var(--font-mono); font-size: 0.88em;
+  background: var(--bg-2); padding: 2px 6px; border-radius: 4px;
+}
+
+/* Agent-markup blocks (functions/_lib/agent_markup.js) */
+.prose .agent-box {
+  border: 1px solid var(--line); background: var(--surface);
+  padding: 20px 24px; border-radius: 10px;
+  margin: 28px 0; color: var(--ink);
+}
+.prose .agent-box.amber { border-color: rgba(245,207,62,0.5); background: var(--highlight-soft); }
+.prose .agent-box.green { border-color: rgba(47,141,74,0.4); background: rgba(47,141,74,0.06); }
+.prose .agent-box.red   { border-color: rgba(193,74,58,0.4); background: rgba(193,74,58,0.06); }
+.prose .agent-box.blue  { border-color: rgba(44,95,185,0.4); background: rgba(44,95,185,0.06); }
+.prose .agent-box.grey  { border-color: var(--line-strong); background: var(--bg-2); }
+.prose .agent-callout {
+  border-left: 3px solid var(--highlight);
+  padding: 14px 20px; margin: 28px 0;
+  background: var(--bg-2); font-size: 0.99em;
+  color: var(--ink-2); border-radius: 0 6px 6px 0;
+}
+.prose hr {
+  border: 0; border-top: 1px solid var(--line);
+  margin: 48px 0;
+}
+
+/* ── Programmatic landing page (same template as blog post) ────── */
+.p-page { /* alias */ }
+
+/* ── Landing fallback page (when admin hasn't placed a real one) ─ */
+.landing {
+  max-width: var(--max); margin: 0 auto;
+  padding: 64px 28px 80px;
+}
+.landing h1 {
+  font-family: var(--font-serif); font-weight: 400;
+  font-size: clamp(2.4rem, 5vw, 3.6rem);
+  letter-spacing: -0.015em; line-height: 1.05;
+  margin: 0 0 14px;
+}
+.landing p { color: var(--muted); }
+
+/* ── Footer ─────────────────────────────────────────────────────── */
+.foot {
+  max-width: var(--max-wide); margin: 64px auto 0;
+  padding: 32px 28px 40px;
+  border-top: 1px solid var(--line);
+  color: var(--muted-2); font-size: 0.88rem;
+}
+.foot a { color: var(--muted); }
+.foot a:hover { color: var(--ink); }
+
+/* ── Mobile tweaks ──────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .nav { padding: 16px 20px; }
+  .post-shell, .blog-index, .landing { padding-left: 20px; padding-right: 20px; }
+  .post-shell { padding-top: 36px; padding-bottom: 56px; }
+  .post-shell .hero { aspect-ratio: 1.6; margin-bottom: 28px; }
+  .foot { padding: 24px 20px 32px; }
 }
