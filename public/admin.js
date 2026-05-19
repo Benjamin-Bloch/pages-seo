@@ -2237,13 +2237,49 @@
   // and creates the first user; we then log the operator in with
   // their just-set password so they land in the onboarding wizard.
   const Setup = (() => {
-    function show() {
+    // Decode #install=<base64-json> if the installer redirected here.
+    // The hash carries email + password + site_name from the
+    // installer at seo.benjaminb.xyz/install so the operator never
+    // retypes them. Hash fragments don't get sent to the server.
+    function readInstallSeed() {
+      const m = (location.hash || '').match(/(?:^#|&)install=([^&]+)/);
+      if (!m) return null;
+      try {
+        let b64 = m[1].replace(/-/g, '+').replace(/_/g, '/');
+        while (b64.length % 4) b64 += '=';
+        const json = decodeURIComponent(escape(atob(b64)));
+        const seed = JSON.parse(json);
+        if (seed && seed.email && seed.password) return seed;
+      } catch { /* malformed — fall back to manual form */ }
+      return null;
+    }
+
+    function clearHash() {
+      try { history.replaceState(null, '', location.pathname + location.search); }
+      catch { /* iframes etc. */ }
+    }
+
+    async function show() {
       $('#gate').hidden = true;
       $('#dash').hidden = true;
       $('#wiz').hidden = true;
       $('#setup').hidden = false;
       $('#setup-form-pane').hidden = false;
       $('#setup-success').hidden = true;
+
+      // Installer hand-off: pre-fill + auto-submit the setup form.
+      const seed = readInstallSeed();
+      if (seed) {
+        clearHash();
+        $('#setup-site-name').value = seed.site_name || '';
+        $('#setup-site-url').value  = location.origin;
+        $('#setup-email').value     = seed.email || '';
+        $('#setup-password').value  = seed.password || '';
+        // Fire the same submit path so server validation + auto-login
+        // happen exactly as if the operator typed it.
+        $('#setup-form').dispatchEvent(new Event('submit', { cancelable: true }));
+        return;
+      }
       setTimeout(() => $('#setup-site-name').focus(), 50);
     }
 

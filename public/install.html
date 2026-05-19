@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="robots" content="noindex,nofollow" />
+<title>Install pages-seo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" />
+<link rel="stylesheet" href="/admin.css" />
+<style>
+  /* The installer reuses the wizard tokens but is its own standalone
+     page — no admin SPA in this document. */
+  html, body { background: var(--bg); }
+  .install-help { font-size: 12px; color: var(--ink-faint); line-height: 1.55; margin: 0; }
+  .install-help a { color: var(--accent); }
+  .install-help code { font-family: var(--mono); background: var(--bg-soft); padding: 1px 5px; border-radius: 3px; }
+  .install-step-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+  .install-step { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 8px; color: var(--ink-dim); transition: color .2s, border-color .2s; }
+  .install-step.is-active { color: var(--accent); border-color: rgba(122,255,240,0.4); background: rgba(122,255,240,0.05); }
+  .install-step.is-done { color: var(--good); border-color: rgba(122,252,166,0.3); }
+  .install-step .install-step-icon { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 11px; font-family: var(--mono); }
+  .install-step.is-active .install-step-icon::before { content: ""; width: 12px; height: 12px; border-radius: 50%; border: 2px solid currentColor; border-top-color: transparent; animation: wiz-spin .8s linear infinite; }
+  .install-step.is-done .install-step-icon::before { content: "✓"; font-size: 14px; }
+  .install-step.is-pending .install-step-icon::before { content: "○"; opacity: 0.4; font-size: 14px; }
+  .install-result { display: flex; flex-direction: column; gap: 16px; align-items: center; text-align: center; padding: 8px 0 4px; }
+  .install-result code { font-family: var(--mono); background: var(--bg-soft); padding: 4px 10px; border-radius: 6px; font-size: 13px; color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div class="wiz" style="display:flex">
+  <div class="wiz-shell" style="width:min(680px,100%);margin:48px 0">
+
+    <header class="wiz-head">
+      <div class="wiz-brand-mark">
+        <span class="wiz-dot"></span>
+        <span class="wiz-brand-text">pages-seo · installer</span>
+      </div>
+      <ol class="wiz-steps" aria-label="Install progress">
+        <li class="wiz-step is-current" data-stage="form"><b>1. Token</b></li>
+        <li class="wiz-step" data-stage="provision"><b>2. Provision</b></li>
+        <li class="wiz-step" data-stage="done"><b>3. Live</b></li>
+      </ol>
+      <span></span>
+    </header>
+
+    <!-- ── Pane 1: token + details form ───────────────────────────── -->
+    <section class="wiz-pane" id="pane-form">
+      <div class="wiz-eyebrow">Install pages-seo on your Cloudflare account</div>
+      <h1 class="wiz-h1"><span class="serif-i">One</span> token,<br/>two minutes.</h1>
+      <p class="wiz-lede">We'll provision a Pages project, a D1 database, an R2 bucket, and the Workers AI binding — all on your Cloudflare account. You'll get a working site at the end with the admin already seeded.</p>
+
+      <ol class="install-step-list" style="margin: 4px 0 6px">
+        <li class="install-step is-pending"><span class="install-step-icon"></span> Create a token on Cloudflare</li>
+        <li class="install-step is-pending"><span class="install-step-icon"></span> Paste it here + name your site</li>
+        <li class="install-step is-pending"><span class="install-step-icon"></span> We do the rest</li>
+      </ol>
+
+      <details class="wiz-details" open>
+        <summary>Step 1 — Create your Cloudflare API token</summary>
+        <p class="install-help">Click the button below. Cloudflare opens its token-creation page with all the right permissions already filled in. Hit <b>Continue to summary → Create Token</b>, then come back and paste the value.</p>
+        <p style="margin: 10px 0 0">
+          <a id="token-link" class="btn btn-primary" target="_blank" rel="noopener">Open Cloudflare token page →</a>
+        </p>
+        <p class="install-help" style="margin-top: 10px">
+          Permissions requested: <code>Pages:Edit</code> · <code>D1:Edit</code> · <code>R2:Edit</code> · <code>Workers AI:Edit</code> · <code>Account Settings:Read</code>. The token never leaves your browser and our server — we don't store it after the install completes.
+        </p>
+      </details>
+
+      <form id="install-form" method="post" action="#" autocomplete="off" style="display:flex;flex-direction:column;gap:14px">
+        <label class="wiz-field wiz-field-big">
+          <span>Cloudflare API token</span>
+          <input id="f-token" type="password" required autocomplete="off" placeholder="Paste the token here" />
+        </label>
+        <div class="wiz-row">
+          <label class="wiz-field">
+            <span>Your site name</span>
+            <input id="f-site-name" type="text" required maxlength="80" placeholder="My Site" />
+          </label>
+          <label class="wiz-field">
+            <span>Project slug <em>(letters, digits, dashes)</em></span>
+            <input id="f-project" type="text" required pattern="[a-z][a-z0-9-]{1,32}" maxlength="32" placeholder="my-site" />
+          </label>
+        </div>
+        <label class="wiz-field">
+          <span>Admin email</span>
+          <input id="f-email" type="email" required autocomplete="username" placeholder="you@example.com" />
+        </label>
+        <label class="wiz-field wiz-field-big">
+          <span>Admin password <em>(12+ chars; you'll log in with this)</em></span>
+          <input id="f-password" type="password" required minlength="12" maxlength="256" autocomplete="new-password" />
+        </label>
+        <div class="wiz-actions wiz-actions-single">
+          <button id="install-go" class="btn btn-primary wiz-btn-lg" type="submit">Install →</button>
+        </div>
+        <div id="install-err" class="wiz-err"></div>
+      </form>
+    </section>
+
+    <!-- ── Pane 2: provisioning ──────────────────────────────────── -->
+    <section class="wiz-pane" id="pane-provision" hidden>
+      <div class="wiz-eyebrow">Provisioning</div>
+      <h1 class="wiz-h1"><span class="serif-i">Working</span> on it.</h1>
+      <p class="wiz-lede">Spinning up your resources. This usually takes 20–40 seconds.</p>
+      <ol class="install-step-list" id="provision-steps">
+        <li class="install-step is-pending" data-step="account"><span class="install-step-icon"></span> Identifying your Cloudflare account</li>
+        <li class="install-step is-pending" data-step="d1"><span class="install-step-icon"></span> Creating D1 database</li>
+        <li class="install-step is-pending" data-step="r2"><span class="install-step-icon"></span> Creating R2 bucket</li>
+        <li class="install-step is-pending" data-step="schema"><span class="install-step-icon"></span> Applying database schema</li>
+        <li class="install-step is-pending" data-step="pages"><span class="install-step-icon"></span> Creating Pages project</li>
+        <li class="install-step is-pending" data-step="seed"><span class="install-step-icon"></span> Seeding your admin account</li>
+      </ol>
+    </section>
+
+    <!-- ── Pane 3: done ──────────────────────────────────────────── -->
+    <section class="wiz-pane wiz-pane-center" id="pane-done" hidden>
+      <div class="wiz-tick wiz-tick-big">✓</div>
+      <h1 class="wiz-h1"><span class="serif-i">You're</span> live.</h1>
+      <div class="install-result">
+        <p class="wiz-lede">Pages is building your site right now. Usually finishes in 1–2 minutes.</p>
+        <p>Your new site:</p>
+        <code id="done-url">—</code>
+        <p class="wiz-lede" style="margin-top: 14px;">When the deploy is green, the link below opens <code>/admin</code> and auto-creates your admin account in one click — no retyping. The onboarding wizard takes over from there.</p>
+      </div>
+      <div class="wiz-actions wiz-actions-single">
+        <a id="open-admin" class="btn btn-primary wiz-btn-lg" target="_blank" rel="noopener">Open my dashboard →</a>
+      </div>
+    </section>
+
+    <!-- ── Pane: failure ─────────────────────────────────────────── -->
+    <section class="wiz-pane wiz-pane-center" id="pane-fail" hidden>
+      <div class="wiz-tick" style="color: var(--bad); background: rgba(255,138,161,0.1); border-color: rgba(255,138,161,0.4); font-size: 28px;">!</div>
+      <h1 class="wiz-h1"><span class="serif-i">Something</span> went wrong.</h1>
+      <p class="wiz-lede" id="fail-detail">—</p>
+      <p class="install-help" style="text-align:center;max-width:480px;margin:0 auto">
+        Common causes: token missing a scope, project slug already taken, or a transient Cloudflare API hiccup. You can safely retry — we don't create the Pages project until D1 + R2 succeed, and re-running with the same slug will fail loudly rather than overwrite.
+      </p>
+      <div class="wiz-actions wiz-actions-single">
+        <button class="btn btn-primary" type="button" onclick="location.reload()">Try again</button>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+
+  // ── token-creation deeplink ──────────────────────────────────
+  // We pre-fill the Cloudflare token page with all permissions needed
+  // to provision the install. `permissionGroupKeys` takes a JSON array
+  // of { key, type } objects, URL-encoded.
+  const PERMS = [
+    { key: 'com.cloudflare.api.account.pages',         type: 'edit' },
+    { key: 'com.cloudflare.api.account.d1',            type: 'edit' },
+    { key: 'com.cloudflare.api.account.workers.r2',    type: 'edit' },
+    { key: 'com.cloudflare.api.account.workers.ai',    type: 'edit' },
+    { key: 'com.cloudflare.api.account.account_settings', type: 'read' },
+    { key: 'com.cloudflare.api.account.workers.scripts', type: 'edit' },
+  ];
+  const tokenLink = 'https://dash.cloudflare.com/?to=/:account/api-tokens/create' +
+    '&permissionGroupKeys=' + encodeURIComponent(JSON.stringify(PERMS)) +
+    '&name=' + encodeURIComponent('pages-seo install');
+  $('#token-link').href = tokenLink;
+
+  // ── form submit ─────────────────────────────────────────────
+  function showPane(id) {
+    ['form', 'provision', 'done', 'fail'].forEach((k) => {
+      $('#pane-' + k).hidden = k !== id;
+    });
+    document.querySelectorAll('.wiz-step').forEach((el) => {
+      const stage = el.dataset.stage;
+      el.classList.toggle('is-current', stage === id);
+      el.classList.toggle('is-done',
+        (stage === 'form' && (id === 'provision' || id === 'done')) ||
+        (stage === 'provision' && id === 'done')
+      );
+    });
+  }
+
+  function markStep(name, state) {
+    const el = document.querySelector(`#provision-steps [data-step="${name}"]`);
+    if (!el) return;
+    el.classList.remove('is-pending', 'is-active', 'is-done');
+    el.classList.add('is-' + state);
+  }
+
+  // Animate steps progressively in case the install endpoint takes its
+  // time. We can't get true streaming progress from a single fetch, so
+  // we kick a visual timer along that tracks expected step durations.
+  function startProgressAnimation() {
+    const order = ['account', 'd1', 'r2', 'schema', 'pages', 'seed'];
+    let i = 0;
+    markStep(order[0], 'active');
+    return setInterval(() => {
+      if (i >= order.length - 1) return;
+      markStep(order[i], 'done');
+      i++;
+      markStep(order[i], 'active');
+    }, 4500);
+  }
+
+  function finishAllSteps() {
+    ['account','d1','r2','schema','pages','seed'].forEach((s) => markStep(s, 'done'));
+  }
+
+  $('#install-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = $('#install-err'); err.textContent = '';
+    const body = {
+      token:        $('#f-token').value.trim(),
+      site_name:    $('#f-site-name').value.trim(),
+      project:      $('#f-project').value.trim().toLowerCase(),
+      email:        $('#f-email').value.trim().toLowerCase(),
+      password:     $('#f-password').value,
+    };
+    if (!body.token)    { err.textContent = 'Token required.'; return; }
+    if (!body.project || !/^[a-z][a-z0-9-]{1,32}$/.test(body.project)) { err.textContent = 'Project slug must be lowercase letters/digits/dashes.'; return; }
+    if (body.password.length < 12) { err.textContent = 'Password must be 12+ characters.'; return; }
+
+    showPane('provision');
+    const ticker = startProgressAnimation();
+
+    let r;
+    try {
+      r = await fetch('/api/install/provision', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    } catch (e) {
+      clearInterval(ticker);
+      showPane('fail');
+      $('#fail-detail').textContent = 'Network error: ' + (e?.message || e);
+      return;
+    }
+    clearInterval(ticker);
+    let data;
+    try { data = await r.json(); } catch { data = null; }
+
+    if (!r.ok || !data?.ok) {
+      showPane('fail');
+      const at = data?.failed_at ? ` (at step: ${data.failed_at})` : '';
+      $('#fail-detail').textContent = (data?.detail || data?.error || ('HTTP ' + r.status)) + at;
+      return;
+    }
+    finishAllSteps();
+    setTimeout(() => {
+      showPane('done');
+      const url = data.pages_url || `https://${body.project}.pages.dev`;
+      $('#done-url').textContent = url;
+      // Encode the seed payload (email + password + site name) as a
+      // URL-safe base64 hash so the new site's /admin can auto-create
+      // the first user without making the operator retype anything.
+      // The hash never hits the network — it's a fragment.
+      const seedJson = JSON.stringify(data.seed || {
+        email: body.email, password: body.password, site_name: body.site_name,
+      });
+      const b64 = btoa(unescape(encodeURIComponent(seedJson)))
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      $('#open-admin').href = url + '/admin#install=' + b64;
+    }, 600);
+  });
+})();
+</script>
+</body>
+</html>
