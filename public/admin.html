@@ -9,14 +9,24 @@
 </head>
 <body>
 
-<!-- Token gate. Shown on first load; admin.js validates against
-     /api/admin/whoami before swapping to the main dashboard. -->
+<!-- Login gate. Shown on first load; admin.js validates the session
+     via /api/admin/whoami before swapping to the main dashboard.
+     POSTs to /api/admin/login which sets an HttpOnly cookie. -->
 <div id="gate" class="gate" hidden>
   <div class="gate-card">
     <h1>pages-seo admin</h1>
-    <p>Paste the <code>ADMIN_TOKEN</code> secret from your Cloudflare project to continue.</p>
-    <input id="gate-token" type="password" autocomplete="off" placeholder="paste token…" />
-    <button id="gate-go" class="btn btn-primary">Unlock</button>
+    <p>Sign in to manage your blog and programmatic SEO pipeline.</p>
+    <form id="login-form" autocomplete="on">
+      <label class="gate-field">
+        <span>Email</span>
+        <input id="gate-email" type="email" autocomplete="username" required placeholder="you@example.com" />
+      </label>
+      <label class="gate-field">
+        <span>Password</span>
+        <input id="gate-password" type="password" autocomplete="current-password" required placeholder="" />
+      </label>
+      <button id="gate-go" type="submit" class="btn btn-primary">Sign in</button>
+    </form>
     <div id="gate-err" class="err"></div>
   </div>
 </div>
@@ -35,7 +45,7 @@
       <button class="tab" data-tab="embeds">Embeds</button>
       <button class="tab" data-tab="settings">Settings</button>
     </nav>
-    <button id="lock" class="btn btn-ghost btn-sm">Lock</button>
+    <button id="lock" class="btn btn-ghost btn-sm">Sign out</button>
   </header>
 
   <main class="pages">

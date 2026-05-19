@@ -10,7 +10,11 @@
 // is HMAC-SHA256 of session_id keyed with ADMIN_TOKEN. The cookie is
 // httpOnly + SameSite=Lax + Secure (Cloudflare Pages is HTTPS-only).
 
-const PBKDF2_ITER = 200_000;
+// Cloudflare Workers caps PBKDF2 iterations at 100,000 (CRYPTO-1051
+// in the Workers runtime). 100k is the highest value we can pick;
+// lower would weaken the hash. Documented here because the natural
+// reach for "more iterations = better" runs straight into this cap.
+const PBKDF2_ITER = 100_000;
 const PASSWORD_HASH_BYTES = 32;
 const SALT_BYTES = 16;
 const SESSION_DAYS = 14;

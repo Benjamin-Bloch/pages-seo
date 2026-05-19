@@ -1,10 +1,13 @@
 // pages-seo · admin dashboard logic.
 //
-// Single bundle, no framework. Auth model: paste ADMIN_TOKEN on first
-// load → validated against /api/admin/whoami → stored in localStorage so
-// the same machine doesn't have to re-paste. "Lock" clears it.
+// Single bundle, no framework. Auth model: email + password POST'd to
+// /api/admin/login, which sets an HttpOnly session cookie. The cookie
+// rides along on every subsequent fetch automatically (same-origin),
+// so the api() helper doesn't need to add Authorization headers.
+//
+// The original Bearer ADMIN_TOKEN flow is preserved server-side as a
+// fallback for the cron worker and as a recovery credential.
 (() => {
-  const TOKEN_KEY = 'pages-seo:admin-token';
 
   // ── helpers ─────────────────────────────────────────────────────
   function $(sel, root = document) { return root.querySelector(sel); }
@@ -14,31 +17,23 @@
   function appendLog(el, text) { if (!el) return; el.hidden = false; el.textContent += '\n' + String(text); el.scrollTop = el.scrollHeight; }
   function clearChildren(el) { if (el) el.replaceChildren(); }
 
-  function token() { return localStorage.getItem(TOKEN_KEY) || ''; }
-  function setToken(v) { if (v) localStorage.setItem(TOKEN_KEY, v); else localStorage.removeItem(TOKEN_KEY); }
-
   async function api(path, opts = {}) {
     const headers = { 'content-type': 'application/json', ...(opts.headers || {}) };
-    const t = token();
-    if (t) headers['Authorization'] = 'Bearer ' + t;
-    const r = await fetch(path, { ...opts, headers });
+    // `credentials: 'same-origin'` is the default, but we set it
+    // explicitly so the session cookie ALWAYS rides along — including
+    // for POST/PUT/DELETE where some browsers default differently.
+    const r = await fetch(path, { ...opts, headers, credentials: 'same-origin' });
     let body = null;
     try { body = await r.json(); } catch { /* not JSON */ }
     return { status: r.status, body };
   }
 
-  // ── token gate ──────────────────────────────────────────────────
-  // Returns { ok: true, info } when authenticated and configured,
-  // { ok: false, reason: 'config', missing: [...] } when deployment is
-  // missing required settings (SITE_NAME / SITE_URL / ADMIN_TOKEN),
-  // { ok: false, reason: 'unauth' } when the stored token is wrong/missing.
+  // ── login gate ──────────────────────────────────────────────────
+  // whoamiStatus returns:
+  //   { ok: true, info } — authenticated + configured (signed in)
+  //   { ok: false, reason: 'config', missing: [...] } — deployment incomplete
+  //   { ok: false, reason: 'unauth' } — no session
   async function whoamiStatus() {
-    if (!token()) {
-      // Even with no token, hit whoami once so we can detect a 503 config error.
-      const { status, body } = await api('/api/admin/whoami');
-      if (status === 503) return { ok: false, reason: 'config', missing: body?.missing || [] };
-      return { ok: false, reason: 'unauth' };
-    }
     const { status, body } = await api('/api/admin/whoami');
     if (status === 200) return { ok: true, info: body };
     if (status === 503) return { ok: false, reason: 'config', missing: body?.missing || [] };
@@ -49,10 +44,8 @@
     $('#gate').hidden = false;
     $('#dash').hidden = true;
     const err = $('#gate-err');
-    const input = $('#gate-token');
-    const go = $('#gate-go');
-    input.disabled = true;
-    go.disabled = true;
+    const form = $('#login-form');
+    if (form) form.style.display = 'none';
     err.textContent =
       'Setup is not complete. Missing: ' + (missing.join(', ') || 'unknown') +
       '. Run setup.sh / setup.py / setup.js, or push the missing secrets with `wrangler pages secret put <NAME>`, then redeploy.';
@@ -61,26 +54,49 @@
   async function showGate(initial) {
     $('#gate').hidden = false;
     $('#dash').hidden = true;
-    const input = $('#gate-token');
+    const form = $('#login-form');
+    if (form) form.style.display = '';
+    const email = $('#gate-email');
+    const password = $('#gate-password');
     const err = $('#gate-err');
     const go = $('#gate-go');
-    input.disabled = false;
-    go.disabled = false;
-    input.value = '';
+    email.disabled = false; password.disabled = false; go.disabled = false;
+    password.value = '';
     err.textContent = initial?.note || '';
-    input.focus();
-    go.onclick = unlock;
-    input.onkeydown = (e) => { if (e.key === 'Enter') unlock(); };
+    setTimeout(() => (email.value ? password.focus() : email.focus()), 0);
 
-    async function unlock() {
-      const v = input.value.trim();
-      if (!v) { err.textContent = 'Token required.'; return; }
-      setToken(v);
-      const r = await whoamiStatus();
-      if (r.ok) { mount(); return; }
-      if (r.reason === 'config') { showConfigError(r.missing); return; }
-      setToken(''); err.textContent = 'Invalid token.';
-    }
+    // Single handler — form submit covers Enter + button click.
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const e2 = String(email.value || '').trim().toLowerCase();
+      const p2 = String(password.value || '');
+      if (!e2 || !p2) { err.textContent = 'Email and password required.'; return; }
+      err.textContent = ''; go.disabled = true; go.textContent = 'Signing in…';
+      const { status, body } = await api('/api/admin/login', {
+        method: 'POST',
+        body: JSON.stringify({ email: e2, password: p2 }),
+      });
+      go.disabled = false; go.textContent = 'Sign in';
+      if (status === 200 && body?.ok) {
+        // Cookie was set by the server. Boot the dashboard.
+        mount();
+        return;
+      }
+      if (status === 429) {
+        const wait = body?.retry_after_sec ? Math.ceil(body.retry_after_sec / 60) : 60;
+        err.textContent = `Too many failed attempts. Try again in ~${wait} min.`;
+        return;
+      }
+      err.textContent = body?.error === 'invalid_credentials'
+        ? 'Email or password is incorrect.'
+        : (body?.error || 'Sign-in failed.');
+    };
+  }
+
+  async function doLogout() {
+    try { await api('/api/admin/logout', { method: 'POST' }); }
+    catch { /* swallow */ }
+    showGate({ note: 'Signed out.' });
   }
 
   // ── tabs ────────────────────────────────────────────────────────
@@ -1934,7 +1950,7 @@
     $('#gate').hidden = true;
     $('#dash').hidden = false;
     $$('.tab').forEach((t) => t.addEventListener('click', () => activateTab(t.dataset.tab)));
-    $('#lock').addEventListener('click', () => { setToken(''); showGate(); });
+    $('#lock').addEventListener('click', doLogout);
 
     // overview quick-actions reuse the same handlers as their tabs.
     $('#qa-blog').addEventListener('click', () => { activateTab('blog'); runBlogChain(); });
