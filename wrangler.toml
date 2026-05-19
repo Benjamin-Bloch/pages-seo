@@ -1,32 +1,15 @@
-# Cloudflare Pages config — TEMPLATE.
-#
-# `setup.sh` / `setup.py` / `setup.js` patch this file with your real
-# project name, D1 database ID, and R2 bucket name. After running setup,
-# the file will contain personal identifiers, so don't commit changes
-# back to a public fork — your local copy is fine.
-#
-# Deploy manually with:  wrangler pages deploy public --project-name=<name>
-
 name = "pages-seo"
 compatibility_date = "2026-05-18"
 pages_build_output_dir = "./public"
 
-# D1 — stores generated posts, programmatic pages, keyword pool, cron state.
-# Create with:  wrangler d1 create pages-seo
-# Apply schema: wrangler d1 execute pages-seo --remote --file=schema/init.sql
 [[d1_databases]]
 binding = "DB"
-database_name = "pages-seo"
-database_id = "REPLACE_AFTER_CREATING_DB"
+database_name = "my-royal-bath-d1"
+database_id = "cba78c26-c661-429a-84f8-0927a0cfc36e"
 
-# R2 — stores hero images. Create with:
-#   wrangler r2 bucket create pages-seo-images
 [[r2_buckets]]
 binding = "IMAGES"
-bucket_name = "pages-seo-images"
+bucket_name = "my-royal-bath-r2"
 
-# Workers AI — bound automatically; no extra config needed.
-# We default to Workers AI for text + image generation. OpenAI is an
-# optional fallback set via the OPENAI_API_KEY secret.
 [ai]
 binding = "AI"
