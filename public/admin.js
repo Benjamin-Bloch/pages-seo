@@ -64,21 +64,44 @@
     password.value = '';
     err.textContent = initial?.note || '';
     setTimeout(() => (email.value ? password.focus() : email.focus()), 0);
+  }
 
-    // Single handler — form submit covers Enter + button click.
-    form.onsubmit = async (e) => {
+  // Login submit. Bound exactly ONCE at script-load time so the
+  // handler exists before any user click — earlier we lazily attached
+  // inside showGate(), which left a window where a click would do a
+  // native form submission (browser navigated to /admin? with empty
+  // query string). preventDefault is called synchronously before any
+  // await.
+  function bindLoginForm() {
+    const form = document.getElementById('login-form');
+    if (!form) return;
+    form.addEventListener('submit', (e) => {
+      // Cancel the native submit IMMEDIATELY. Anything async happens
+      // after this line; the browser already knows not to navigate.
       e.preventDefault();
-      const e2 = String(email.value || '').trim().toLowerCase();
-      const p2 = String(password.value || '');
-      if (!e2 || !p2) { err.textContent = 'Email and password required.'; return; }
-      err.textContent = ''; go.disabled = true; go.textContent = 'Signing in…';
+      runLogin().catch((err) => {
+        const errEl = document.getElementById('gate-err');
+        if (errEl) errEl.textContent = 'Network error: ' + (err?.message || err);
+      });
+      return false;
+    });
+  }
+
+  async function runLogin() {
+    const email = document.getElementById('gate-email');
+    const password = document.getElementById('gate-password');
+    const err = document.getElementById('gate-err');
+    const go = document.getElementById('gate-go');
+    const e2 = String(email.value || '').trim().toLowerCase();
+    const p2 = String(password.value || '');
+    if (!e2 || !p2) { err.textContent = 'Email and password required.'; return; }
+    err.textContent = ''; go.disabled = true; go.textContent = 'Signing in…';
+    try {
       const { status, body } = await api('/api/admin/login', {
         method: 'POST',
         body: JSON.stringify({ email: e2, password: p2 }),
       });
-      go.disabled = false; go.textContent = 'Sign in';
       if (status === 200 && body?.ok) {
-        // Cookie was set by the server. Boot the dashboard.
         mount();
         return;
       }
@@ -89,8 +112,10 @@
       }
       err.textContent = body?.error === 'invalid_credentials'
         ? 'Email or password is incorrect.'
-        : (body?.error || 'Sign-in failed.');
-    };
+        : (body?.error || `Sign-in failed (HTTP ${status}).`);
+    } finally {
+      go.disabled = false; go.textContent = 'Sign in';
+    }
   }
 
   async function doLogout() {
@@ -2009,6 +2034,13 @@
   }
 
   // ── boot ────────────────────────────────────────────────────────
+  // Bind the login form handler immediately, synchronously, before any
+  // network call. That way even if whoamiStatus() is in flight when a
+  // user hammers Enter on the password field, the submit is captured
+  // and preventDefault'd. Earlier we attached it lazily inside
+  // showGate() — which left a small window where a fast Enter press
+  // would do a native form submission.
+  bindLoginForm();
   (async () => {
     const r = await whoamiStatus();
     if (r.ok) { mount(); return; }
