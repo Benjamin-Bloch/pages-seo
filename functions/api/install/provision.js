@@ -24,9 +24,13 @@
 import { json, nowSec } from '../../_lib/util.js';
 
 const CF_API = 'https://api.cloudflare.com/client/v4';
-const REPO_OWNER = 'Benjamin-Bloch';
-const REPO_NAME  = 'pages-seo';
+// The user supplies their own GitHub owner + repo (e.g. their fork of
+// pages-seo). We never default to the upstream repo because Cloudflare
+// can only see GitHub repos owned by an account that has authorised
+// the Workers & Pages GitHub App — and the upstream repo lives under
+// the maintainer's account, not the user's.
 const PROD_BRANCH = 'main';
+const DEFAULT_REPO_NAME = 'pages-seo';
 
 const SLUG_RX  = /^[a-z][a-z0-9-]{1,32}$/;
 const EMAIL_RX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -208,7 +212,7 @@ async function findPagesProject(token, accountId, project) {
   return null;
 }
 
-async function ensurePagesProject(token, accountId, project, siteName, d1Id, r2Name) {
+async function ensurePagesProject(token, accountId, project, siteName, d1Id, r2Name, owner, repoName) {
   // Pre-flight: look up by name first. GET returns 404 cleanly when
   // missing, which is far cheaper than a failed POST.
   const existing = await findPagesProject(token, accountId, project);
@@ -220,8 +224,8 @@ async function ensurePagesProject(token, accountId, project, siteName, d1Id, r2N
     source: {
       type: 'github',
       config: {
-        owner: REPO_OWNER,
-        repo_name: REPO_NAME,
+        owner,
+        repo_name: repoName,
         production_branch: PROD_BRANCH,
         production_deployments_enabled: true,
         deployments_enabled: true,
@@ -287,12 +291,17 @@ export const onRequestPost = async ({ env, request }) => {
   try { body = await request.json(); } catch { return json(400, { error: 'bad_json' }); }
 
   const token     = String(body?.token || '').trim();
+  const owner     = String(body?.owner || '').trim();
+  const repoName  = String(body?.repo  || '').trim() || DEFAULT_REPO_NAME;
   const project   = String(body?.project || '').trim().toLowerCase();
   const siteName  = String(body?.site_name || '').trim();
   const email     = String(body?.email || '').trim().toLowerCase();
   const password  = String(body?.password || '');
 
   if (!token)                return fail('validate', 400, 'API token required');
+  if (!owner)                return fail('validate', 400, 'GitHub owner required — fork the repo to your account first');
+  if (!/^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/.test(owner)) return fail('validate', 400, 'GitHub owner: letters, digits, dashes only.');
+  if (!/^[A-Za-z0-9._-]{1,100}$/.test(repoName))      return fail('validate', 400, 'Repo name: letters, digits, dot, dash, underscore.');
   if (!SLUG_RX.test(project)) return fail('validate', 400, 'Project slug: lowercase letters/digits/dashes, 2–33 chars, must start with a letter');
   if (!siteName)             return fail('validate', 400, 'Site name required');
   if (!EMAIL_RX.test(email)) return fail('validate', 400, 'Valid email required');
@@ -345,7 +354,7 @@ export const onRequestPost = async ({ env, request }) => {
   let pagesUrl = state.pages_url;
   if (!state.pages_created) {
     try {
-      const p = await ensurePagesProject(token, account.id, project, siteName, d1Id, r2Name);
+      const p = await ensurePagesProject(token, account.id, project, siteName, d1Id, r2Name, owner, repoName);
       pagesUrl = `https://${p.subdomain}`;
       await saveStep(env, project, fp, {
         pages_created: 1, pages_url: pagesUrl, last_step: 'pages', last_error: null,
@@ -353,14 +362,20 @@ export const onRequestPost = async ({ env, request }) => {
     } catch (e) {
       const msg = String(e.message || e);
       await saveStep(env, project, fp, { last_step: 'pages', last_error: msg });
-      // Specific actionable hint when the user hasn't connected the
-      // Cloudflare Workers & Pages GitHub App yet (or the install
-      // lost its grant). They need to authorise the app once before
-      // the Pages-create API can read from their fork.
+      // Specific actionable hint when Cloudflare can't see the user's
+      // repo. Usual causes:
+      //   - they typed a wrong owner/repo (no such fork)
+      //   - they haven't forked yet
+      //   - they forked but haven't granted the Cloudflare Workers &
+      //     Pages GitHub App access to the repo
+      // The "install app" deeplink targets exactly this repo so the
+      // user lands on the "select repositories" screen pre-narrowed.
       const extras = isGithubInstallError(msg) ? {
         hint: 'github_app_required',
-        github_app_install_url: 'https://github.com/apps/cloudflare-workers-and-pages/installations/new',
-        github_app_dashboard_url: 'https://dash.cloudflare.com/?to=/:account/workers-and-pages/create/pages',
+        owner, repo: repoName,
+        fork_url: `https://github.com/Benjamin-Bloch/pages-seo/fork`,
+        repo_url: `https://github.com/${owner}/${repoName}`,
+        github_app_install_url: `https://github.com/apps/cloudflare-workers-and-pages/installations/new/permissions?suggested_target_id=&repository_ids[]=`,
       } : {};
       return fail('pages', 500, msg, extras);
     }

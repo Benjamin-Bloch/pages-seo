@@ -127,8 +127,26 @@
       <div class="wiz-eyebrow">Setup via site · step 1 of 2</div>
       <h1 class="wiz-h1"><span class="serif-i">Tell</span> us about<br/>your install.</h1>
 
+      <!-- Step 1: GitHub. Cloudflare requires the Pages project to be
+           linked to a repo on an account that has authorised the
+           Cloudflare Workers & Pages GitHub App. Pointing at the
+           upstream Benjamin-Bloch/pages-seo only works if YOUR
+           Cloudflare account happens to have the upstream repo
+           visible, which it usually doesn't — hence the
+           "internal issue with your Cloudflare Pages Git installation"
+           error people keep hitting. Forking + pointing at the user's
+           own fork avoids it cleanly. -->
       <details class="wiz-details" open>
-        <summary>Need a Cloudflare API token?</summary>
+        <summary>Step 1 — Fork the repo on GitHub</summary>
+        <p class="wiz-foot-note" style="margin:6px 0 0">Cloudflare's Pages-from-Git can only see repos owned by an account that has authorised the <b>Cloudflare Workers &amp; Pages</b> GitHub App. The fastest path: fork to your own account, install the app on that fork. One click each.</p>
+        <p style="margin:10px 0 0;display:flex;gap:8px;flex-wrap:wrap">
+          <a class="btn btn-primary" href="https://github.com/Benjamin-Bloch/pages-seo/fork" target="_blank" rel="noopener" style="font-size:13px">1. Fork on GitHub →</a>
+          <a class="btn btn-ghost" href="https://github.com/apps/cloudflare-workers-and-pages/installations/new" target="_blank" rel="noopener" style="font-size:13px">2. Authorise Cloudflare app →</a>
+        </p>
+      </details>
+
+      <details class="wiz-details">
+        <summary>Step 2 — Create a Cloudflare API token</summary>
         <p class="wiz-foot-note" style="margin:6px 0 0">Cloudflare doesn't have a public OAuth flow for third-party apps, so we use an API token. Click below — Cloudflare opens a token-creation page with all the right permissions pre-selected. Hit <b>Continue → Create Token</b>, then come back and paste it.</p>
         <p style="margin:10px 0 0">
           <a id="token-link" class="btn btn-primary" target="_blank" rel="noopener" style="font-size:13px">Open Cloudflare token page →</a>
@@ -136,6 +154,16 @@
       </details>
 
       <form id="install-form" method="post" action="#" autocomplete="off" style="display:flex;flex-direction:column;gap:14px">
+        <div class="wiz-row">
+          <label class="wiz-field">
+            <span>GitHub owner <em>(your username)</em></span>
+            <input id="f-owner" type="text" required maxlength="80" placeholder="your-username" autocomplete="off" />
+          </label>
+          <label class="wiz-field">
+            <span>Repo name</span>
+            <input id="f-repo" type="text" required maxlength="80" placeholder="pages-seo" value="pages-seo" autocomplete="off" />
+          </label>
+        </div>
         <label class="wiz-field wiz-field-big">
           <span>Cloudflare API token</span>
           <input id="f-token" type="password" required autocomplete="off" placeholder="Paste the token here" />
@@ -197,13 +225,15 @@
       <h1 class="wiz-h1"><span class="serif-i">Hit a snag.</span></h1>
       <p class="wiz-lede" id="fail-detail">—</p>
 
-      <div id="fail-github" class="wiz-foot-note" hidden style="text-align:left;max-width:520px;margin:8px auto 0;padding:16px;background:var(--bg-soft);border:1px solid var(--line);border-radius:10px;font-size:13px;line-height:1.55">
-        <p style="margin:0 0 10px;color:var(--ink-dim)"><b style="color:var(--ink)">Cloudflare needs one-time access to GitHub.</b> The browser installer creates Pages projects linked to GitHub, which means the <b>Cloudflare Workers &amp; Pages</b> GitHub App has to be authorised once.</p>
-        <p style="margin:0 0 10px;color:var(--ink-dim)">Either:</p>
-        <ol style="margin:0 0 10px 18px;padding:0;color:var(--ink-dim)">
-          <li style="margin-bottom:8px"><a id="gh-install-app" target="_blank" rel="noopener" class="btn btn-primary" style="font-size:12px;padding:6px 12px">Install GitHub App →</a> grant access, then click Resume.</li>
-          <li>Or switch to <b>Setup via terminal</b> on the previous screen — that flow skips GitHub entirely.</li>
+      <div id="fail-github" class="wiz-foot-note" hidden style="text-align:left;max-width:560px;margin:8px auto 0;padding:16px;background:var(--bg-soft);border:1px solid var(--line);border-radius:10px;font-size:13px;line-height:1.55">
+        <p style="margin:0 0 12px;color:var(--ink-dim)"><b style="color:var(--ink)">Cloudflare can't see your repo.</b> Even with your GitHub linked to Cloudflare, the linkage is per-repo — Cloudflare can only pull from repos owned by you that have <i>Cloudflare Workers &amp; Pages</i> granted access. Three things to verify, in order:</p>
+        <ol style="margin:0 0 10px 18px;padding:0;color:var(--ink-dim);line-height:1.7">
+          <li><b>Does the repo exist?</b> We're looking for <code id="fail-repo">—</code>. <a id="fail-repo-link" target="_blank" rel="noopener">Open it →</a> — if you get a 404, you haven't forked yet. <a href="https://github.com/Benjamin-Bloch/pages-seo/fork" target="_blank" rel="noopener" class="btn btn-primary" style="font-size:11px;padding:4px 10px;margin-left:6px">Fork now</a></li>
+          <li style="margin-top:8px"><b>Did you grant the Cloudflare app access to it?</b> <a id="gh-install-app" target="_blank" rel="noopener" class="btn btn-ghost" style="font-size:11px;padding:4px 10px">Manage permissions →</a> — choose your fork (or "All repositories") and Save.</li>
+          <li style="margin-top:8px"><b>Are you using the right Cloudflare account?</b> The API token has to belong to the same Cloudflare account where you authorised the GitHub App. If you have multiple, double-check which one your token is from.</li>
         </ol>
+        <p style="margin:10px 0 0;color:var(--ink-faint);font-size:12px">Once all three are true, click <b>Resume install</b> below. Your D1 + R2 from the earlier steps are kept; only the Pages project is recreated.</p>
+        <p style="margin:8px 0 0;color:var(--ink-faint);font-size:12px">Hate GitHub? The <b>Setup via terminal</b> path on the chooser skips this entirely — it uses <code>wrangler pages deploy</code> which doesn't need a Git source.</p>
       </div>
 
       <p class="wiz-foot-note" style="text-align:center;max-width:480px;margin:8px auto 0">
@@ -322,13 +352,15 @@
   function saveDraft() {
     try {
       const draft = {
+        owner:     $('#f-owner').value.trim(),
+        repo:      $('#f-repo').value.trim(),
         project:   $('#f-project').value.trim().toLowerCase(),
         site_name: $('#f-site-name').value.trim(),
         email:     $('#f-email').value.trim().toLowerCase(),
         remember:  $('#f-remember').checked,
         ts: Date.now(),
       };
-      if (draft.project || draft.email) localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      if (draft.project || draft.email || draft.owner) localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
       if (draft.remember) {
         const secrets = {
           token:    $('#f-token').value,
@@ -357,6 +389,8 @@
 
   const { draft, secrets } = loadDraft();
   if (draft) {
+    if (draft.owner)     $('#f-owner').value     = draft.owner;
+    if (draft.repo)      $('#f-repo').value      = draft.repo;
     if (draft.project)   $('#f-project').value   = draft.project;
     if (draft.site_name) $('#f-site-name').value = draft.site_name;
     if (draft.email)     $('#f-email').value     = draft.email;
@@ -372,7 +406,7 @@
   syncWarnVisibility();
   $('#f-remember').addEventListener('change', () => { syncWarnVisibility(); saveDraft(); });
 
-  ['#f-project', '#f-site-name', '#f-email', '#f-token', '#f-password'].forEach((sel) => {
+  ['#f-owner', '#f-repo', '#f-project', '#f-site-name', '#f-email', '#f-token', '#f-password'].forEach((sel) => {
     $(sel).addEventListener('input', saveDraft);
   });
 
@@ -424,7 +458,11 @@
       $('#fail-detail').textContent = (data?.detail || data?.error || ('HTTP ' + r.status)) + at;
       const gh = $('#fail-github');
       if (data?.hint === 'github_app_required') {
-        $('#gh-install-app').href = data.github_app_install_url || 'https://github.com/apps/cloudflare-workers-and-pages/installations/new';
+        const owner = data.owner || lastBody?.owner || 'YOUR-USERNAME';
+        const repo  = data.repo  || lastBody?.repo  || 'pages-seo';
+        $('#fail-repo').textContent = `${owner}/${repo}`;
+        $('#fail-repo-link').href   = data.repo_url || `https://github.com/${owner}/${repo}`;
+        $('#gh-install-app').href   = data.github_app_install_url || 'https://github.com/apps/cloudflare-workers-and-pages/installations/new';
         gh.hidden = false;
       } else {
         gh.hidden = true;
@@ -451,12 +489,18 @@
     const err = $('#install-err'); err.textContent = '';
     const body = {
       token:        $('#f-token').value.trim(),
+      owner:        $('#f-owner').value.trim(),
+      repo:         $('#f-repo').value.trim(),
       site_name:    $('#f-site-name').value.trim(),
       project:      $('#f-project').value.trim().toLowerCase(),
       email:        $('#f-email').value.trim().toLowerCase(),
       password:     $('#f-password').value,
     };
     if (!body.token)    { err.textContent = 'Token required.'; return; }
+    if (!body.owner)    { err.textContent = 'GitHub owner is required — your username on github.com.'; return; }
+    if (!body.repo)     { err.textContent = 'Repo name is required (defaults to pages-seo).'; return; }
+    if (!/^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/.test(body.owner)) { err.textContent = 'GitHub owner: letters, digits, dashes only.'; return; }
+    if (!/^[A-Za-z0-9._-]{1,100}$/.test(body.repo))          { err.textContent = 'Repo name: letters, digits, dot, dash, underscore.'; return; }
     if (!body.project || !/^[a-z][a-z0-9-]{1,32}$/.test(body.project)) { err.textContent = 'Project slug must be lowercase letters/digits/dashes.'; return; }
     if (body.password.length < 8) { err.textContent = 'Password must be 8+ characters.'; return; }
     saveDraft();
