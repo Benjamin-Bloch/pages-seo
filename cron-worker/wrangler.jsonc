@@ -4,10 +4,15 @@
   "main": "src/index.js",
   "compatibility_date": "2026-05-18",
 
-  // Triggers:
-  //   0 8 * * *         → start daily blog (or resume any draft first)
-  //   0 10,14,18 * * *  → retry-only windows for unfinished drafts
-  //   0 9 * * *         → programmatic-SEO batch (10 keywords per run)
+  // Triggers (kept to 2 to fit the account-wide 5-trigger cap on
+  // Cloudflare's free / Workers Paid base plan):
+  //   0 8 * * *  → start daily blog (or resume any draft first). If
+  //                this run fails partway, you'll need to manually
+  //                resume via the admin UI — there's no automatic
+  //                retry window. The chain itself is idempotent so a
+  //                manual click finishes where the prior run died.
+  //   0 9 * * *  → programmatic-SEO batch (drains pending queue;
+  //                each call generates one page).
   //
   // Secrets:
   //   BLOG_URL    — https://<host>/api/admin/blog (base path)
@@ -17,7 +22,6 @@
   "triggers": {
     "crons": [
       "0 8 * * *",
-      "0 10,14,18 * * *",
       "0 9 * * *"
     ]
   }
