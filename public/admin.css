@@ -659,11 +659,14 @@ em.optional{font-style:normal;color:var(--ink-faint);font-size:11px;letter-spaci
 }
 .wiz-skip:hover{color:var(--ink-dim)}
 
-/* Panes — exactly one visible at a time. */
+/* Panes — exactly one visible at a time. `[hidden]` would normally
+   force display:none, but the rule below has higher specificity, so
+   we restate it. */
 .wiz-pane{
   display:flex;flex-direction:column;gap:18px;
   animation:wiz-fade .25s ease;
 }
+.wiz-pane[hidden]{display:none}
 .wiz-pane-center{text-align:center;align-items:center;padding:4px 0 8px}
 @keyframes wiz-fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
