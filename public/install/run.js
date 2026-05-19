@@ -15,11 +15,26 @@
 // re-parsed by a shell. No string interpolation into shell commands.
 
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync, openSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
-import { stdin as input, stdout as output } from 'node:process';
+import { stdout as output } from 'node:process';
+import { ReadStream as TTYReadStream } from 'node:tty';
+
+// When run as `curl … | node`, stdin IS the script, so any prompt
+// returns immediately. Re-open the controlling terminal via the tty
+// module so the resulting stream exposes setRawMode (needed for
+// no-echo password input). POSIX only — Windows users get the
+// regular stdin path; piped-bash and piped-python flavours cover
+// them anyway.
+let input = process.stdin;
+try {
+  if (!process.stdin.isTTY && existsSync('/dev/tty')) {
+    const fd = openSync('/dev/tty', 'r');
+    input = new TTYReadStream(fd);
+  }
+} catch { /* no tty — leave input as stdin */ }
 
 const REPO_TARBALL = 'https://github.com/Benjamin-Bloch/pages-seo/archive/refs/heads/main.tar.gz';
 
@@ -62,15 +77,19 @@ async function ask(q, def = '') {
 async function askPassword(q) {
   output.write(`  ${q}: `);
   return new Promise((resolve) => {
-    const stdin = process.stdin;
-    if (stdin.isTTY) stdin.setRawMode(true);
+    // Read from the same stream as the rl prompts — that's the
+    // tty stream when curl-piped, else process.stdin. Raw mode is
+    // only valid on terminal streams.
+    const stdin = input;
+    const isTty = stdin === process.stdin ? !!stdin.isTTY : true;
+    if (isTty && stdin.setRawMode) stdin.setRawMode(true);
     let buf = '';
     const onData = (b) => {
       const s = b.toString('utf8');
       for (const ch of s) {
         if (ch === '\r' || ch === '\n') {
           stdin.removeListener('data', onData);
-          if (stdin.isTTY) stdin.setRawMode(false);
+          if (isTty && stdin.setRawMode) stdin.setRawMode(false);
           output.write('\n');
           return resolve(buf);
         }

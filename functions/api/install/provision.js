@@ -287,16 +287,37 @@ async function ensurePagesProject(token, accountId, project, siteName, d1Id, r2N
   throw new Error(msg || `Pages create failed (HTTP ${r.res.status})`);
 }
 
-async function patchSiteUrl(token, accountId, project, pagesUrl) {
-  await cfFetch(token, `/accounts/${accountId}/pages/projects/${project}`, {
+// Re-asserts all project config after Pages-create. We saw cases
+// where Cloudflare's POST /pages/projects accepts the payload but
+// silently drops the d1_databases / r2_buckets entries, leaving the
+// new project unable to find env.DB at runtime. PATCH is more
+// reliable for those fields, so we always do a full re-bind once we
+// know the project's subdomain.
+async function patchProjectConfig(token, accountId, project, opts) {
+  const { pagesUrl, siteName, d1Id, r2Name } = opts;
+  const env_vars = {
+    SITE_NAME: { type: 'plain_text', value: siteName },
+    SITE_URL:  { type: 'plain_text', value: pagesUrl },
+  };
+  const bindings = {
+    d1_databases: { DB:     { id: d1Id } },
+    r2_buckets:   { IMAGES: { name: r2Name } },
+    ai_bindings:  { AI: {} },
+  };
+  const body = JSON.stringify({
+    deployment_configs: {
+      production: { ...bindings, env_vars },
+      preview:    { ...bindings, env_vars },
+    },
+  });
+  const r = await cfFetch(token, `/accounts/${accountId}/pages/projects/${project}`, {
     method: 'PATCH',
-    body: JSON.stringify({
-      deployment_configs: {
-        production: { env_vars: { SITE_URL: { type: 'plain_text', value: pagesUrl } } },
-        preview:    { env_vars: { SITE_URL: { type: 'plain_text', value: pagesUrl } } },
-      },
-    }),
-  }).catch(() => {}); // best-effort
+    body,
+  });
+  // Return the response so the caller can decide whether to retry,
+  // log, or treat as fatal. Bindings being silently dropped is the
+  // single most common cause of `no_db_binding` on first /admin load.
+  return { ok: r.res.ok, body: r.body };
 }
 
 async function triggerDeploy(token, accountId, project) {
@@ -401,8 +422,13 @@ export const onRequestPost = async ({ env, request }) => {
     }
   }
 
-  // ── step 5: SITE_URL patch (always retry; cheap, idempotent) ─
-  await patchSiteUrl(token, account.id, project, pagesUrl);
+  // ── step 5: re-assert bindings + env vars ─────────────────
+  // Belt-and-braces: even though the POST already set these,
+  // Cloudflare sometimes drops bindings silently. A PATCH after
+  // we know the subdomain is reliable. Idempotent on retry.
+  await patchProjectConfig(token, account.id, project, {
+    pagesUrl, siteName, d1Id, r2Name,
+  });
 
   // ── step 6: deploy ─────────────────────────────────────────
   if (!state.deploy_started) {

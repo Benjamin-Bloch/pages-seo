@@ -17,6 +17,17 @@ import tempfile
 import urllib.request
 from base64 import urlsafe_b64encode
 
+# When run as `curl … | python3`, stdin IS the script source, so
+# input() returns immediately with EOFError on every prompt. Reattach
+# stdin to the controlling terminal (POSIX only; Windows users go via
+# the bash or node script). Falls back silently if /dev/tty isn't
+# available.
+try:
+    if not sys.stdin.isatty() and os.path.exists('/dev/tty'):
+        sys.stdin = open('/dev/tty', 'r')
+except Exception:
+    pass
+
 C = {
     'reset': '\033[0m', 'dim': '\033[2m', 'bold': '\033[1m',
     'cyan': '\033[36m', 'green': '\033[32m', 'red': '\033[31m', 'yellow': '\033[33m',

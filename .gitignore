@@ -4,6 +4,14 @@
 !.env.example
 .dev.vars
 
+# Wrangler config holds resource IDs (D1 database_id, R2 bucket_name)
+# that point at the maintainer's live account. The canonical "what
+# this project expects" lives in wrangler.template.toml. Keep your
+# real config local: copy the template to wrangler.toml after running
+# the installer / setup.sh and it'll fill in your IDs.
+wrangler.toml
+wrangler.live.toml
+
 # Setup script state machine. Generated locally; delete to start over.
 .setup-state
 

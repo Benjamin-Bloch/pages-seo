@@ -22,6 +22,15 @@
 
 set -euo pipefail
 
+# When run as `curl … | bash`, stdin IS the script, so any `read`
+# inside gets immediate EOF and skips every prompt. Re-attach stdin
+# to the controlling terminal so prompts work. If there's no tty
+# (CI, automation), fall through and let `read` fail loudly later
+# rather than silently accepting empty answers.
+if [[ ! -t 0 && -e /dev/tty ]]; then
+  exec </dev/tty
+fi
+
 C_RESET=$'\033[0m'; C_DIM=$'\033[2m'; C_BOLD=$'\033[1m'
 C_CYAN=$'\033[36m'; C_GREEN=$'\033[32m'; C_RED=$'\033[31m'; C_YELLOW=$'\033[33m'
 say()  { printf "%s▸%s %s%s%s\n" "$C_CYAN" "$C_RESET" "$C_BOLD" "$*" "$C_RESET"; }
