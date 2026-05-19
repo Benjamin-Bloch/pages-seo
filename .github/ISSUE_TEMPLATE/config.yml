@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Question / discussion
+    url: https://github.com/Benjamin-Bloch/pages-seo/discussions
+    about: Ask a question or share how you're using pages-seo.
+  - name: 🌐 Live demo
+    url: https://seo.benjaminb.xyz
+    about: See an instance of pages-seo running on its own daily cron.

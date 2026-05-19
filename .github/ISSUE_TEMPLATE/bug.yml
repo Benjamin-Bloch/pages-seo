@@ -1,0 +1,58 @@
+name: 🐛 Bug report
+description: Something is broken or behaving unexpectedly.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report. The more specific you can be, the faster it gets fixed.
+  - type: textarea
+    id: what
+    attributes:
+      label: What's happening
+      description: A clear description of the behaviour you're seeing.
+      placeholder: When I click X, the dashboard shows Y instead of Z.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected to happen
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to /admin
+        2. Click …
+        3. See the error
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Commit SHA or version
+      description: From the footer of /admin, or `git rev-parse HEAD`.
+  - type: dropdown
+    id: provider
+    attributes:
+      label: AI provider in use
+      options:
+        - Workers AI (default)
+        - OpenAI
+        - Anthropic
+        - Gemini
+        - Groq
+        - DeepSeek
+        - Mistral
+        - Together
+        - Cerebras
+        - Other / multiple
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / error output
+      description: Wrangler tail output, browser console, or D1 query results. Redact any tokens or keys.
+      render: shell

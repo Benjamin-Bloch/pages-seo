@@ -1,14 +1,35 @@
 {
   "name": "pages-seo",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": false,
   "license": "MIT",
-  "description": "Self-hostable programmatic-SEO + daily-blog toolkit for Cloudflare Pages. Workers AI primary, OpenAI fallback.",
+  "description": "Self-hosted programmatic-SEO + daily-AI-blog toolkit for Cloudflare Pages. Workers AI default, 8 cloud providers as fallback.",
+  "homepage": "https://seo.benjaminb.xyz",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Benjamin-Bloch/pages-seo.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Benjamin-Bloch/pages-seo/issues"
+  },
+  "author": "Benjamin Bloch <hi@benjaminb.xyz> (https://benjaminb.xyz)",
+  "keywords": [
+    "seo",
+    "programmatic-seo",
+    "cloudflare-pages",
+    "workers-ai",
+    "blog",
+    "ai-content",
+    "d1",
+    "r2",
+    "indexnow"
+  ],
   "scripts": {
-    "deploy": "./scripts/deploy.sh",
-    "db:init": "wrangler d1 execute pages-seo --remote --file=schema/init.sql",
-    "db:console": "wrangler d1 execute pages-seo --remote --command=\"SELECT count(*) FROM blog_posts\"",
+    "setup": "bash setup.sh",
+    "deploy": "bash deploy.sh",
     "dev": "wrangler pages dev public",
+    "db:migrate": "wrangler d1 execute pages-seo --remote --file=schema/init.sql",
+    "db:console": "wrangler d1 execute pages-seo --remote --command=\"SELECT count(*) AS posts FROM blog_posts\"",
     "cron:deploy": "cd cron-worker && wrangler deploy"
   },
   "engines": {

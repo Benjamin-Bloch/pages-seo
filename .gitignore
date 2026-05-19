@@ -1,10 +1,23 @@
+# Secrets — never commit a filled-in env.
 .env
 .env.*
 !.env.example
-node_modules
-.wrangler
+.dev.vars
+
+# Setup script state machine. Generated locally; delete to start over.
+.setup-state
+
+# Local-only reference scratch files (e.g. soro-example.js used while
+# building the embed widget; not part of the project).
+soro-example.js
+
+# Tool caches.
+node_modules/
+.wrangler/
+__pycache__/
+
+# Editor / OS noise.
 .DS_Store
 *.log
-.dev.vars
-__pycache__/
-.setup-state
+.idea/
+.vscode/
