@@ -155,15 +155,24 @@
   // We pre-fill the Cloudflare token page with all permissions needed
   // to provision the install. `permissionGroupKeys` takes a JSON array
   // of { key, type } objects, URL-encoded.
+  //
+  // Two gotchas Cloudflare's docs don't make obvious:
+  //   - The path must be `/?to=/:account/api-tokens` (no `/create`).
+  //     The `/create` variant lands on the same page but skips the
+  //     prefill side-effect that reads the query string.
+  //   - The `key` values are SHORT slugs (`page`, `d1`, `workers_r2`,
+  //     `ai`), not the long `com.cloudflare.api.account.*` strings
+  //     in the permissions reference page. Source: live dashboard +
+  //     cfdata.lol/tools/api-token-url-generator/.
   const PERMS = [
-    { key: 'com.cloudflare.api.account.pages',         type: 'edit' },
-    { key: 'com.cloudflare.api.account.d1',            type: 'edit' },
-    { key: 'com.cloudflare.api.account.workers.r2',    type: 'edit' },
-    { key: 'com.cloudflare.api.account.workers.ai',    type: 'edit' },
-    { key: 'com.cloudflare.api.account.account_settings', type: 'read' },
-    { key: 'com.cloudflare.api.account.workers.scripts', type: 'edit' },
+    { key: 'page',             type: 'edit' },
+    { key: 'd1',               type: 'edit' },
+    { key: 'workers_r2',       type: 'edit' },
+    { key: 'ai',               type: 'edit' },
+    { key: 'workers_scripts',  type: 'edit' },
+    { key: 'account_settings', type: 'read' },
   ];
-  const tokenLink = 'https://dash.cloudflare.com/?to=/:account/api-tokens/create' +
+  const tokenLink = 'https://dash.cloudflare.com/?to=/:account/api-tokens' +
     '&permissionGroupKeys=' + encodeURIComponent(JSON.stringify(PERMS)) +
     '&name=' + encodeURIComponent('pages-seo install');
   $('#token-link').href = tokenLink;
