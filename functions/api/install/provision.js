@@ -296,7 +296,7 @@ export const onRequestPost = async ({ env, request }) => {
   if (!SLUG_RX.test(project)) return fail('validate', 400, 'Project slug: lowercase letters/digits/dashes, 2–33 chars, must start with a letter');
   if (!siteName)             return fail('validate', 400, 'Site name required');
   if (!EMAIL_RX.test(email)) return fail('validate', 400, 'Valid email required');
-  if (password.length < 12)  return fail('validate', 400, 'Password must be 12+ characters');
+  if (password.length < 8)   return fail('validate', 400, 'Password must be 8+ characters');
 
   const fp = await tokenFingerprint(token);
   let state = (await loadState(env, project, fp)) || {};

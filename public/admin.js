@@ -2298,7 +2298,7 @@
       if (!site_name) { err.textContent = 'Site name is required.'; return; }
       if (!/^https?:\/\/.+/i.test(site_url)) { err.textContent = 'Site URL must start with http(s)://'; return; }
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { err.textContent = 'Enter a valid email address.'; return; }
-      if (password.length < 12) { err.textContent = 'Password must be 12+ characters.'; return; }
+      if (password.length < 8) { err.textContent = 'Password must be 8+ characters.'; return; }
 
       const btn = $('#setup-go');
       btn.disabled = true; btn.textContent = 'Setting up…';

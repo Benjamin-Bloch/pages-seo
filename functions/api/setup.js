@@ -22,7 +22,7 @@ import { setSetting } from '../_lib/settings.js';
 import { SCHEMA_SQL } from '../_lib/schema.js';
 
 const EMAIL_RX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-const MIN_PW = 12;
+const MIN_PW = 8;
 const MAX_PW = 256;
 
 function randomHex(bytes) {

@@ -10,12 +10,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" />
 <link rel="stylesheet" href="/admin.css" />
 <style>
-  /* The installer reuses the wizard tokens but is its own standalone
-     page — no admin SPA in this document. */
   html, body { background: var(--bg); }
-  .install-help { font-size: 12px; color: var(--ink-faint); line-height: 1.55; margin: 0; }
-  .install-help a { color: var(--accent); }
-  .install-help code { font-family: var(--mono); background: var(--bg-soft); padding: 1px 5px; border-radius: 3px; }
   .install-step-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
   .install-step { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 8px; color: var(--ink-dim); transition: color .2s, border-color .2s; }
   .install-step.is-active { color: var(--accent); border-color: rgba(122,255,240,0.4); background: rgba(122,255,240,0.05); }
@@ -24,8 +19,67 @@
   .install-step.is-active .install-step-icon::before { content: ""; width: 12px; height: 12px; border-radius: 50%; border: 2px solid currentColor; border-top-color: transparent; animation: wiz-spin .8s linear infinite; }
   .install-step.is-done .install-step-icon::before { content: "✓"; font-size: 14px; }
   .install-step.is-pending .install-step-icon::before { content: "○"; opacity: 0.4; font-size: 14px; }
-  .install-result { display: flex; flex-direction: column; gap: 16px; align-items: center; text-align: center; padding: 8px 0 4px; }
-  .install-result code { font-family: var(--mono); background: var(--bg-soft); padding: 4px 10px; border-radius: 6px; font-size: 13px; color: var(--accent); }
+
+  /* Chooser cards */
+  .chooser { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 600px) { .chooser { grid-template-columns: 1fr; } }
+  .chooser-card {
+    background: var(--bg-soft); border: 1px solid var(--line);
+    border-radius: 14px; padding: 22px 22px 20px;
+    cursor: pointer; transition: border-color .15s, transform .15s, background .15s;
+    display: flex; flex-direction: column; gap: 8px; text-align: left;
+    color: inherit; font: inherit;
+  }
+  .chooser-card:hover { border-color: var(--accent); transform: translateY(-2px); background: rgba(122,255,240,0.04); }
+  .chooser-card h3 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.005em; color: var(--ink); }
+  .chooser-card p { margin: 0; font-size: 13px; color: var(--ink-dim); line-height: 1.55; }
+  .chooser-card .chooser-pill {
+    align-self: flex-start; font-family: var(--mono); font-size: 10px; letter-spacing: .08em;
+    text-transform: uppercase; padding: 3px 8px; border-radius: 5px;
+    background: var(--accent-soft); color: var(--accent);
+  }
+  .chooser-card .chooser-pill.is-warn { background: rgba(224,183,106,0.1); color: var(--warn); }
+  .chooser-card .chooser-meta {
+    margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line);
+    font-size: 11px; color: var(--ink-faint); font-family: var(--mono);
+  }
+
+  /* Terminal pickers + copy block */
+  .term-tabs { display: flex; gap: 4px; margin: 4px 0 0; padding: 4px; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 10px; }
+  .term-tab {
+    flex: 1; padding: 8px 12px; border-radius: 7px; background: transparent;
+    border: 0; color: var(--ink-dim); font: inherit; font-size: 13px; cursor: pointer;
+    transition: background .15s, color .15s;
+  }
+  .term-tab:hover { color: var(--ink); }
+  .term-tab.is-active { background: var(--bg-card); color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+
+  .term-cmd-wrap { position: relative; }
+  .term-cmd {
+    margin: 0; padding: 16px 60px 16px 18px;
+    background: var(--bg-soft); border: 1px solid var(--line-2);
+    border-radius: 10px; font-family: var(--mono); font-size: 13px;
+    color: var(--ink); white-space: pre-wrap; word-break: break-all;
+    line-height: 1.55;
+  }
+  .term-copy {
+    position: absolute; top: 10px; right: 10px;
+    padding: 6px 12px; background: var(--bg-card); border: 1px solid var(--line-2);
+    color: var(--ink-dim); font: inherit; font-size: 11px; letter-spacing: .04em;
+    text-transform: uppercase; font-family: var(--mono);
+    border-radius: 6px; cursor: pointer; transition: color .15s, border-color .15s;
+  }
+  .term-copy:hover { color: var(--accent); border-color: var(--accent); }
+  .term-copy.is-copied { color: var(--good); border-color: rgba(122,252,166,0.4); }
+
+  /* Storage warning banner */
+  .store-warn {
+    display: flex; gap: 10px; align-items: flex-start;
+    padding: 10px 14px; border-radius: 8px;
+    background: rgba(224,183,106,0.06); border: 1px solid rgba(224,183,106,0.2);
+    color: var(--ink-dim); font-size: 12px; line-height: 1.5;
+  }
+  .store-warn b { color: var(--warn); }
 </style>
 </head>
 <body>
@@ -39,62 +93,45 @@
         <span class="wiz-brand-text">pages-seo · installer</span>
       </div>
       <ol class="wiz-steps" aria-label="Install progress">
-        <li class="wiz-step is-current" data-stage="form"><b>1. Token</b></li>
-        <li class="wiz-step" data-stage="provision"><b>2. Provision</b></li>
-        <li class="wiz-step" data-stage="done"><b>3. Live</b></li>
+        <li class="wiz-step is-current" data-stage="chooser"><b>1. Pick</b></li>
+        <li class="wiz-step" data-stage="config"><b>2. Configure</b></li>
+        <li class="wiz-step" data-stage="run"><b>3. Run</b></li>
       </ol>
       <span></span>
     </header>
 
-    <!-- ── Pane 1: token + details form ───────────────────────────── -->
-    <section class="wiz-pane" id="pane-form">
+    <!-- ── Chooser pane ─────────────────────────────────────────── -->
+    <section class="wiz-pane" id="pane-chooser">
       <div class="wiz-eyebrow">Install pages-seo on your Cloudflare account</div>
-      <h1 class="wiz-h1"><span class="serif-i">Install</span> pages-seo.</h1>
-      <p class="wiz-lede">We'll provision a Pages project, a D1 database, an R2 bucket, and the Workers AI binding — all on your Cloudflare account. You'll get a working site at the end with the admin already seeded.</p>
+      <h1 class="wiz-h1"><span class="serif-i">Two</span> ways<br/>to install.</h1>
+      <p class="wiz-lede">Pick the one that fits how you work. Both end up at the same place — a fully provisioned site you log into with the credentials you choose.</p>
 
-      <!-- Recommended path: the local CLI uses `wrangler pages deploy`
-           under the hood, which is the only public path that can
-           upload a Pages Functions bundle. Skips the GitHub App
-           dance entirely. The browser flow below still works, but
-           Cloudflare requires you to authorise the Workers & Pages
-           GitHub App on first use for it. -->
-      <div class="install-help" style="background:rgba(122,255,240,0.06);border:1px solid rgba(122,255,240,0.25);padding:14px 16px;border-radius:10px;margin:0 0 4px">
-        <p style="margin:0 0 8px"><b style="color:var(--accent)">Recommended:</b> install from your terminal in one command (~2 min):</p>
-        <pre style="margin:0 0 8px;padding:10px 12px;background:var(--bg-soft);border:1px solid var(--line);border-radius:6px;font-family:var(--mono);font-size:13px;color:var(--ink);overflow-x:auto">npx pages-seo-install</pre>
-        <p style="margin:0;color:var(--ink-faint);font-size:11px">Uses <code>wrangler login</code> (browser OAuth), no API token to copy. Works with Node 20+. <a href="https://github.com/Benjamin-Bloch/pages-seo/tree/main/cli" target="_blank" rel="noopener">Read more →</a></p>
+      <div class="chooser">
+        <button class="chooser-card" type="button" data-pick="site">
+          <span class="chooser-pill">Browser</span>
+          <h3>Setup via site</h3>
+          <p>Paste a Cloudflare API token, fill in a form, watch the progress bar. No tools to install.</p>
+          <span class="chooser-meta">Heads-up: requires the Cloudflare Pages GitHub App. We'll guide you.</span>
+        </button>
+        <button class="chooser-card" type="button" data-pick="term">
+          <span class="chooser-pill">Terminal</span>
+          <h3>Setup via terminal</h3>
+          <p>Copy one command, paste into your shell, hit enter. Uses <code>wrangler login</code> in your browser — no API token, no GitHub App.</p>
+          <span class="chooser-meta">Bash · Python · Node — pick the runtime you already have.</span>
+        </button>
       </div>
+    </section>
 
-      <details class="wiz-details" style="margin-top:4px">
-        <summary>Or install in your browser (requires the Cloudflare Pages GitHub App)</summary>
-        <p class="install-help" style="margin:8px 0 0">The browser installer below uses an API token and creates a Pages project linked to the public <code>pages-seo</code> GitHub repo. Cloudflare requires you to install their <b>Workers &amp; Pages GitHub App</b> on your account before the linkage works — which is an extra step the CLI flow avoids.</p>
-      </details>
-
-      <!-- Resume banner: shown when we find a stored draft from a
-           previous visit (project slug + site name + email). Token
-           and password are never stored, so the user retypes those
-           two and the rest is filled in. -->
-      <div id="resume-banner" class="install-help" hidden style="background:rgba(122,255,240,0.06);border:1px solid rgba(122,255,240,0.25);padding:12px 14px;border-radius:10px;display:flex;justify-content:space-between;align-items:center;gap:10px">
-        <div>
-          <b style="color:var(--accent)">Welcome back.</b>
-          <span style="color:var(--ink-dim)">We've filled in your last install for <code id="resume-project" style="font-family:var(--mono)">—</code>. Paste your token + password to continue.</span>
-        </div>
-        <button id="resume-clear" type="button" class="btn btn-ghost" style="font-size:11px;padding:5px 10px">Clear</button>
-      </div>
-
-      <ol class="install-step-list" style="margin: 4px 0 6px">
-        <li class="install-step is-pending"><span class="install-step-icon"></span> Create a token on Cloudflare</li>
-        <li class="install-step is-pending"><span class="install-step-icon"></span> Paste it here + name your site</li>
-        <li class="install-step is-pending"><span class="install-step-icon"></span> We do the rest</li>
-      </ol>
+    <!-- ── Site flow — form ─────────────────────────────────────── -->
+    <section class="wiz-pane" id="pane-site-form" hidden>
+      <div class="wiz-eyebrow">Setup via site · step 1 of 2</div>
+      <h1 class="wiz-h1"><span class="serif-i">Tell</span> us about<br/>your install.</h1>
 
       <details class="wiz-details" open>
-        <summary>Step 1 — Create your Cloudflare API token</summary>
-        <p class="install-help">Click the button below. Cloudflare opens its token-creation page with all the right permissions already filled in. Hit <b>Continue to summary → Create Token</b>, then come back and paste the value.</p>
-        <p style="margin: 10px 0 0">
-          <a id="token-link" class="btn btn-primary" target="_blank" rel="noopener">Open Cloudflare token page →</a>
-        </p>
-        <p class="install-help" style="margin-top: 10px">
-          Permissions requested: <code>Pages:Edit</code> · <code>D1:Edit</code> · <code>R2:Edit</code> · <code>Workers AI:Edit</code> · <code>Account Settings:Read</code>. The token never leaves your browser and our server — we don't store it after the install completes.
+        <summary>Need a Cloudflare API token?</summary>
+        <p class="wiz-foot-note" style="margin:6px 0 0">Cloudflare doesn't have a public OAuth flow for third-party apps, so we use an API token. Click below — Cloudflare opens a token-creation page with all the right permissions pre-selected. Hit <b>Continue → Create Token</b>, then come back and paste it.</p>
+        <p style="margin:10px 0 0">
+          <a id="token-link" class="btn btn-primary" target="_blank" rel="noopener" style="font-size:13px">Open Cloudflare token page →</a>
         </p>
       </details>
 
@@ -105,11 +142,11 @@
         </label>
         <div class="wiz-row">
           <label class="wiz-field">
-            <span>Your site name</span>
+            <span>Site name</span>
             <input id="f-site-name" type="text" required maxlength="80" placeholder="My Site" />
           </label>
           <label class="wiz-field">
-            <span>Project slug <em>(letters, digits, dashes)</em></span>
+            <span>Project slug <em>(letters/digits/dashes)</em></span>
             <input id="f-project" type="text" required pattern="[a-z][a-z0-9-]{1,32}" maxlength="32" placeholder="my-site" />
           </label>
         </div>
@@ -118,21 +155,32 @@
           <input id="f-email" type="email" required autocomplete="username" placeholder="you@example.com" />
         </label>
         <label class="wiz-field wiz-field-big">
-          <span>Admin password <em>(12+ chars; you'll log in with this)</em></span>
-          <input id="f-password" type="password" required minlength="12" maxlength="256" autocomplete="new-password" />
+          <span>Admin password <em>(8+ chars)</em></span>
+          <input id="f-password" type="password" required minlength="8" maxlength="256" autocomplete="new-password" />
         </label>
-        <div class="wiz-actions wiz-actions-single">
-          <button id="install-go" class="btn btn-primary wiz-btn-lg" type="submit">Install →</button>
+
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-dim);cursor:pointer">
+          <input id="f-remember" type="checkbox" checked />
+          <span>Remember token + password in this browser so I can resume later</span>
+        </label>
+        <div id="store-warn" class="store-warn" hidden>
+          <b>Heads-up:</b>
+          <span>Token + password are stored in your browser's localStorage on <code>seo.benjaminb.xyz</code>. Clear them on a shared machine. We clear them automatically once the install completes.</span>
+        </div>
+
+        <div class="wiz-actions" style="gap:10px">
+          <button class="btn btn-ghost" type="button" data-back="chooser">← Back</button>
+          <button id="install-go" class="btn btn-primary" type="submit">Install →</button>
         </div>
         <div id="install-err" class="wiz-err"></div>
       </form>
     </section>
 
-    <!-- ── Pane 2: provisioning ──────────────────────────────────── -->
-    <section class="wiz-pane" id="pane-provision" hidden>
+    <!-- ── Site flow — provisioning ─────────────────────────────── -->
+    <section class="wiz-pane" id="pane-site-provision" hidden>
       <div class="wiz-eyebrow">Provisioning</div>
       <h1 class="wiz-h1"><span class="serif-i">Working</span> on it.</h1>
-      <p class="wiz-lede">Spinning up your resources. This usually takes 20–40 seconds.</p>
+      <p class="wiz-lede">Spinning up your resources. Usually 20–40 seconds.</p>
       <ol class="install-step-list" id="provision-steps">
         <li class="install-step is-pending" data-step="account"><span class="install-step-icon"></span> Identifying your Cloudflare account</li>
         <li class="install-step is-pending" data-step="d1"><span class="install-step-icon"></span> Creating D1 database</li>
@@ -143,47 +191,70 @@
       </ol>
     </section>
 
-    <!-- ── Pane 3: done ──────────────────────────────────────────── -->
-    <section class="wiz-pane wiz-pane-center" id="pane-done" hidden>
-      <div class="wiz-tick wiz-tick-big">✓</div>
-      <h1 class="wiz-h1"><span class="serif-i">You're</span> live.</h1>
-      <div class="install-result">
-        <p class="wiz-lede">Pages is building your site right now. Usually finishes in 1–2 minutes.</p>
-        <p>Your new site:</p>
-        <code id="done-url">—</code>
-        <p class="wiz-lede" style="margin-top: 14px;">When the deploy is green, the link below opens <code>/admin</code> and auto-creates your admin account in one click — no retyping. The onboarding wizard takes over from there.</p>
-      </div>
-      <div class="wiz-actions wiz-actions-single">
-        <a id="open-admin" class="btn btn-primary wiz-btn-lg" target="_blank" rel="noopener">Open my dashboard →</a>
-      </div>
-    </section>
-
-    <!-- ── Pane: failure ─────────────────────────────────────────── -->
-    <section class="wiz-pane wiz-pane-center" id="pane-fail" hidden>
+    <!-- ── Site flow — failure ──────────────────────────────────── -->
+    <section class="wiz-pane wiz-pane-center" id="pane-site-fail" hidden>
       <div class="wiz-tick" style="color: var(--bad); background: rgba(255,138,161,0.1); border-color: rgba(255,138,161,0.4); font-size: 28px;">!</div>
       <h1 class="wiz-h1"><span class="serif-i">Hit a snag.</span></h1>
       <p class="wiz-lede" id="fail-detail">—</p>
 
-      <!-- Specific guidance when the cause is the missing Cloudflare
-           Pages GitHub App connection. Shown only when the server
-           sets hint=github_app_required on the failure response. -->
-      <div id="fail-github" class="install-help" hidden style="text-align:left;max-width:520px;margin:8px auto 0;padding:16px;background:var(--bg-soft);border:1px solid var(--line);border-radius:10px">
-        <p style="margin:0 0 10px"><b>Cloudflare needs one-time access to GitHub.</b> Pages can't see your repo until the <b>Cloudflare Workers &amp; Pages</b> GitHub App is authorised on your account.</p>
-        <p style="margin:0 0 12px">Fastest fix:</p>
-        <ol style="margin:0 0 12px 18px;padding:0">
-          <li style="margin-bottom:6px"><a id="gh-install-app" target="_blank" rel="noopener" class="btn btn-primary" style="font-size:12px;padding:6px 12px">Install GitHub App →</a> (opens in a new tab)</li>
-          <li>Grant access to your <code>pages-seo</code> fork (or "All repositories" if you prefer).</li>
-          <li>Come back here and hit <b>Resume install</b>.</li>
+      <div id="fail-github" class="wiz-foot-note" hidden style="text-align:left;max-width:520px;margin:8px auto 0;padding:16px;background:var(--bg-soft);border:1px solid var(--line);border-radius:10px;font-size:13px;line-height:1.55">
+        <p style="margin:0 0 10px;color:var(--ink-dim)"><b style="color:var(--ink)">Cloudflare needs one-time access to GitHub.</b> The browser installer creates Pages projects linked to GitHub, which means the <b>Cloudflare Workers &amp; Pages</b> GitHub App has to be authorised once.</p>
+        <p style="margin:0 0 10px;color:var(--ink-dim)">Either:</p>
+        <ol style="margin:0 0 10px 18px;padding:0;color:var(--ink-dim)">
+          <li style="margin-bottom:8px"><a id="gh-install-app" target="_blank" rel="noopener" class="btn btn-primary" style="font-size:12px;padding:6px 12px">Install GitHub App →</a> grant access, then click Resume.</li>
+          <li>Or switch to <b>Setup via terminal</b> on the previous screen — that flow skips GitHub entirely.</li>
         </ol>
-        <p style="margin:0;color:var(--ink-faint);font-size:11px">Alternative: visit <a id="gh-dash-link" target="_blank" rel="noopener">Cloudflare → Workers &amp; Pages → Create → Pages → Connect to Git</a> and authorise from there.</p>
       </div>
 
-      <p class="install-help" style="text-align:center;max-width:480px;margin:8px auto 0">
-        Your progress is saved. Hitting <b>Resume</b> picks up from the step that failed — already-created resources are reused, not recreated.
+      <p class="wiz-foot-note" style="text-align:center;max-width:480px;margin:8px auto 0">
+        Your progress is saved. Hitting <b>Resume</b> picks up from the step that failed.
       </p>
       <div class="wiz-actions wiz-actions-single" style="gap:10px;flex-direction:row">
         <button id="fail-resume" class="btn btn-primary" type="button">Resume install →</button>
-        <button class="btn btn-ghost" type="button" onclick="location.reload()">Start over</button>
+        <button class="btn btn-ghost" type="button" data-back="chooser">Back to chooser</button>
+      </div>
+    </section>
+
+    <!-- ── Terminal flow — pick runtime + show command ──────────── -->
+    <section class="wiz-pane" id="pane-term" hidden>
+      <div class="wiz-eyebrow">Setup via terminal</div>
+      <h1 class="wiz-h1"><span class="serif-i">Copy.</span> Paste.<br/>Done.</h1>
+      <p class="wiz-lede">Pick the runtime you already have on your machine. The command downloads our installer and runs it locally — it uses <code>wrangler login</code> (browser OAuth) so you never paste an API token.</p>
+
+      <div class="term-tabs" role="tablist">
+        <button class="term-tab is-active" data-term="bash" role="tab">Bash / Zsh</button>
+        <button class="term-tab" data-term="python" role="tab">Python</button>
+        <button class="term-tab" data-term="node" role="tab">Node</button>
+      </div>
+
+      <div class="term-cmd-wrap">
+        <pre id="term-cmd" class="term-cmd"></pre>
+        <button id="term-copy" class="term-copy" type="button">Copy</button>
+      </div>
+
+      <ol style="margin:8px 0 0 20px;padding:0;font-size:13px;color:var(--ink-dim);line-height:1.7">
+        <li>Open Terminal (macOS), iTerm, Windows Terminal, or any shell.</li>
+        <li>Paste the command above and hit enter.</li>
+        <li>The installer will run <code>wrangler login</code> if needed (browser opens), then ask for your site name, admin email, and password.</li>
+        <li>~2 minutes later your site is live. The installer opens <code>/admin</code> with your credentials pre-filled.</li>
+      </ol>
+
+      <div class="wiz-actions" style="gap:10px;margin-top:8px">
+        <button class="btn btn-ghost" type="button" data-back="chooser">← Back</button>
+        <a id="term-help-link" class="btn btn-ghost" href="https://github.com/Benjamin-Bloch/pages-seo/tree/main/cli" target="_blank" rel="noopener">What does the script do?</a>
+      </div>
+    </section>
+
+    <!-- ── Success pane ─────────────────────────────────────────── -->
+    <section class="wiz-pane wiz-pane-center" id="pane-done" hidden>
+      <div class="wiz-tick wiz-tick-big">✓</div>
+      <h1 class="wiz-h1"><span class="serif-i">You're</span> live.</h1>
+      <p class="wiz-lede">Pages is building your site right now. Usually 1–2 minutes.</p>
+      <p>Your new site:</p>
+      <code id="done-url" style="font-family:var(--mono);background:var(--bg-soft);padding:4px 10px;border-radius:6px;font-size:13px;color:var(--accent)">—</code>
+      <p class="wiz-lede" style="margin-top: 14px;">When the deploy is green, the link below opens <code>/admin</code> and auto-creates your admin account in one click.</p>
+      <div class="wiz-actions wiz-actions-single">
+        <a id="open-admin" class="btn btn-primary wiz-btn-lg" target="_blank" rel="noopener">Open my dashboard →</a>
       </div>
     </section>
 
@@ -194,20 +265,41 @@
 (function () {
   'use strict';
   const $ = (s) => document.querySelector(s);
+  const $$ = (s) => Array.from(document.querySelectorAll(s));
 
-  // ── token-creation deeplink ──────────────────────────────────
-  // We pre-fill the Cloudflare token page with all permissions needed
-  // to provision the install. `permissionGroupKeys` takes a JSON array
-  // of { key, type } objects, URL-encoded.
-  //
-  // Two gotchas Cloudflare's docs don't make obvious:
-  //   - The path must be `/?to=/:account/api-tokens` (no `/create`).
-  //     The `/create` variant lands on the same page but skips the
-  //     prefill side-effect that reads the query string.
-  //   - The `key` values are SHORT slugs (`page`, `d1`, `workers_r2`,
-  //     `ai`), not the long `com.cloudflare.api.account.*` strings
-  //     in the permissions reference page. Source: live dashboard +
-  //     cfdata.lol/tools/api-token-url-generator/.
+  // ── pane navigation ──────────────────────────────────────────
+  // Panes are keyed by id suffix. The header stepper hops to
+  // chooser/config/run based on which pane is showing.
+  const PANE_TO_STAGE = {
+    chooser: 'chooser',
+    'site-form': 'config',
+    'site-provision': 'run',
+    'site-fail': 'run',
+    term: 'config',
+    done: 'run',
+  };
+  function showPane(name) {
+    $$('.wiz-pane').forEach((el) => { el.hidden = el.id !== ('pane-' + name); });
+    const stage = PANE_TO_STAGE[name] || 'chooser';
+    $$('.wiz-step').forEach((el) => {
+      const s = el.dataset.stage;
+      el.classList.toggle('is-current', s === stage);
+      el.classList.toggle('is-done',
+        (s === 'chooser' && stage !== 'chooser') ||
+        (s === 'config' && stage === 'run')
+      );
+    });
+    try { history.replaceState(null, '', '#' + name); } catch { /* */ }
+  }
+
+  // Chooser → site or terminal
+  $$('[data-pick]').forEach((b) => b.addEventListener('click', () => {
+    if (b.dataset.pick === 'site') showPane('site-form');
+    else showPane('term');
+  }));
+  $$('[data-back]').forEach((b) => b.addEventListener('click', () => showPane(b.dataset.back)));
+
+  // ── token deeplink ───────────────────────────────────────────
   const PERMS = [
     { key: 'page',             type: 'edit' },
     { key: 'd1',               type: 'edit' },
@@ -216,90 +308,82 @@
     { key: 'workers_scripts',  type: 'edit' },
     { key: 'account_settings', type: 'read' },
   ];
-  const tokenLink = 'https://dash.cloudflare.com/?to=/:account/api-tokens' +
+  $('#token-link').href = 'https://dash.cloudflare.com/?to=/:account/api-tokens' +
     '&permissionGroupKeys=' + encodeURIComponent(JSON.stringify(PERMS)) +
     '&name=' + encodeURIComponent('pages-seo install');
-  $('#token-link').href = tokenLink;
 
   // ── draft autosave ───────────────────────────────────────────
-  // We persist non-secret form fields so reloading the page (or
-  // bouncing through GitHub to authorise the Cloudflare Pages app)
-  // doesn't make you retype everything. Token and password are NOT
-  // stored — they're high-blast-radius credentials and any future
-  // XSS on this page would exfiltrate them en masse.
-  const DRAFT_KEY = 'pages-seo:install-draft:v1';
+  // We save NON-secret fields by default. When the user ticks the
+  // "remember" box (default on), we also save the API token and
+  // password. localStorage is locked to seo.benjaminb.xyz origin.
+  const DRAFT_KEY  = 'pages-seo:install-draft:v2';
+  const SECRET_KEY = 'pages-seo:install-secrets:v2';
 
-  function loadDraft() {
-    try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      return raw ? JSON.parse(raw) : null;
-    } catch { return null; }
-  }
   function saveDraft() {
     try {
       const draft = {
         project:   $('#f-project').value.trim().toLowerCase(),
         site_name: $('#f-site-name').value.trim(),
         email:     $('#f-email').value.trim().toLowerCase(),
+        remember:  $('#f-remember').checked,
         ts: Date.now(),
       };
-      // Only persist when at least the project slug is present —
-      // avoids writing empty blobs on first visit.
-      if (draft.project) localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-    } catch { /* localStorage may be full or disabled */ }
+      if (draft.project || draft.email) localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      if (draft.remember) {
+        const secrets = {
+          token:    $('#f-token').value,
+          password: $('#f-password').value,
+          ts: Date.now(),
+        };
+        if (secrets.token || secrets.password) localStorage.setItem(SECRET_KEY, JSON.stringify(secrets));
+      } else {
+        localStorage.removeItem(SECRET_KEY);
+      }
+    } catch { /* localStorage may be full/disabled */ }
   }
-  function clearDraft() {
-    try { localStorage.removeItem(DRAFT_KEY); } catch { /* */ }
+  function loadDraft() {
+    try {
+      const d = localStorage.getItem(DRAFT_KEY);
+      const s = localStorage.getItem(SECRET_KEY);
+      return { draft: d ? JSON.parse(d) : null, secrets: s ? JSON.parse(s) : null };
+    } catch { return { draft: null, secrets: null }; }
+  }
+  function clearAll() {
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+      localStorage.removeItem(SECRET_KEY);
+    } catch { /* */ }
   }
 
-  const draft = loadDraft();
-  if (draft && draft.project) {
-    $('#f-project').value = draft.project || '';
-    $('#f-site-name').value = draft.site_name || '';
-    $('#f-email').value = draft.email || '';
-    $('#resume-project').textContent = draft.project;
-    $('#resume-banner').hidden = false;
-    // Focus the token field so the user can finish where they left off.
-    setTimeout(() => $('#f-token').focus(), 100);
+  const { draft, secrets } = loadDraft();
+  if (draft) {
+    if (draft.project)   $('#f-project').value   = draft.project;
+    if (draft.site_name) $('#f-site-name').value = draft.site_name;
+    if (draft.email)     $('#f-email').value     = draft.email;
+    if (typeof draft.remember === 'boolean') $('#f-remember').checked = draft.remember;
   }
-  ['#f-project', '#f-site-name', '#f-email'].forEach((sel) => {
-    const el = $(sel);
-    if (el) el.addEventListener('input', saveDraft);
+  if (secrets) {
+    if (secrets.token)    $('#f-token').value    = secrets.token;
+    if (secrets.password) $('#f-password').value = secrets.password;
+  }
+  function syncWarnVisibility() {
+    $('#store-warn').hidden = !$('#f-remember').checked;
+  }
+  syncWarnVisibility();
+  $('#f-remember').addEventListener('change', () => { syncWarnVisibility(); saveDraft(); });
+
+  ['#f-project', '#f-site-name', '#f-email', '#f-token', '#f-password'].forEach((sel) => {
+    $(sel).addEventListener('input', saveDraft);
   });
-  $('#resume-clear').addEventListener('click', () => {
-    clearDraft();
-    $('#f-project').value = '';
-    $('#f-site-name').value = '';
-    $('#f-email').value = '';
-    $('#resume-banner').hidden = true;
-  });
 
-  // ── form submit ─────────────────────────────────────────────
-  function showPane(id) {
-    ['form', 'provision', 'done', 'fail'].forEach((k) => {
-      $('#pane-' + k).hidden = k !== id;
-    });
-    document.querySelectorAll('.wiz-step').forEach((el) => {
-      const stage = el.dataset.stage;
-      el.classList.toggle('is-current', stage === id);
-      el.classList.toggle('is-done',
-        (stage === 'form' && (id === 'provision' || id === 'done')) ||
-        (stage === 'provision' && id === 'done')
-      );
-    });
-  }
-
+  // ── progress ticker ──────────────────────────────────────────
   function markStep(name, state) {
     const el = document.querySelector(`#provision-steps [data-step="${name}"]`);
     if (!el) return;
     el.classList.remove('is-pending', 'is-active', 'is-done');
     el.classList.add('is-' + state);
   }
-
-  // Animate steps progressively in case the install endpoint takes its
-  // time. We can't get true streaming progress from a single fetch, so
-  // we kick a visual timer along that tracks expected step durations.
-  function startProgressAnimation() {
+  function startProgress() {
     const order = ['account', 'd1', 'r2', 'schema', 'pages', 'seed'];
     let i = 0;
     markStep(order[0], 'active');
@@ -310,57 +394,45 @@
       markStep(order[i], 'active');
     }, 4500);
   }
-
-  function finishAllSteps() {
+  function finishProgress() {
     ['account','d1','r2','schema','pages','seed'].forEach((s) => markStep(s, 'done'));
   }
 
-  // Last submitted body — kept in module scope so "Resume install"
-  // can replay the exact same call without reopening the form.
+  // ── install runner ───────────────────────────────────────────
   let lastBody = null;
-
   async function runInstall(body) {
-    showPane('provision');
-    const ticker = startProgressAnimation();
-
-    let r;
+    showPane('site-provision');
+    const ticker = startProgress();
+    let r, data;
     try {
       r = await fetch('/api/install/provision', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       });
+      data = await r.json().catch(() => null);
     } catch (e) {
       clearInterval(ticker);
-      showPane('fail');
+      showPane('site-fail');
       $('#fail-detail').textContent = 'Network error: ' + (e?.message || e);
       return;
     }
     clearInterval(ticker);
-    let data;
-    try { data = await r.json(); } catch { data = null; }
-
     if (!r.ok || !data?.ok) {
-      showPane('fail');
+      showPane('site-fail');
       const at = data?.failed_at ? ` (at step: ${data.failed_at})` : '';
       $('#fail-detail').textContent = (data?.detail || data?.error || ('HTTP ' + r.status)) + at;
-      // Surface the GitHub-app hint when the server says that's the
-      // problem. The install URL is owned by GitHub; the dashboard URL
-      // is owned by Cloudflare (so the user can also authorise from
-      // there). Both come from the failure payload so we don't bake
-      // them into the page.
-      const ghPanel = $('#fail-github');
+      const gh = $('#fail-github');
       if (data?.hint === 'github_app_required') {
         $('#gh-install-app').href = data.github_app_install_url || 'https://github.com/apps/cloudflare-workers-and-pages/installations/new';
-        $('#gh-dash-link').href   = data.github_app_dashboard_url || 'https://dash.cloudflare.com/';
-        ghPanel.hidden = false;
+        gh.hidden = false;
       } else {
-        ghPanel.hidden = true;
+        gh.hidden = true;
       }
       return;
     }
-    finishAllSteps();
-    clearDraft();
+    finishProgress();
+    clearAll();
     setTimeout(() => {
       showPane('done');
       const url = data.pages_url || `https://${body.project}.pages.dev`;
@@ -371,10 +443,10 @@
       const b64 = btoa(unescape(encodeURIComponent(seedJson)))
         .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
       $('#open-admin').href = url + '/admin#install=' + b64;
-    }, 600);
+    }, 500);
   }
 
-  $('#install-form').addEventListener('submit', async (e) => {
+  $('#install-form').addEventListener('submit', (e) => {
     e.preventDefault();
     const err = $('#install-err'); err.textContent = '';
     const body = {
@@ -386,16 +458,53 @@
     };
     if (!body.token)    { err.textContent = 'Token required.'; return; }
     if (!body.project || !/^[a-z][a-z0-9-]{1,32}$/.test(body.project)) { err.textContent = 'Project slug must be lowercase letters/digits/dashes.'; return; }
-    if (body.password.length < 12) { err.textContent = 'Password must be 12+ characters.'; return; }
-
+    if (body.password.length < 8) { err.textContent = 'Password must be 8+ characters.'; return; }
+    saveDraft();
     lastBody = body;
     runInstall(body);
   });
 
   $('#fail-resume').addEventListener('click', () => {
-    if (!lastBody) { location.reload(); return; }
+    if (!lastBody) { showPane('site-form'); return; }
     runInstall(lastBody);
   });
+
+  // ── terminal tabs + copy ─────────────────────────────────────
+  const CMDS = {
+    bash:   'curl -fsSL https://seo.benjaminb.xyz/install/run.sh | bash',
+    python: 'curl -fsSL https://seo.benjaminb.xyz/install/run.py | python3',
+    node:   'curl -fsSL https://seo.benjaminb.xyz/install/run.js | node',
+  };
+  function setTerm(name) {
+    $$('.term-tab').forEach((t) => t.classList.toggle('is-active', t.dataset.term === name));
+    $('#term-cmd').textContent = CMDS[name];
+    $('#term-copy').classList.remove('is-copied');
+    $('#term-copy').textContent = 'Copy';
+  }
+  $$('.term-tab').forEach((t) => t.addEventListener('click', () => setTerm(t.dataset.term)));
+  setTerm('bash');
+
+  $('#term-copy').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText($('#term-cmd').textContent);
+      $('#term-copy').classList.add('is-copied');
+      $('#term-copy').textContent = '✓ Copied';
+      setTimeout(() => {
+        $('#term-copy').classList.remove('is-copied');
+        $('#term-copy').textContent = 'Copy';
+      }, 2000);
+    } catch {
+      // Fallback for browsers without clipboard API: select the text.
+      const range = document.createRange();
+      range.selectNode($('#term-cmd'));
+      window.getSelection().removeAllRanges();
+      window.getSelection().addRange(range);
+    }
+  });
+
+  // ── deep-link landing (e.g. /install#term) ───────────────────
+  const hash = (location.hash || '#chooser').slice(1);
+  if (['site-form','term','chooser'].includes(hash)) showPane(hash);
 })();
 </script>
 </body>
