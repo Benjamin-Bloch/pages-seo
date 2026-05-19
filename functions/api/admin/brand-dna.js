@@ -342,26 +342,33 @@ export const onRequestPut = async ({ env, request, waitUntil }) => {
   // calendar is empty). Runs in the background so the PUT returns fast.
   // Skipped if the operator already has future slots — the calendar tab
   // has its own "Regenerate plan" button for explicit re-plans.
+  // Skip the background plan if the caller is the onboarding wizard —
+  // it fires its own /calendar/plan at step 4, and racing two of them
+  // makes the wizard's preview start from whatever date the background
+  // run already filled up to.
   let planned = false;
+  const skipAutoPlan = !!body?.skip_auto_plan;
   try {
-    const today = new Date().toISOString().slice(0, 10);
-    const future = await env.DB.prepare(
-      `SELECT COUNT(*) AS n FROM content_calendar
-        WHERE scheduled_for >= ? AND status IN ('scheduled','generating','draft')`
-    ).bind(today).first().catch(() => ({ n: 0 }));
-    if (!future || !future.n) {
-      planned = true;
-      const url = new URL(request.url);
-      waitUntil(
-        fetch(`${url.origin}/api/admin/calendar/plan`, {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            cookie: request.headers.get('cookie') || '',
-          },
-          body: JSON.stringify({ days: 28, replace: false }),
-        }).catch(() => {})
-      );
+    if (!skipAutoPlan) {
+      const today = new Date().toISOString().slice(0, 10);
+      const future = await env.DB.prepare(
+        `SELECT COUNT(*) AS n FROM content_calendar
+          WHERE scheduled_for >= ? AND status IN ('scheduled','generating','draft')`
+      ).bind(today).first().catch(() => ({ n: 0 }));
+      if (!future || !future.n) {
+        planned = true;
+        const url = new URL(request.url);
+        waitUntil(
+          fetch(`${url.origin}/api/admin/calendar/plan`, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              cookie: request.headers.get('cookie') || '',
+            },
+            body: JSON.stringify({ days: 28, replace: false }),
+          }).catch(() => {})
+        );
+      }
     }
   } catch { /* best-effort; the calendar tab can always plan manually */ }
 

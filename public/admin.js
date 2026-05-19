@@ -2349,6 +2349,9 @@
         service_area:     $('#wiz-b-area').value.trim(),
         topics_to_avoid:  $('#wiz-b-avoid').value.trim(),
         source_url:       brand.source_url || '',
+        // The wizard fires its own /calendar/plan at step 4; tell the
+        // server not to also auto-plan in the background, or we'd race.
+        skip_auto_plan:   true,
       };
       const { status, body } = await api('/api/admin/brand-dna', {
         method: 'PUT',
