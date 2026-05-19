@@ -686,25 +686,6 @@
         </label>
       </div>
       <div class="card">
-        <div class="card-eyebrow">Internal link aliases</div>
-        <h2>URLs the LLM can reference by name</h2>
-        <p>When the model writes <code>[Sign up](signup)</code> it gets expanded to your signup URL. Useful if your signup/pricing/contact pages live at non-standard paths.</p>
-        <div class="form-grid form-grid-cols">
-          <label>
-            <span>Signup URL</span>
-            <input data-setting="site_signup_url" type="text" placeholder="/signup" />
-          </label>
-          <label>
-            <span>Pricing URL</span>
-            <input data-setting="site_pricing_url" type="text" placeholder="/pricing" />
-          </label>
-          <label>
-            <span>Contact URL</span>
-            <input data-setting="site_contact_url" type="text" placeholder="/contact" />
-          </label>
-        </div>
-      </div>
-      <div class="card">
         <div class="card-eyebrow">AI provider keys</div>
         <h2>API key status</h2>
         <p>Paste a key below to store it encrypted in the database (AES-GCM, keyed off your admin token). Or, for the strongest guarantee, run the CLI command and store it as a Pages secret instead — those win over vault values.</p>
