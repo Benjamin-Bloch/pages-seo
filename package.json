@@ -3,6 +3,7 @@
   "version": "0.2.0",
   "private": false,
   "license": "MIT",
+  "type": "module",
   "description": "Self-hosted programmatic-SEO + daily-AI-blog toolkit for Cloudflare Pages. Workers AI default, 8 cloud providers as fallback.",
   "homepage": "https://seo.benjaminb.xyz",
   "repository": {

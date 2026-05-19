@@ -1,32 +1,47 @@
 // POST /api/install/provision
 //
-// One-shot installer endpoint. Takes the user's Cloudflare API token
-// + install details and provisions:
-//   1. The user's account id (from /accounts).
-//   2. A D1 database named after their project slug.
-//   3. An R2 bucket named "<slug>-images".
-//   4. A Pages project bound to the GitHub repo with all three
-//      bindings configured + the Workers AI binding.
-//   5. Triggers the first deployment.
+// Idempotent installer. Walks six steps:
+//   1. account     – resolve the user's account id from the token
+//   2. d1          – create (or find existing) D1 database
+//   3. r2          – create (or find existing) R2 bucket
+//   4. pages       – create (or find existing) Pages project bound to
+//                    GitHub + D1 + R2 + Workers AI
+//   5. env         – patch SITE_URL on the new project once we know
+//                    its assigned subdomain
+//   6. deploy      – kick off the first deployment
 //
-// Schema application + admin-user seeding happen in the *target* site's
-// own /api/setup endpoint after the first deploy finishes. The
-// installer doesn't try to apply schema directly to D1 over the API —
-// D1's REST `query` endpoint only accepts single statements and would
-// need a separate trip per CREATE TABLE.
+// Every step is allowed to fail and be retried. State is persisted to
+// the installer's own D1 (this Pages project) keyed by (project_slug,
+// token_fingerprint). The fingerprint is the first 16 hex chars of
+// sha256(token) — enough to recognise the same token on a retry, but
+// the raw token never lands in storage.
 //
-// The user's API token never leaves the installer's process. We do
-// not persist it.
+// On retry, completed steps short-circuit: if d1_id is already saved,
+// we re-use it instead of creating a fresh database (which would
+// fail with "already exists" and prompt the user to rename their
+// project).
 
-import { json } from '../../_lib/util.js';
+import { json, nowSec } from '../../_lib/util.js';
 
 const CF_API = 'https://api.cloudflare.com/client/v4';
 const REPO_OWNER = 'Benjamin-Bloch';
 const REPO_NAME  = 'pages-seo';
 const PROD_BRANCH = 'main';
 
+const SLUG_RX  = /^[a-z][a-z0-9-]{1,32}$/;
+const EMAIL_RX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
 function fail(at, status, detail) {
   return json(status, { ok: false, failed_at: at, error: 'install_failed', detail });
+}
+
+async function tokenFingerprint(token) {
+  const bytes = new TextEncoder().encode(token);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest))
+    .slice(0, 8)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 async function cfFetch(token, path, init = {}) {
@@ -51,62 +66,96 @@ function firstErrorMessage(body) {
   return body.error || body.detail || null;
 }
 
-const SLUG_RX = /^[a-z][a-z0-9-]{1,32}$/;
-const EMAIL_RX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+// ── state helpers ───────────────────────────────────────────────
+async function loadState(env, project, fp) {
+  if (!env?.DB) return null;
+  return env.DB.prepare(
+    `SELECT * FROM install_state WHERE project = ? AND token_fp = ? LIMIT 1`
+  ).bind(project, fp).first().catch(() => null);
+}
 
-export const onRequestPost = async ({ request }) => {
-  let body;
-  try { body = await request.json(); } catch { return json(400, { error: 'bad_json' }); }
-
-  const token     = String(body?.token || '').trim();
-  const project   = String(body?.project || '').trim().toLowerCase();
-  const siteName  = String(body?.site_name || '').trim();
-  const email     = String(body?.email || '').trim().toLowerCase();
-  const password  = String(body?.password || '');
-
-  if (!token)               return fail('validate', 400, 'API token required');
-  if (!SLUG_RX.test(project)) return fail('validate', 400, 'Project slug: lowercase letters/digits/dashes, 2–33 chars, must start with a letter');
-  if (!siteName)            return fail('validate', 400, 'Site name required');
-  if (!EMAIL_RX.test(email)) return fail('validate', 400, 'Valid email required');
-  if (password.length < 12) return fail('validate', 400, 'Password must be 12+ characters');
-
-  // ── 1. account ──────────────────────────────────────────────
-  const accR = await cfFetch(token, '/accounts');
-  if (!accR.res.ok || !accR.body?.result?.length) {
-    return fail('account', 401, firstErrorMessage(accR.body) || 'Token rejected by Cloudflare (check scopes).');
+async function saveStep(env, project, fp, patch) {
+  if (!env?.DB) return;
+  const now = nowSec();
+  const existing = await loadState(env, project, fp);
+  if (existing) {
+    const sets = [];
+    const args = [];
+    for (const [k, v] of Object.entries(patch)) {
+      sets.push(`${k} = ?`);
+      args.push(v);
+    }
+    sets.push('updated_at = ?'); args.push(now);
+    args.push(project, fp);
+    await env.DB.prepare(
+      `UPDATE install_state SET ${sets.join(', ')} WHERE project = ? AND token_fp = ?`
+    ).bind(...args).run().catch(() => {});
+  } else {
+    const cols = ['project', 'token_fp', 'created_at', 'updated_at', ...Object.keys(patch)];
+    const vals = [project, fp, now, now, ...Object.values(patch)];
+    const placeholders = cols.map(() => '?').join(', ');
+    await env.DB.prepare(
+      `INSERT INTO install_state (${cols.join(', ')}) VALUES (${placeholders})`
+    ).bind(...vals).run().catch(() => {});
   }
-  const accountId = accR.body.result[0].id;
-  const accountName = accR.body.result[0].name;
+}
 
-  // ── 2. D1 database ──────────────────────────────────────────
-  const d1Name = project;
-  const d1R = await cfFetch(token, `/accounts/${accountId}/d1/database`, {
+// ── step implementations ────────────────────────────────────────
+async function ensureAccount(token) {
+  const r = await cfFetch(token, '/accounts');
+  if (!r.res.ok || !r.body?.result?.length) {
+    throw new Error(firstErrorMessage(r.body) || 'Token rejected by Cloudflare (check scopes).');
+  }
+  return { id: r.body.result[0].id, name: r.body.result[0].name };
+}
+
+async function ensureD1(token, accountId, name) {
+  // Try create. If it 4xxs with "already exists", fetch the list and
+  // find the row with this name — we want to reuse it, not error out.
+  const createR = await cfFetch(token, `/accounts/${accountId}/d1/database`, {
     method: 'POST',
-    body: JSON.stringify({ name: d1Name }),
+    body: JSON.stringify({ name }),
   });
-  if (!d1R.res.ok || !d1R.body?.result?.uuid) {
-    return fail('d1', d1R.res.status || 500, firstErrorMessage(d1R.body) || 'Failed to create D1 database (slug taken on this account?).');
+  if (createR.res.ok && createR.body?.result?.uuid) {
+    return { id: createR.body.result.uuid, name, reused: false };
   }
-  const d1Id = d1R.body.result.uuid;
+  const msg = firstErrorMessage(createR.body) || '';
+  if (/already exists/i.test(msg)) {
+    // Resolve the existing one. D1 list is paginated; the page size
+    // is small so we walk pages until we find it (cap at 5 pages /
+    // 250 dbs which is well past anyone's realistic count).
+    for (let page = 1; page <= 5; page++) {
+      const listR = await cfFetch(token, `/accounts/${accountId}/d1/database?page=${page}&per_page=50`);
+      if (!listR.res.ok) break;
+      const rows = listR.body?.result || [];
+      const hit = rows.find((r) => r.name === name);
+      if (hit) return { id: hit.uuid, name, reused: true };
+      if (rows.length < 50) break;
+    }
+    throw new Error(`D1 database named "${name}" exists on this account but couldn't be located — try a different project slug, or delete the existing database in the Cloudflare dashboard.`);
+  }
+  throw new Error(msg || 'Failed to create D1 database.');
+}
 
-  // ── 3. R2 bucket ────────────────────────────────────────────
-  const r2Name = project + '-images';
-  const r2R = await cfFetch(token, `/accounts/${accountId}/r2/buckets`, {
+async function ensureR2(token, accountId, name) {
+  const r = await cfFetch(token, `/accounts/${accountId}/r2/buckets`, {
     method: 'POST',
-    body: JSON.stringify({ name: r2Name }),
+    body: JSON.stringify({ name }),
   });
-  // R2 returns 409 if the bucket already exists on this account — we
-  // tolerate that (the user may have run the installer before) but
-  // not other failures.
-  if (!r2R.res.ok && r2R.res.status !== 409) {
-    return fail('r2', r2R.res.status || 500, firstErrorMessage(r2R.body) || 'Failed to create R2 bucket.');
-  }
+  if (r.res.ok) return { name, reused: false };
+  // R2 returns 409 with "The bucket you tried to create already exists."
+  // We treat that as a successful reuse.
+  if (r.res.status === 409) return { name, reused: true };
+  const msg = firstErrorMessage(r.body) || `R2 create failed (HTTP ${r.res.status})`;
+  if (/already exists/i.test(msg)) return { name, reused: true };
+  throw new Error(msg);
+}
 
-  // ── 4. Pages project ────────────────────────────────────────
-  // Bindings, env vars, and the GitHub source all go in this one
-  // call. Production-only deployment configs — we don't bother with
-  // preview branches for installs.
-  const pagesPayload = {
+async function ensurePagesProject(token, accountId, project, siteName, d1Id, r2Name) {
+  // Try create. If the project already exists for this account, return
+  // its current subdomain so we can keep going (env patch + deploy
+  // trigger are idempotent enough on their own).
+  const payload = {
     name: project,
     production_branch: PROD_BRANCH,
     source: {
@@ -138,75 +187,148 @@ export const onRequestPost = async ({ request }) => {
       },
     },
   };
-
-  const pagesR = await cfFetch(token, `/accounts/${accountId}/pages/projects`, {
+  const r = await cfFetch(token, `/accounts/${accountId}/pages/projects`, {
     method: 'POST',
-    body: JSON.stringify(pagesPayload),
+    body: JSON.stringify(payload),
   });
-  if (!pagesR.res.ok || !pagesR.body?.result?.subdomain) {
-    return fail('pages', pagesR.res.status || 500, firstErrorMessage(pagesR.body) || 'Failed to create Pages project. The slug may already be in use on Cloudflare Pages.');
+  if (r.res.ok && r.body?.result?.subdomain) {
+    return { subdomain: r.body.result.subdomain, reused: false };
   }
-  const subdomain = pagesR.body.result.subdomain;
-  const pagesUrl  = `https://${subdomain}`;
+  const msg = firstErrorMessage(r.body) || '';
+  if (/already exists|name is unavailable/i.test(msg)) {
+    const existR = await cfFetch(token, `/accounts/${accountId}/pages/projects/${project}`);
+    if (existR.res.ok && existR.body?.result?.subdomain) {
+      return { subdomain: existR.body.result.subdomain, reused: true };
+    }
+    throw new Error(`Pages project "${project}" exists but couldn't be inspected — try a different slug.`);
+  }
+  throw new Error(msg || `Pages create failed (HTTP ${r.res.status})`);
+}
 
-  // SITE_URL needs to point at the Pages domain. We set it after the
-  // project exists because we don't know the subdomain until then.
-  // (Cloudflare assigns one of the form `<slug>-<hash>.pages.dev` if
-  // the bare `<slug>.pages.dev` is taken.)
-  const envPatch = {
-    deployment_configs: {
-      production: {
-        env_vars: {
-          SITE_URL: { type: 'plain_text', value: pagesUrl },
-        },
-      },
-      preview: {
-        env_vars: {
-          SITE_URL: { type: 'plain_text', value: pagesUrl },
-        },
-      },
-    },
-  };
+async function patchSiteUrl(token, accountId, project, pagesUrl) {
   await cfFetch(token, `/accounts/${accountId}/pages/projects/${project}`, {
     method: 'PATCH',
-    body: JSON.stringify(envPatch),
-  });
-  // Best-effort: if the PATCH fails, the in-app /api/setup still
-  // works because it can derive SITE_URL from settings the user
-  // submits there. We don't block the install on this.
+    body: JSON.stringify({
+      deployment_configs: {
+        production: { env_vars: { SITE_URL: { type: 'plain_text', value: pagesUrl } } },
+        preview:    { env_vars: { SITE_URL: { type: 'plain_text', value: pagesUrl } } },
+      },
+    }),
+  }).catch(() => {}); // best-effort
+}
 
-  // ── 5. Kick off the first deployment ────────────────────────
-  // Creating a Pages project with a GitHub source enables deploys but
-  // doesn't trigger one immediately. We POST /deployments to fire the
-  // first build right away.
+async function triggerDeploy(token, accountId, project) {
   await cfFetch(token, `/accounts/${accountId}/pages/projects/${project}/deployments`, {
     method: 'POST',
-  });
+  }).catch(() => {});
+}
 
-  // ── 6. Stash the seed payload for /api/setup on the new site ──
-  // We can't reach the new site's /api/setup yet — it's still
-  // building. The new install will reach our /api/install/seed-info
-  // endpoint with its project slug on first boot to fetch the
-  // pre-supplied email + password + SITE_NAME so the operator never
-  // has to type them twice.
-  //
-  // Storage: keep it on THIS site's D1 (the installer's), encrypted
-  // at rest with a random key embedded in the URL we hand back. We
-  // don't have access to the new site's D1 to write directly. For
-  // v1, we skip this convenience step — the user will type their
-  // password once into the /admin first-run setup card after the
-  // deploy completes. That's still a clean experience.
+// ── handler ─────────────────────────────────────────────────────
+export const onRequestPost = async ({ env, request }) => {
+  let body;
+  try { body = await request.json(); } catch { return json(400, { error: 'bad_json' }); }
+
+  const token     = String(body?.token || '').trim();
+  const project   = String(body?.project || '').trim().toLowerCase();
+  const siteName  = String(body?.site_name || '').trim();
+  const email     = String(body?.email || '').trim().toLowerCase();
+  const password  = String(body?.password || '');
+
+  if (!token)                return fail('validate', 400, 'API token required');
+  if (!SLUG_RX.test(project)) return fail('validate', 400, 'Project slug: lowercase letters/digits/dashes, 2–33 chars, must start with a letter');
+  if (!siteName)             return fail('validate', 400, 'Site name required');
+  if (!EMAIL_RX.test(email)) return fail('validate', 400, 'Valid email required');
+  if (password.length < 12)  return fail('validate', 400, 'Password must be 12+ characters');
+
+  const fp = await tokenFingerprint(token);
+  let state = (await loadState(env, project, fp)) || {};
+
+  // ── step 1: account ─────────────────────────────────────────
+  let account;
+  if (state.account_id) {
+    account = { id: state.account_id };
+  } else {
+    try { account = await ensureAccount(token); }
+    catch (e) {
+      await saveStep(env, project, fp, { last_step: 'account', last_error: String(e.message || e) });
+      return fail('account', 401, String(e.message || e));
+    }
+    await saveStep(env, project, fp, { account_id: account.id, last_step: 'account', last_error: null });
+  }
+
+  // ── step 2: D1 ─────────────────────────────────────────────
+  let d1Id = state.d1_id;
+  if (!d1Id) {
+    try {
+      const d1 = await ensureD1(token, account.id, project);
+      d1Id = d1.id;
+      await saveStep(env, project, fp, { d1_id: d1Id, last_step: 'd1', last_error: null });
+    } catch (e) {
+      await saveStep(env, project, fp, { last_step: 'd1', last_error: String(e.message || e) });
+      return fail('d1', 500, String(e.message || e));
+    }
+  }
+
+  // ── step 3: R2 ─────────────────────────────────────────────
+  let r2Name = state.r2_name;
+  if (!r2Name) {
+    const desiredName = project + '-images';
+    try {
+      const r2 = await ensureR2(token, account.id, desiredName);
+      r2Name = r2.name;
+      await saveStep(env, project, fp, { r2_name: r2Name, last_step: 'r2', last_error: null });
+    } catch (e) {
+      await saveStep(env, project, fp, { last_step: 'r2', last_error: String(e.message || e) });
+      return fail('r2', 500, String(e.message || e));
+    }
+  }
+
+  // ── step 4: Pages project ──────────────────────────────────
+  let pagesUrl = state.pages_url;
+  if (!state.pages_created) {
+    try {
+      const p = await ensurePagesProject(token, account.id, project, siteName, d1Id, r2Name);
+      pagesUrl = `https://${p.subdomain}`;
+      await saveStep(env, project, fp, {
+        pages_created: 1, pages_url: pagesUrl, last_step: 'pages', last_error: null,
+      });
+    } catch (e) {
+      await saveStep(env, project, fp, { last_step: 'pages', last_error: String(e.message || e) });
+      return fail('pages', 500, String(e.message || e));
+    }
+  }
+
+  // ── step 5: SITE_URL patch (always retry; cheap, idempotent) ─
+  await patchSiteUrl(token, account.id, project, pagesUrl);
+
+  // ── step 6: deploy ─────────────────────────────────────────
+  if (!state.deploy_started) {
+    await triggerDeploy(token, account.id, project);
+    await saveStep(env, project, fp, { deploy_started: 1, last_step: 'deploy', last_error: null });
+  }
 
   return json(200, {
     ok: true,
     pages_url: pagesUrl,
-    account: { id: accountId, name: accountName },
+    account: { id: account.id },
     project,
-    d1: { id: d1Id, name: d1Name },
+    d1: { id: d1Id, name: project },
     r2: { name: r2Name },
-    // Pre-fill these in the first-run setup form on the new site so
-    // the operator doesn't retype them. Sent back to the browser
-    // (not stored).
+    resumed: !!state.account_id,    // true if any state existed before this call
     seed: { email, password, site_name: siteName },
   });
+};
+
+// GET /api/install/provision?project=…&token_fp=…
+// Lets the UI show prior state on a page reload so the user knows
+// they have an install in progress they can resume. Optional — the
+// client can just call POST again and we'll resume automatically.
+export const onRequestGet = async ({ env, request }) => {
+  const u = new URL(request.url);
+  const project = (u.searchParams.get('project') || '').toLowerCase();
+  const fp      = u.searchParams.get('token_fp')  || '';
+  if (!project || !fp) return json(400, { error: 'missing_params' });
+  const state = await loadState(env, project, fp);
+  if (!state) return json(404, { ok: false, found: false });
+  return json(200, { ok: true, found: true, state });
 };

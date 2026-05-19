@@ -132,13 +132,14 @@
     <!-- ── Pane: failure ─────────────────────────────────────────── -->
     <section class="wiz-pane wiz-pane-center" id="pane-fail" hidden>
       <div class="wiz-tick" style="color: var(--bad); background: rgba(255,138,161,0.1); border-color: rgba(255,138,161,0.4); font-size: 28px;">!</div>
-      <h1 class="wiz-h1"><span class="serif-i">Something</span> went wrong.</h1>
+      <h1 class="wiz-h1"><span class="serif-i">Hit a snag.</span></h1>
       <p class="wiz-lede" id="fail-detail">—</p>
       <p class="install-help" style="text-align:center;max-width:480px;margin:0 auto">
-        Common causes: token missing a scope, project slug already taken, or a transient Cloudflare API hiccup. You can safely retry — we don't create the Pages project until D1 + R2 succeed, and re-running with the same slug will fail loudly rather than overwrite.
+        Your progress is saved. Hitting <b>Resume</b> below picks up from the step that failed — already-created resources (account, D1, R2, Pages project) are reused, not recreated.
       </p>
-      <div class="wiz-actions wiz-actions-single">
-        <button class="btn btn-primary" type="button" onclick="location.reload()">Try again</button>
+      <div class="wiz-actions wiz-actions-single" style="gap:10px;flex-direction:row">
+        <button id="fail-resume" class="btn btn-primary" type="button">Resume install →</button>
+        <button class="btn btn-ghost" type="button" onclick="location.reload()">Start over</button>
       </div>
     </section>
 
@@ -208,20 +209,11 @@
     ['account','d1','r2','schema','pages','seed'].forEach((s) => markStep(s, 'done'));
   }
 
-  $('#install-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const err = $('#install-err'); err.textContent = '';
-    const body = {
-      token:        $('#f-token').value.trim(),
-      site_name:    $('#f-site-name').value.trim(),
-      project:      $('#f-project').value.trim().toLowerCase(),
-      email:        $('#f-email').value.trim().toLowerCase(),
-      password:     $('#f-password').value,
-    };
-    if (!body.token)    { err.textContent = 'Token required.'; return; }
-    if (!body.project || !/^[a-z][a-z0-9-]{1,32}$/.test(body.project)) { err.textContent = 'Project slug must be lowercase letters/digits/dashes.'; return; }
-    if (body.password.length < 12) { err.textContent = 'Password must be 12+ characters.'; return; }
+  // Last submitted body — kept in module scope so "Resume install"
+  // can replay the exact same call without reopening the form.
+  let lastBody = null;
 
+  async function runInstall(body) {
     showPane('provision');
     const ticker = startProgressAnimation();
 
@@ -253,10 +245,6 @@
       showPane('done');
       const url = data.pages_url || `https://${body.project}.pages.dev`;
       $('#done-url').textContent = url;
-      // Encode the seed payload (email + password + site name) as a
-      // URL-safe base64 hash so the new site's /admin can auto-create
-      // the first user without making the operator retype anything.
-      // The hash never hits the network — it's a fragment.
       const seedJson = JSON.stringify(data.seed || {
         email: body.email, password: body.password, site_name: body.site_name,
       });
@@ -264,6 +252,29 @@
         .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
       $('#open-admin').href = url + '/admin#install=' + b64;
     }, 600);
+  }
+
+  $('#install-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const err = $('#install-err'); err.textContent = '';
+    const body = {
+      token:        $('#f-token').value.trim(),
+      site_name:    $('#f-site-name').value.trim(),
+      project:      $('#f-project').value.trim().toLowerCase(),
+      email:        $('#f-email').value.trim().toLowerCase(),
+      password:     $('#f-password').value,
+    };
+    if (!body.token)    { err.textContent = 'Token required.'; return; }
+    if (!body.project || !/^[a-z][a-z0-9-]{1,32}$/.test(body.project)) { err.textContent = 'Project slug must be lowercase letters/digits/dashes.'; return; }
+    if (body.password.length < 12) { err.textContent = 'Password must be 12+ characters.'; return; }
+
+    lastBody = body;
+    runInstall(body);
+  });
+
+  $('#fail-resume').addEventListener('click', () => {
+    if (!lastBody) { location.reload(); return; }
+    runInstall(lastBody);
   });
 })();
 </script>
