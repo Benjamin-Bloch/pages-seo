@@ -32,6 +32,7 @@
       <button class="tab" data-tab="brand">Brand DNA</button>
       <button class="tab" data-tab="usage">Usage</button>
       <button class="tab" data-tab="covers">Covers</button>
+      <button class="tab" data-tab="embeds">Embeds</button>
       <button class="tab" data-tab="settings">Settings</button>
     </nav>
     <button id="lock" class="btn btn-ghost btn-sm">Lock</button>
@@ -452,6 +453,46 @@
         </div>
       </div>
       </div><!-- /#cover-content -->
+    </section>
+
+    <!-- ============ EMBEDS ============ -->
+    <section data-page="embeds" class="page" hidden>
+      <div class="card">
+        <div class="card-eyebrow">What this is</div>
+        <h2>Embed your blog anywhere</h2>
+        <p>Create a snippet to paste on any website. The widget renders this site's published blog posts inside an <code>&lt;div id="ps-blog"&gt;</code> container — same pattern as Soro. Each embed gets its own unguessable id, so you can revoke one without affecting the others.</p>
+        <div class="form-grid form-grid-cols">
+          <label>
+            <span>Name (admin label)</span>
+            <input id="embed-create-name" type="text" placeholder="My main site sidebar" />
+          </label>
+          <label>
+            <span>Title shown above the widget</span>
+            <input id="embed-create-title" type="text" placeholder="Blog" />
+          </label>
+          <label>
+            <span>Accent colour</span>
+            <input id="embed-create-accent" type="color" value="#0a0a0a" />
+          </label>
+          <label>
+            <span>Max posts shown</span>
+            <input id="embed-create-limit" type="number" min="1" max="100" placeholder="30" />
+          </label>
+        </div>
+        <div class="row" style="margin-top:14px">
+          <button id="embed-create-go" class="btn btn-primary">Create embed</button>
+          <span id="embed-create-status" class="status"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-eyebrow">Existing embeds</div>
+        <h2>Snippets</h2>
+        <p>Paste the snippet on any website. The widget auto-refreshes from this site every 5 minutes — new blog posts appear without anyone touching the host page.</p>
+        <div id="embed-list">
+          <div class="dim">Loading…</div>
+        </div>
+      </div>
     </section>
 
     <!-- ============ SETTINGS ============ -->

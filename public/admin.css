@@ -163,6 +163,28 @@ textarea{display:block;width:100%;min-height:140px;font-family:var(--mono);font-
 .pull-preview-list .kw{color:var(--ink)}
 .pull-preview-list .meta{color:var(--ink-dim);font-family:var(--mono);font-size:11.5px;white-space:nowrap}
 
+/* ── Embeds ──────────────────────────────────────────────────── */
+.embed-row{
+  background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
+  padding:14px 16px;margin-bottom:12px;display:flex;flex-direction:column;gap:8px;
+}
+.embed-row .embed-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.embed-row .embed-name{font-weight:600;font-size:14px;color:var(--ink)}
+.embed-row .embed-meta{font-family:var(--mono);font-size:11.5px;color:var(--ink-dim)}
+.embed-row .embed-snippet{
+  background:var(--bg);border:1px solid var(--line);border-radius:6px;
+  padding:9px 12px;font-family:var(--mono);font-size:12px;color:var(--ink);
+  word-break:break-all;white-space:pre-wrap;line-height:1.55;
+}
+.embed-row .embed-actions{display:flex;gap:6px;flex-wrap:wrap}
+.embed-row .embed-actions .btn{font-size:11.5px;padding:5px 10px}
+.embed-row .embed-del{color:var(--bad)}
+.embed-row .embed-del:hover{border-color:var(--bad)}
+.embed-preview{
+  margin-top:8px;background:#fff;border:1px solid var(--line);border-radius:8px;
+  padding:18px;max-height:260px;overflow:auto;
+}
+
 /* ── Frozen-overlay banner (Covers when hero_image_mode='ai') ─── */
 .frozen-banner{
   background:rgba(229,159,57,0.1);

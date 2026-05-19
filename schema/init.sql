@@ -236,6 +236,22 @@ CREATE TABLE IF NOT EXISTS secrets_vault (
   updated_at      INTEGER NOT NULL
 );
 
+-- Embeddable blog widget definitions. Each row is one shareable
+-- widget — admin gets a `<script src="/api/embed/<id>" defer></script>`
+-- snippet they can paste on any external site. The widget renders the
+-- toolkit's published blog posts inside a `<div id="ps-blog">`.
+--
+-- `settings_json` carries per-embed style/limit overrides (max posts,
+-- heading text, accent colour) without needing schema changes.
+CREATE TABLE IF NOT EXISTS blog_embeds (
+  id              TEXT PRIMARY KEY,                -- public uuid-ish; appears in the URL
+  name            TEXT NOT NULL,                   -- admin label
+  settings_json   TEXT,                            -- JSON {limit, title, accent, ...}
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_embeds_updated ON blog_embeds(updated_at DESC);
+
 -- Audit log: every action (cron, manual, errors) for visibility.
 CREATE TABLE IF NOT EXISTS audit_log (
   id              TEXT PRIMARY KEY,

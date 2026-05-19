@@ -99,6 +99,7 @@
     if (name === 'brand') { loadBrand(); }
     if (name === 'usage') { loadUsage(); }
     if (name === 'covers') { Cover.init(); }
+    if (name === 'embeds') { loadEmbeds(); }
     if (name === 'settings') { loadSettings(); loadProviderGrid(); }
   }
 
@@ -376,6 +377,115 @@
     status.className = 'status good';
     status.textContent = `Saved · ${body.saved} field(s). Every new post will use this.`;
     setTimeout(() => { status.textContent = ''; status.className = 'status'; }, 4000);
+  }
+
+  // ── embeds ────────────────────────────────────────────────────
+  // Manages the /api/admin/embeds CRUD endpoints. Each embed gives
+  // the operator a `<div id="ps-blog"></div>` + `<script src=…>`
+  // snippet they can paste on any external site to display the
+  // toolkit's posts.
+  async function loadEmbeds() {
+    const list = $('#embed-list');
+    if (!list) return;
+    const { status, body } = await api('/api/admin/embeds');
+    if (status !== 200) {
+      list.textContent = 'Failed to load: ' + (body?.error || status);
+      list.className = 'dim'; return;
+    }
+    clearChildren(list);
+    list.className = '';
+    if (!body.embeds?.length) {
+      const d = document.createElement('div'); d.className = 'dim';
+      d.textContent = 'No embeds yet. Create one above.';
+      list.appendChild(d); return;
+    }
+    for (const e of body.embeds) {
+      const row = document.createElement('div'); row.className = 'embed-row';
+
+      const head = document.createElement('div'); head.className = 'embed-head';
+      const name = document.createElement('div'); name.className = 'embed-name'; name.textContent = e.name;
+      const meta = document.createElement('div'); meta.className = 'embed-meta';
+      const settingsBits = [];
+      if (e.settings?.title)  settingsBits.push('title: ' + e.settings.title);
+      if (e.settings?.accent) settingsBits.push('accent: ' + e.settings.accent);
+      if (e.settings?.limit)  settingsBits.push('limit: ' + e.settings.limit);
+      meta.textContent = settingsBits.join(' · ') || 'defaults';
+      head.append(name, meta);
+      row.appendChild(head);
+
+      const snip = document.createElement('div'); snip.className = 'embed-snippet';
+      snip.textContent = e.snippet;
+      row.appendChild(snip);
+
+      const actions = document.createElement('div'); actions.className = 'embed-actions';
+      const copy = document.createElement('button'); copy.className = 'btn btn-sm';
+      copy.textContent = 'Copy snippet';
+      copy.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(e.snippet);
+          copy.textContent = 'Copied!';
+          setTimeout(() => (copy.textContent = 'Copy snippet'), 1500);
+        } catch { copy.textContent = 'Select + copy manually'; }
+      };
+      const preview = document.createElement('button'); preview.className = 'btn btn-sm';
+      preview.textContent = 'Preview';
+      const previewBox = document.createElement('div'); previewBox.className = 'embed-preview'; previewBox.hidden = true;
+      preview.onclick = () => {
+        if (!previewBox.hidden) { previewBox.hidden = true; preview.textContent = 'Preview'; return; }
+        clearChildren(previewBox);
+        // Build an iframe so the host CSS doesn't leak in.
+        const iframe = document.createElement('iframe');
+        iframe.style.cssText = 'width:100%;min-height:240px;border:0;background:#fff;border-radius:6px';
+        iframe.srcdoc = `<!doctype html><html><head><meta charset="utf-8"><title>preview</title></head><body><div id="ps-blog"></div><script src="${e.embed_url}" defer></script></body></html>`;
+        previewBox.appendChild(iframe);
+        previewBox.hidden = false;
+        preview.textContent = 'Hide preview';
+      };
+      const open = document.createElement('a'); open.className = 'btn btn-sm';
+      open.textContent = 'Open URL';
+      open.href = e.embed_url; open.target = '_blank'; open.rel = 'noopener';
+      const del = document.createElement('button'); del.className = 'btn btn-sm embed-del';
+      del.textContent = 'Delete';
+      del.onclick = async () => {
+        if (!confirm('Delete the embed "' + e.name + '"? Anyone using the snippet on a live site will see an empty widget.')) return;
+        await api('/api/admin/embeds?id=' + encodeURIComponent(e.id), { method: 'DELETE' });
+        loadEmbeds();
+      };
+      actions.append(copy, preview, open, del);
+      row.appendChild(actions);
+      row.appendChild(previewBox);
+      list.appendChild(row);
+    }
+  }
+
+  async function createEmbed() {
+    const status = $('#embed-create-status');
+    const name = $('#embed-create-name').value.trim();
+    if (!name) { status.className = 'status bad'; status.textContent = 'Name required.'; return; }
+    const settings = {};
+    const title  = $('#embed-create-title').value.trim();
+    const accent = $('#embed-create-accent').value;
+    const limit  = parseInt($('#embed-create-limit').value, 10);
+    if (title)  settings.title = title;
+    if (accent) settings.accent = accent;
+    if (Number.isFinite(limit) && limit > 0) settings.limit = limit;
+    status.className = 'status'; status.textContent = 'Creating…';
+    const { status: code, body } = await api('/api/admin/embeds', {
+      method: 'POST',
+      body: JSON.stringify({ name, settings }),
+    });
+    if (code !== 200 || !body?.ok) {
+      status.className = 'status bad';
+      status.textContent = 'Failed: ' + (body?.error || code);
+      return;
+    }
+    status.className = 'status good';
+    status.textContent = 'Created.';
+    $('#embed-create-name').value = '';
+    $('#embed-create-title').value = '';
+    $('#embed-create-limit').value = '';
+    setTimeout(() => { status.textContent = ''; status.className = 'status'; }, 2500);
+    loadEmbeds();
   }
 
   // ── provider status grid (Settings tab) ─────────────────────────
@@ -1874,6 +1984,10 @@
     if (bClear)      bClear.addEventListener('click', clearBrandFields);
     if (bFilterDry)  bFilterDry.addEventListener('click', () => runBrandFilter(true));
     if (bFilterGo)   bFilterGo.addEventListener('click', () => runBrandFilter(false));
+
+    // embeds tab
+    const eCreate = $('#embed-create-go');
+    if (eCreate) eCreate.addEventListener('click', createEmbed);
 
     activateTab('overview');
   }
