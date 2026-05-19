@@ -2234,18 +2234,44 @@
   const Wizard = (() => {
     let brand = {};
 
-    function show(n) {
-      $$('.wiz-pane').forEach((el) => { el.hidden = parseInt(el.dataset.pane, 10) !== n; });
+    // Each pane has a string id. The stepper shows four milestone
+    // labels (1–4); beats are interstitials that don't move the
+    // stepper. The map below tells the stepper which milestone the
+    // current pane belongs to.
+    //   pane '0'          → none yet (welcome)
+    //   pane '1'          → milestone 1 (Hello/URL form)
+    //   pane '2'          → milestone 2 (Brand DNA)
+    //   pane 'beat-brand' → milestone 2 done
+    //   pane '3'          → milestone 3 (Providers)
+    //   pane '4'          → milestone 4 (Calendar)
+    //   pane 'beat-done'  → milestone 4 done
+    const PANE_TO_STEP = {
+      '0': 0,
+      '1': 1,
+      '2': 2,
+      'beat-brand': 2.5,
+      '3': 3,
+      '4': 4,
+      'beat-done': 5,
+    };
+
+    function show(paneId) {
+      const id = String(paneId);
+      $$('.wiz-pane').forEach((el) => { el.hidden = el.dataset.pane !== id; });
+      const step = PANE_TO_STEP[id] ?? 0;
       $$('.wiz-step').forEach((el) => {
         const k = parseInt(el.dataset.step, 10);
-        el.classList.toggle('is-current', k === n);
-        el.classList.toggle('is-done', k < n);
+        el.classList.toggle('is-current', k === Math.floor(step) && step % 1 === 0 && step !== 0);
+        el.classList.toggle('is-done', k < step);
       });
+      // Scroll the wizard card into view in case the previous step left
+      // the user scrolled mid-pane.
+      $('#wiz').scrollTop = 0;
     }
 
     function open() {
       $('#wiz').hidden = false;
-      show(1);
+      show('0');
       // Pre-populate URL with the saved brand source_url if any.
       api('/api/admin/brand-dna').then(({ status, body }) => {
         if (status === 200 && body.brand?.source_url && !$('#wiz-url').value) {
@@ -2254,9 +2280,7 @@
       }).catch(() => {});
     }
 
-    function close() {
-      $('#wiz').hidden = true;
-    }
+    function close() { $('#wiz').hidden = true; }
 
     async function maybeAutoOpen() {
       try {
@@ -2266,16 +2290,19 @@
       } catch { /* offline / first-run db not ready */ }
     }
 
-    // ── step 1 → step 2 (generate brand DNA) ──────────────────────
+    // ── pane 0 → 1: just navigation, no work yet ──────────────────
+    function welcomeNext() { show('1'); setTimeout(() => $('#wiz-url').focus(), 50); }
+
+    // ── pane 1 → 2: generate brand DNA from URL ───────────────────
     async function step1Next() {
       const url = $('#wiz-url').value.trim();
       const err = $('#wiz-1-err');
       err.textContent = '';
       if (!/^https?:\/\/.+/i.test(url)) { err.textContent = 'Please enter a full URL starting with https://'; return; }
       const btn = $('#wiz-go-2');
-      btn.disabled = true; btn.textContent = 'Generating…';
-      // Switch to step 2 with loading state; populate fields once back.
-      show(2);
+      btn.disabled = true; btn.textContent = 'Reading…';
+      // Switch to pane 2 with loading state; populate fields once back.
+      show('2');
       $('#wiz-brand-loading').hidden = false;
       $('#wiz-brand-fields').hidden = true;
       $('#wiz-loading-url').textContent = new URL(url).hostname;
@@ -2288,16 +2315,17 @@
           topics_to_avoid:  $('#wiz-avoid').value.trim(),
         }),
       });
-      btn.disabled = false; btn.textContent = 'Generate brand DNA →';
+      btn.disabled = false; btn.textContent = 'Read my site →';
       if (status !== 200 || !body?.brand) {
         $('#wiz-brand-loading').hidden = true;
         const msg = body?.detail || body?.error || 'Generation failed.';
         $('#wiz-2-err').textContent = msg;
-        show(1);
+        show('1');
         err.textContent = msg;
         return;
       }
       brand = body.brand;
+      brand.source_url = url;
       $('#wiz-b-business').value = brand.business_type || '';
       $('#wiz-b-voice').value    = brand.voice_tone || '';
       $('#wiz-b-audience').value = brand.target_audience || '';
@@ -2307,10 +2335,9 @@
       $('#wiz-brand-loading').hidden = true;
       $('#wiz-brand-fields').hidden = false;
       $('#wiz-go-3').disabled = false;
-      brand.source_url = url;
     }
 
-    // ── step 2 → step 3 (save brand DNA, load providers) ──────────
+    // ── pane 2 → beat-brand: save brand DNA ───────────────────────
     async function step2Next() {
       const errEl = $('#wiz-2-err'); errEl.textContent = '';
       const btn = $('#wiz-go-3'); btn.disabled = true; btn.textContent = 'Saving…';
@@ -2330,35 +2357,42 @@
       btn.disabled = false; btn.textContent = 'Save & continue →';
       if (status !== 200) { errEl.textContent = body?.error || 'Save failed.'; return; }
 
-      // Load provider state for step 3. Keys whose source is 'unset'
-      // are not yet configured; anything else (pages-secret, vault) is.
+      // Customise the beat's "your site" pill with the host.
+      try { $('#wiz-beat-host').textContent = new URL(brand.source_url).hostname; }
+      catch { /* leave the placeholder */ }
+
+      show('beat-brand');
+    }
+
+    // ── beat-brand → 3: load providers, render the grid ───────────
+    async function gotoProviders() {
       const secretsR = await api('/api/admin/secrets');
       const keys = secretsR.body?.keys || {};
       const configured = new Set(
         Object.entries(keys).filter(([, v]) => v && v !== 'unset').map(([k]) => k)
       );
       renderProviders(configured);
-      show(3);
+      show('3');
     }
 
     function renderProviders(configured) {
       const grid = $('#wiz-providers');
       grid.innerHTML = '';
       const opts = [
-        { name: 'openai',    label: 'OpenAI',           envKey: 'OPENAI_API_KEY' },
-        { name: 'anthropic', label: 'Anthropic Claude', envKey: 'ANTHROPIC_API_KEY' },
-        { name: 'gemini',    label: 'Google Gemini',    envKey: 'GEMINI_API_KEY' },
-        { name: 'groq',      label: 'Groq',             envKey: 'GROQ_API_KEY' },
-        { name: 'deepseek',  label: 'DeepSeek',         envKey: 'DEEPSEEK_API_KEY' },
-        { name: 'mistral',   label: 'Mistral',          envKey: 'MISTRAL_API_KEY' },
-        { name: 'together',  label: 'Together',         envKey: 'TOGETHER_API_KEY' },
-        { name: 'cerebras',  label: 'Cerebras',         envKey: 'CEREBRAS_API_KEY' },
+        { label: 'OpenAI',           envKey: 'OPENAI_API_KEY' },
+        { label: 'Anthropic Claude', envKey: 'ANTHROPIC_API_KEY' },
+        { label: 'Google Gemini',    envKey: 'GEMINI_API_KEY' },
+        { label: 'Groq',             envKey: 'GROQ_API_KEY' },
+        { label: 'DeepSeek',         envKey: 'DEEPSEEK_API_KEY' },
+        { label: 'Mistral',          envKey: 'MISTRAL_API_KEY' },
+        { label: 'Together',         envKey: 'TOGETHER_API_KEY' },
+        { label: 'Cerebras',         envKey: 'CEREBRAS_API_KEY' },
       ];
       // Workers AI banner always-on note.
       const banner = document.createElement('div');
       banner.className = 'wiz-prov is-set';
       banner.style.gridColumn = '1 / -1';
-      banner.innerHTML = '<div class="wiz-prov-head"><b>Cloudflare Workers AI</b><span class="wiz-prov-pill">Built in</span></div><div class="wiz-prov-hint">Llama 3.3 70B for text · Flux 1 schnell for images. No key needed.</div>';
+      banner.innerHTML = '<div class="wiz-prov-head"><b>Cloudflare Workers AI</b><span class="wiz-prov-pill">Built in</span></div><div class="wiz-prov-hint">Llama 3.3 70B for text · Flux 1 schnell for images. No key needed — included on the Cloudflare free tier.</div>';
       grid.appendChild(banner);
 
       for (const p of opts) {
@@ -2376,6 +2410,7 @@
       }
     }
 
+    // ── pane 3 → 4: persist provider keys, kick off the planner ───
     async function step3Next() {
       const errEl = $('#wiz-3-err'); errEl.textContent = '';
       const inputs = $$('[data-prov]');
@@ -2391,13 +2426,13 @@
       }
       btn.disabled = false; btn.textContent = 'Continue →';
 
-      show(4);
+      show('4');
       // Kick off the planner. We don't pass replace:true — if the
       // user re-runs the wizard later, we keep existing scheduled
       // slots and only top up gaps.
       $('#wiz-plan-loading').hidden = false;
       $('#wiz-plan-list').hidden = true;
-      $('#wiz-done').disabled = true;
+      $('#wiz-go-done').disabled = true;
       const { status, body } = await api('/api/admin/calendar/plan', {
         method: 'POST',
         body: JSON.stringify({ days: 28, replace: false }),
@@ -2405,11 +2440,11 @@
       $('#wiz-plan-loading').hidden = true;
       if (status !== 200) {
         $('#wiz-4-err').textContent = body?.detail || body?.error || 'Planning failed.';
-        $('#wiz-done').disabled = false;
+        $('#wiz-go-done').disabled = false;
         return;
       }
       renderPlan(body.slots || []);
-      $('#wiz-done').disabled = false;
+      $('#wiz-go-done').disabled = false;
     }
 
     function renderPlan(slots) {
@@ -2425,21 +2460,20 @@
           const li = document.createElement('li');
           const dt = new Date(s.scheduled_for + 'T00:00:00Z');
           const dateLabel = `${dt.getUTCDate()} ${monthsShort[dt.getUTCMonth()]}`;
-          li.innerHTML = `<span class="wiz-plan-date">${dateLabel}</span><div class="wiz-plan-title">${esc(s.title)}${s.primary_keyword ? `<span class="wiz-plan-kw">→ ${esc(s.primary_keyword)}</span>` : ''}</div>`;
+          li.innerHTML = `<span class="wiz-plan-date">${dateLabel}</span><div class="wiz-plan-title">${escH(s.title)}${s.primary_keyword ? `<span class="wiz-plan-kw">→ ${escH(s.primary_keyword)}</span>` : ''}</div>`;
           list.appendChild(li);
         }
       }
       list.hidden = false;
     }
 
-    function esc(s) {
+    function escH(s) {
       return String(s || '').replace(/[&<>"]/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' })[c]);
     }
 
     async function done() {
       await api('/api/admin/onboarding', { method: 'POST' }).catch(() => {});
       close();
-      // If the user landed on overview, refresh; if on calendar, reload.
       activateTab('calendar');
     }
 
@@ -2452,13 +2486,29 @@
     function bindOnce() {
       if (bindOnce.done) return;
       bindOnce.done = true;
+      $('#wiz-start').addEventListener('click', welcomeNext);
       $('#wiz-go-2').addEventListener('click', step1Next);
       $('#wiz-go-3').addEventListener('click', step2Next);
       $('#wiz-go-4').addEventListener('click', step3Next);
+      $('#wiz-go-done').addEventListener('click', () => show('beat-done'));
       $('#wiz-done').addEventListener('click', done);
       $('#wiz-skip').addEventListener('click', skip);
+
+      // `data-wiz-back="<paneId>"` jumps to a previous pane without
+      // re-running its work. `data-wiz-next="3"` advances from a beat
+      // (no state to capture).
       $$('[data-wiz-back]').forEach((el) => {
-        el.addEventListener('click', () => show(parseInt(el.dataset.wizBack, 10)));
+        el.addEventListener('click', () => show(el.dataset.wizBack));
+      });
+      $$('[data-wiz-next]').forEach((el) => {
+        const next = el.dataset.wizNext;
+        if (next === '3') el.addEventListener('click', gotoProviders);
+        else el.addEventListener('click', () => show(next));
+      });
+
+      // Enter on the URL field jumps forward.
+      $('#wiz-url').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); step1Next(); }
       });
     }
 

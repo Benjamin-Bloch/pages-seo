@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <meta name="robots" content="noindex,nofollow" />
 <title>Admin · pages-seo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" />
 <link rel="stylesheet" href="/admin.css" />
 </head>
 <body>
@@ -726,48 +729,80 @@
      onboarding again" entry can re-open it for repeat passes. -->
 <div id="wiz" class="wiz" hidden>
   <div class="wiz-shell">
-    <button id="wiz-skip" class="wiz-skip" type="button" title="Skip onboarding">Skip for now</button>
 
     <header class="wiz-head">
+      <div class="wiz-brand-mark">
+        <span class="wiz-dot"></span>
+        <span class="wiz-brand-text">pages-seo</span>
+      </div>
       <ol class="wiz-steps" aria-label="Onboarding progress">
-        <li class="wiz-step" data-step="1"><span>1</span><b>Welcome</b></li>
-        <li class="wiz-step" data-step="2"><span>2</span><b>Brand DNA</b></li>
-        <li class="wiz-step" data-step="3"><span>3</span><b>AI providers</b></li>
-        <li class="wiz-step" data-step="4"><span>4</span><b>Content plan</b></li>
+        <li class="wiz-step" data-step="1"><b>Hello</b></li>
+        <li class="wiz-step" data-step="2"><b>Brand</b></li>
+        <li class="wiz-step" data-step="3"><b>Providers</b></li>
+        <li class="wiz-step" data-step="4"><b>Calendar</b></li>
       </ol>
+      <button id="wiz-skip" class="wiz-skip" type="button" title="Skip onboarding">Skip</button>
     </header>
 
-    <!-- Step 1: Welcome + URL -->
-    <section class="wiz-pane" data-pane="1">
-      <h2 class="wiz-h">Let's get your blog on autopilot.</h2>
-      <p class="wiz-p">Paste your website URL and we'll read your homepage to build a Brand DNA — the voice, audience, and themes every future post inherits. Takes ~30 seconds.</p>
-      <label class="wiz-field">
-        <span>Your website</span>
-        <input id="wiz-url" type="url" placeholder="https://example.com" autocomplete="url" />
-      </label>
-      <div class="wiz-row wiz-row-optional">
-        <label class="wiz-field">
-          <span>Service area <em>(optional)</em></span>
-          <input id="wiz-service-area" type="text" placeholder="e.g. London or UK-wide" />
-        </label>
-        <label class="wiz-field">
-          <span>Topics to avoid <em>(optional)</em></span>
-          <input id="wiz-avoid" type="text" placeholder="e.g. competitor names" />
-        </label>
+    <!-- PANE 0: Welcome -->
+    <section class="wiz-pane wiz-pane-center" data-pane="0">
+      <div class="wiz-eyebrow">Welcome</div>
+      <h1 class="wiz-h1"><span class="serif-i">Let's get</span> your blog<br/>on autopilot.</h1>
+      <p class="wiz-lede">In four short steps we'll learn about your brand, plug in any AI keys you want to use, and draft your first month of articles. You can change anything later.</p>
+      <ul class="wiz-bullets">
+        <li><span>1</span> Tell us about your site</li>
+        <li><span>2</span> Review your brand DNA</li>
+        <li><span>3</span> Pick AI providers <em>(optional)</em></li>
+        <li><span>4</span> Approve your 28-day plan</li>
+      </ul>
+      <div class="wiz-actions wiz-actions-single">
+        <button id="wiz-start" class="btn btn-primary wiz-btn-lg" type="button">Let's go →</button>
       </div>
+      <p class="wiz-foot-note">Takes about two minutes. Workers AI runs everything for free out of the box.</p>
+    </section>
+
+    <!-- PANE 1: Brand URL -->
+    <section class="wiz-pane" data-pane="1" hidden>
+      <div class="wiz-eyebrow">Step 1 of 4</div>
+      <h1 class="wiz-h1"><span class="serif-i">Where</span> does your brand live?</h1>
+      <p class="wiz-lede">Paste your homepage URL and we'll read it to draft a Brand DNA — voice, audience, themes, the lot. Takes ~30 seconds.</p>
+      <label class="wiz-field wiz-field-big">
+        <span>Your website</span>
+        <input id="wiz-url" type="url" placeholder="https://example.com" autocomplete="url" inputmode="url" />
+      </label>
+      <details class="wiz-details">
+        <summary>Advanced options</summary>
+        <div class="wiz-row">
+          <label class="wiz-field">
+            <span>Service area <em>(optional)</em></span>
+            <input id="wiz-service-area" type="text" placeholder="e.g. London or UK-wide" />
+          </label>
+          <label class="wiz-field">
+            <span>Topics to avoid <em>(optional)</em></span>
+            <input id="wiz-avoid" type="text" placeholder="e.g. competitor names" />
+          </label>
+        </div>
+      </details>
       <div class="wiz-actions">
-        <span></span>
-        <button id="wiz-go-2" class="btn btn-primary" type="button">Generate brand DNA →</button>
+        <button class="btn btn-ghost" type="button" data-wiz-back="0">← Back</button>
+        <button id="wiz-go-2" class="btn btn-primary" type="button">Read my site →</button>
       </div>
       <div id="wiz-1-err" class="wiz-err"></div>
     </section>
 
-    <!-- Step 2: Review brand DNA -->
+    <!-- PANE 2: Brand DNA review -->
     <section class="wiz-pane" data-pane="2" hidden>
-      <h2 class="wiz-h">Here's how we read your brand.</h2>
-      <p class="wiz-p">Quick scan — tweak anything that's wrong, then save. These fields flow into every prompt the toolkit ever sends.</p>
-      <div id="wiz-brand-loading" class="wiz-loading" hidden>Reading <span id="wiz-loading-url"></span>…</div>
-      <div id="wiz-brand-fields" hidden>
+      <div class="wiz-eyebrow">Step 2 of 4</div>
+      <h1 class="wiz-h1"><span class="serif-i">Here's</span> how we read your brand.</h1>
+      <p class="wiz-lede">A quick scan. Tweak anything that's wrong — these fields flow into every prompt the toolkit ever sends.</p>
+      <div id="wiz-brand-loading" class="wiz-loading-big" hidden>
+        <div class="wiz-spinner"></div>
+        <div>
+          <b>Reading <span id="wiz-loading-url"></span>…</b>
+          <p>Scraping the homepage and asking the model to summarise your brand voice. Hang on for ~20 seconds.</p>
+        </div>
+      </div>
+      <div id="wiz-brand-fields" class="wiz-brand-fields" hidden>
         <label class="wiz-field"><span>What you do</span><textarea id="wiz-b-business" rows="4" maxlength="2400"></textarea></label>
         <label class="wiz-field"><span>Voice / tone</span><textarea id="wiz-b-voice" rows="3" maxlength="1200"></textarea></label>
         <label class="wiz-field"><span>Target audience</span><textarea id="wiz-b-audience" rows="3" maxlength="2000"></textarea></label>
@@ -784,10 +819,21 @@
       <div id="wiz-2-err" class="wiz-err"></div>
     </section>
 
-    <!-- Step 3: Providers -->
+    <!-- BEAT 2: brand confirmed -->
+    <section class="wiz-pane wiz-pane-center wiz-beat" data-pane="beat-brand" hidden>
+      <div class="wiz-tick">✓</div>
+      <h1 class="wiz-h1"><span class="serif-i">Brand</span> locked in.</h1>
+      <p class="wiz-lede">Every post we write from here will sound like <span id="wiz-beat-host" class="wiz-pill">your site</span>. You can re-edit any field from the Brand DNA tab later.</p>
+      <div class="wiz-actions wiz-actions-single">
+        <button class="btn btn-primary wiz-btn-lg" type="button" data-wiz-next="3">Next: AI providers →</button>
+      </div>
+    </section>
+
+    <!-- PANE 3: Providers -->
     <section class="wiz-pane" data-pane="3" hidden>
-      <h2 class="wiz-h">Pick your AI engines.</h2>
-      <p class="wiz-p">Workers AI is built in and free up to the daily limit. Paste a key for any cloud provider and it joins the fallback chain — leave them blank to start.</p>
+      <div class="wiz-eyebrow">Step 3 of 4</div>
+      <h1 class="wiz-h1"><span class="serif-i">Pick</span> your AI engines.</h1>
+      <p class="wiz-lede">Workers AI is built in and free up to the daily limit. Drop in keys for any cloud providers you want as fallbacks — or skip and add them later.</p>
       <div id="wiz-providers" class="wiz-provs"></div>
       <div class="wiz-actions">
         <button class="btn btn-ghost" type="button" data-wiz-back="2">← Back</button>
@@ -796,18 +842,41 @@
       <div id="wiz-3-err" class="wiz-err"></div>
     </section>
 
-    <!-- Step 4: Content plan -->
+    <!-- PANE 4: Plan -->
     <section class="wiz-pane" data-pane="4" hidden>
-      <h2 class="wiz-h">Your first month, planned.</h2>
-      <p class="wiz-p">We've drafted 28 article ideas from your brand DNA. Glance through; you can swap or remove any of them later from the Calendar tab.</p>
-      <div id="wiz-plan-loading" class="wiz-loading">Planning your content calendar…</div>
+      <div class="wiz-eyebrow">Step 4 of 4</div>
+      <h1 class="wiz-h1"><span class="serif-i">Your first</span> month, planned.</h1>
+      <p class="wiz-lede">We've drafted 28 article ideas from your brand DNA. Have a glance — you can swap, remove, or reorder any of them from the Calendar tab.</p>
+      <div id="wiz-plan-loading" class="wiz-loading-big">
+        <div class="wiz-spinner"></div>
+        <div>
+          <b>Drafting your calendar…</b>
+          <p>One idea per day for the next four weeks. About 20 seconds.</p>
+        </div>
+      </div>
       <ol id="wiz-plan-list" class="wiz-plan-list" hidden></ol>
       <div class="wiz-actions">
         <button class="btn btn-ghost" type="button" data-wiz-back="3">← Back</button>
-        <button id="wiz-done" class="btn btn-primary" type="button" disabled>Open my dashboard →</button>
+        <button id="wiz-go-done" class="btn btn-primary" type="button" disabled>Looks good →</button>
       </div>
       <div id="wiz-4-err" class="wiz-err"></div>
     </section>
+
+    <!-- BEAT done: all set -->
+    <section class="wiz-pane wiz-pane-center wiz-beat" data-pane="beat-done" hidden>
+      <div class="wiz-tick wiz-tick-big">✦</div>
+      <h1 class="wiz-h1"><span class="serif-i">You're</span> live.</h1>
+      <p class="wiz-lede">Tomorrow at 08:00 UTC the first post will publish itself — image, SEO metadata, IndexNow ping, the lot. You can also hit "Run now" from the dashboard to publish right away.</p>
+      <ul class="wiz-bullets wiz-bullets-inline">
+        <li><b>Calendar</b> – browse and edit the next 28 days</li>
+        <li><b>Daily blog</b> – kick off a post manually</li>
+        <li><b>Links</b> – teach the AI about your /login, /pricing, etc.</li>
+      </ul>
+      <div class="wiz-actions wiz-actions-single">
+        <button id="wiz-done" class="btn btn-primary wiz-btn-lg" type="button">Open my dashboard →</button>
+      </div>
+    </section>
+
   </div>
 </div>
 
