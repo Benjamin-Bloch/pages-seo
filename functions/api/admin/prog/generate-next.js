@@ -13,7 +13,7 @@ import { loadSettings } from '../../../_lib/settings.js';
 import { checkBudget } from '../../../_lib/usage.js';
 
 export const onRequestPost = async ({ request, env, waitUntil }) => {
-  const gate = adminGate(env, request); if (gate) return gate;
+  const gate = await adminGate(env, request); if (gate) return gate;
 
   // Atomically claim the highest-priority pending keyword. Priority
   // defaults to score (so high-intent keywords go first); the admin can

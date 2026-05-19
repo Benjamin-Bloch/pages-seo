@@ -248,7 +248,7 @@ function sanitiseField(s, max) {
 // ─── handlers ─────────────────────────────────────────────────────
 
 export const onRequestGet = async ({ env, request }) => {
-  const gate = adminGate(env, request); if (gate) return gate;
+  const gate = await adminGate(env, request); if (gate) return gate;
   const s = await loadSettings(env);
   return json(200, {
     ok: true,
@@ -266,7 +266,7 @@ export const onRequestGet = async ({ env, request }) => {
 };
 
 export const onRequestPost = async ({ env, request, waitUntil }) => {
-  const gate = adminGate(env, request); if (gate) return gate;
+  const gate = await adminGate(env, request); if (gate) return gate;
   let body;
   try { body = await request.json(); } catch { return json(400, { error: 'bad_json' }); }
   const url = String(body?.url || '').trim();
@@ -321,7 +321,7 @@ export const onRequestPost = async ({ env, request, waitUntil }) => {
 };
 
 export const onRequestPut = async ({ env, request }) => {
-  const gate = adminGate(env, request); if (gate) return gate;
+  const gate = await adminGate(env, request); if (gate) return gate;
   let body;
   try { body = await request.json(); } catch { return json(400, { error: 'bad_json' }); }
 

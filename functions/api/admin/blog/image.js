@@ -5,7 +5,7 @@ import { adminGate } from '../../../_lib/auth.js';
 import { generateImage } from '../../../_lib/ai.js';
 
 export const onRequestPost = async ({ request, env }) => {
-  const gate = adminGate(env, request); if (gate) return gate;
+  const gate = await adminGate(env, request); if (gate) return gate;
   let body;
   try { body = await request.json(); } catch { return json(400, { error: 'bad_json' }); }
   const jobId = String(body.job_id || '');

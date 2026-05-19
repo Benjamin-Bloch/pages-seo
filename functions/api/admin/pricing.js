@@ -8,7 +8,7 @@ import { adminGate } from '../../_lib/auth.js';
 import { loadPrices, refreshPricesFromModelsDev } from '../../_lib/prices.js';
 
 export const onRequestGet = async ({ env, request }) => {
-  const gate = adminGate(env, request); if (gate) return gate;
+  const gate = await adminGate(env, request); if (gate) return gate;
   const { prices, source, fetched_at, stale } = await loadPrices(env);
   return json(200, {
     ok: true,
@@ -20,7 +20,7 @@ export const onRequestGet = async ({ env, request }) => {
 };
 
 export const onRequestPost = async ({ env, request }) => {
-  const gate = adminGate(env, request); if (gate) return gate;
+  const gate = await adminGate(env, request); if (gate) return gate;
   try {
     const r = await refreshPricesFromModelsDev(env);
     return json(200, { ok: true, ...r });

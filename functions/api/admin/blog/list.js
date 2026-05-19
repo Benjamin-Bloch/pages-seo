@@ -3,7 +3,7 @@ import { json } from '../../../_lib/util.js';
 import { adminGate } from '../../../_lib/auth.js';
 
 export const onRequestGet = async ({ request, env }) => {
-  const gate = adminGate(env, request); if (gate) return gate;
+  const gate = await adminGate(env, request); if (gate) return gate;
   const r = await env.DB.prepare(
     `SELECT id, slug, title, status, hero_image_key, keywords, ai_provider,
             published_at, hidden_at

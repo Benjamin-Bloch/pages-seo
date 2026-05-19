@@ -22,7 +22,7 @@ function shrinkSpec(spec) {
 }
 
 export const onRequestGet = async ({ env, request }) => {
-  const gate = adminGate(env, request); if (gate) return gate;
+  const gate = await adminGate(env, request); if (gate) return gate;
   const r = await env.DB.prepare(
     `SELECT id, name, is_default, spec_json, thumb_r2_key, created_at, updated_at
        FROM cover_templates ORDER BY updated_at DESC LIMIT 100`
@@ -36,7 +36,7 @@ export const onRequestGet = async ({ env, request }) => {
 };
 
 export const onRequestPost = async ({ env, request }) => {
-  const gate = adminGate(env, request); if (gate) return gate;
+  const gate = await adminGate(env, request); if (gate) return gate;
   let body;
   try { body = await request.json(); } catch { return json(400, { error: 'bad_json' }); }
   const name = String(body?.name || '').trim().slice(0, 120);
@@ -66,7 +66,7 @@ export const onRequestPost = async ({ env, request }) => {
 };
 
 export const onRequestPut = async ({ env, request }) => {
-  const gate = adminGate(env, request); if (gate) return gate;
+  const gate = await adminGate(env, request); if (gate) return gate;
   const url = new URL(request.url);
   const id = String(url.searchParams.get('id') || '');
   if (!id) return json(400, { error: 'missing_id' });
@@ -108,7 +108,7 @@ export const onRequestPut = async ({ env, request }) => {
 };
 
 export const onRequestDelete = async ({ env, request }) => {
-  const gate = adminGate(env, request); if (gate) return gate;
+  const gate = await adminGate(env, request); if (gate) return gate;
   const url = new URL(request.url);
   const id = String(url.searchParams.get('id') || '');
   if (!id) return json(400, { error: 'missing_id' });

@@ -23,7 +23,7 @@ function windowStart(name) {
 }
 
 export const onRequestGet = async ({ env, request }) => {
-  const gate = adminGate(env, request); if (gate) return gate;
+  const gate = await adminGate(env, request); if (gate) return gate;
   const url = new URL(request.url);
   const window = url.searchParams.get('window') || 'month';
   const since = windowStart(window);

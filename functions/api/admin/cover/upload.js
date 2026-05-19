@@ -49,7 +49,7 @@ function decodeBase64(b64) {
 }
 
 export const onRequestPost = async ({ env, request }) => {
-  const gate = adminGate(env, request); if (gate) return gate;
+  const gate = await adminGate(env, request); if (gate) return gate;
   if (!env.IMAGES) return json(500, { error: 'r2_binding_missing' });
 
   let body;
@@ -117,7 +117,7 @@ export const onRequestPost = async ({ env, request }) => {
 
 // List assets, newest first. Filter with ?kind=background|logo.
 export const onRequestGet = async ({ env, request }) => {
-  const gate = adminGate(env, request); if (gate) return gate;
+  const gate = await adminGate(env, request); if (gate) return gate;
   const url = new URL(request.url);
   const kind = url.searchParams.get('kind');
   const limit = Math.min(200, parseInt(url.searchParams.get('limit'), 10) || 60);
@@ -135,7 +135,7 @@ export const onRequestGet = async ({ env, request }) => {
 
 // Delete an asset. Removes the R2 object too.
 export const onRequestDelete = async ({ env, request }) => {
-  const gate = adminGate(env, request); if (gate) return gate;
+  const gate = await adminGate(env, request); if (gate) return gate;
   const url = new URL(request.url);
   const id = String(url.searchParams.get('id') || '');
   if (!id) return json(400, { error: 'missing_id' });

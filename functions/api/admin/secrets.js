@@ -28,13 +28,13 @@ const MIN_LEN = 16;
 const MAX_LEN = 512;
 
 export const onRequestGet = async ({ env, request }) => {
-  const gate = adminGate(env, request); if (gate) return gate;
+  const gate = await adminGate(env, request); if (gate) return gate;
   const status = await describeKeys(env, ALLOWED);
   return json(200, { ok: true, keys: status, allowed: ALLOWED });
 };
 
 export const onRequestPost = async ({ env, request }) => {
-  const gate = adminGate(env, request); if (gate) return gate;
+  const gate = await adminGate(env, request); if (gate) return gate;
   let body;
   try { body = await request.json(); } catch { return json(400, { error: 'bad_json' }); }
 
@@ -58,7 +58,7 @@ export const onRequestPost = async ({ env, request }) => {
 };
 
 export const onRequestDelete = async ({ env, request }) => {
-  const gate = adminGate(env, request); if (gate) return gate;
+  const gate = await adminGate(env, request); if (gate) return gate;
   const url = new URL(request.url);
   const name = String(url.searchParams.get('name') || '').trim().toUpperCase();
   if (!ALLOWED.includes(name)) return json(400, { error: 'unknown_key', allowed: ALLOWED });

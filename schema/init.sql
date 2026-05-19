@@ -190,6 +190,42 @@ CREATE TABLE IF NOT EXISTS ai_usage (
 CREATE INDEX IF NOT EXISTS idx_ai_usage_created ON ai_usage(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_ai_usage_provider_created ON ai_usage(provider, created_at DESC);
 
+-- Admin user accounts. Email + password (PBKDF2-SHA256 with a
+-- per-user salt, 200k iterations). The original ADMIN_TOKEN bearer
+-- header still works as a recovery / cron credential, so even if the
+-- users table is empty or corrupted you can always reach the admin.
+CREATE TABLE IF NOT EXISTS users (
+  id              TEXT PRIMARY KEY,                -- 16-byte hex
+  email           TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  password_hash   TEXT NOT NULL,                   -- base64
+  password_salt   TEXT NOT NULL,                   -- base64, 16 bytes
+  created_at      INTEGER NOT NULL,
+  last_login_at   INTEGER
+);
+
+-- Active login sessions. One row per signed-in browser session. We
+-- store the token's id (not the token itself); the cookie value is
+-- `<id>.<hmac>` and the HMAC is verified using ADMIN_TOKEN as the
+-- shared secret. Lets us revoke individual sessions without rotating
+-- the master token.
+CREATE TABLE IF NOT EXISTS sessions (
+  id              TEXT PRIMARY KEY,                -- 16-byte hex
+  user_id         TEXT NOT NULL,
+  created_at      INTEGER NOT NULL,
+  expires_at      INTEGER NOT NULL,
+  user_agent      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id, expires_at);
+
+-- Rate limit table: tracks login attempts per email + IP combo so
+-- brute-force attempts hit a wall after 5 failures.
+CREATE TABLE IF NOT EXISTS login_attempts (
+  key             TEXT PRIMARY KEY,                -- email + '|' + ip (or 'ip:' + ip)
+  failures        INTEGER NOT NULL DEFAULT 0,
+  locked_until    INTEGER,                          -- unix seconds; null when unlocked
+  updated_at      INTEGER NOT NULL
+);
+
 -- Encrypted-at-rest API key vault. Used when the admin wants to set
 -- LLM provider keys from the dashboard rather than via
 -- `wrangler pages secret put`. Ciphertext is AES-GCM with a key derived

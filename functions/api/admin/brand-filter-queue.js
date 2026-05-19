@@ -224,7 +224,7 @@ function looseJsonParse(text) {
 }
 
 export const onRequestPost = async ({ env, request }) => {
-  const gate = adminGate(env, request); if (gate) return gate;
+  const gate = await adminGate(env, request); if (gate) return gate;
   let body;
   try { body = await request.json(); } catch { body = {}; }
   const dryRun = body?.dry_run === true;

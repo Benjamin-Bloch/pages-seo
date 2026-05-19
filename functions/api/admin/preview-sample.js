@@ -24,7 +24,7 @@ import { loadSettings } from '../../_lib/settings.js';
 const DEFAULT_TOPIC = 'Practical tips for someone starting out';
 
 export const onRequestPost = async ({ request, env }) => {
-  const gate = adminGate(env, request); if (gate) return gate;
+  const gate = await adminGate(env, request); if (gate) return gate;
 
   let body = {};
   try { body = await request.json(); } catch { /* empty body ok */ }

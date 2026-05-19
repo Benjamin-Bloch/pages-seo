@@ -8,7 +8,7 @@ import { json, nowSec, audit } from '../../../_lib/util.js';
 import { adminGate } from '../../../_lib/auth.js';
 
 export const onRequestGet = async ({ request, env }) => {
-  const gate = adminGate(env, request); if (gate) return gate;
+  const gate = await adminGate(env, request); if (gate) return gate;
   const url = new URL(request.url);
   const status = url.searchParams.get('status') || 'pending';
   const limit = Math.min(500, parseInt(url.searchParams.get('limit'), 10) || 100);
@@ -35,7 +35,7 @@ export const onRequestGet = async ({ request, env }) => {
 };
 
 export const onRequestPatch = async ({ request, env }) => {
-  const gate = adminGate(env, request); if (gate) return gate;
+  const gate = await adminGate(env, request); if (gate) return gate;
   let body;
   try { body = await request.json(); } catch { return json(400, { error: 'bad_json' }); }
   const id = String(body?.id || '').trim();

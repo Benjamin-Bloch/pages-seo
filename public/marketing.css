@@ -378,6 +378,12 @@ section h2 {
 .post-mock { padding: 0; max-width: 780px; margin: 0 auto 24px; }
 .post-mock > * { padding-left: 44px; padding-right: 44px; }
 .post-mock .post-meta { padding-top: 36px; }
+.post-mock .latest-hero {
+  display: block; width: 100%; height: auto; aspect-ratio: 1.9;
+  object-fit: cover; margin: 0;
+  border-top-left-radius: var(--radius); border-top-right-radius: var(--radius);
+}
+.post-mock .latest-hero + .post-meta { padding-top: 24px; }
 .post-mock .cta-strip { margin: 0 -44px -40px; padding: 18px 44px; }
 .post-meta { display: flex; gap: 8px; flex-wrap: wrap; padding-top: 0; }
 .badge {

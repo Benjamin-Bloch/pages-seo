@@ -25,7 +25,7 @@ function decodeBase64Png(b64) {
 }
 
 export const onRequestPost = async ({ env, request }) => {
-  const gate = adminGate(env, request); if (gate) return gate;
+  const gate = await adminGate(env, request); if (gate) return gate;
   if (!env.IMAGES) return json(500, { error: 'r2_binding_missing' });
 
   let body;
