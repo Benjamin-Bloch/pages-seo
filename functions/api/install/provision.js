@@ -218,6 +218,19 @@ async function ensurePagesProject(token, accountId, project, siteName, d1Id, r2N
   const existing = await findPagesProject(token, accountId, project);
   if (existing) return { subdomain: existing.subdomain, reused: true };
 
+  // build_command runs in Cloudflare's build sandbox before wrangler
+  // reads wrangler.toml. The upstream toml declares D1 + R2 bindings
+  // pointing at the maintainer's resources (which the fork's account
+  // can't see). We rewrite it to a minimal config that just declares
+  // name / compatibility_date / pages_build_output_dir; the
+  // project-level bindings we set below (deployment_configs.production.*)
+  // then take effect because there are no conflicting toml entries.
+  //
+  // awk is in every build sandbox; the script keeps everything until
+  // the first `[[d1_databases]]` or `[[r2_buckets]]` or `[ai]` header.
+  const stripBindingsCmd =
+    "awk '/^\\[\\[d1_databases\\]\\]|^\\[\\[r2_buckets\\]\\]|^\\[ai\\]/{exit} {print}' wrangler.toml > /tmp/wrangler.toml && mv /tmp/wrangler.toml wrangler.toml";
+
   const payload = {
     name: project,
     production_branch: PROD_BRANCH,
@@ -231,6 +244,11 @@ async function ensurePagesProject(token, accountId, project, siteName, d1Id, r2N
         deployments_enabled: true,
       },
     },
+    build_config: {
+      build_command: stripBindingsCmd,
+      destination_dir: 'public',
+      root_dir: '',
+    },
     deployment_configs: {
       production: {
         d1_databases: { DB: { id: d1Id } },
@@ -238,6 +256,7 @@ async function ensurePagesProject(token, accountId, project, siteName, d1Id, r2N
         ai_bindings:  { AI: {} },
         env_vars: {
           SITE_NAME: { type: 'plain_text', value: siteName },
+          SITE_URL:  { type: 'plain_text', value: '' },
         },
       },
       preview: {
@@ -246,6 +265,7 @@ async function ensurePagesProject(token, accountId, project, siteName, d1Id, r2N
         ai_bindings:  { AI: {} },
         env_vars: {
           SITE_NAME: { type: 'plain_text', value: siteName },
+          SITE_URL:  { type: 'plain_text', value: '' },
         },
       },
     },
