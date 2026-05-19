@@ -106,6 +106,10 @@
       <button class="tab" data-tab="usage">Usage</button>
       <button class="tab" data-tab="covers">Covers</button>
       <button class="tab" data-tab="embeds">Embeds</button>
+      <button class="tab" data-tab="updates">
+        Updates
+        <span id="updates-badge" class="tab-badge" hidden></span>
+      </button>
       <button class="tab" data-tab="settings">Settings</button>
     </nav>
     <div class="topbar-tools">
@@ -634,6 +638,44 @@
         <div id="embed-list">
           <div class="dim">Loading…</div>
         </div>
+      </div>
+    </section>
+
+    <!-- ============ UPDATES ============ -->
+    <section data-page="updates" class="page" hidden>
+      <div class="card">
+        <div class="card-eyebrow">App version</div>
+        <div id="upd-summary" class="upd-summary">
+          <div class="muted">Checking for updates…</div>
+        </div>
+      </div>
+
+      <div class="card" id="upd-changes-card" hidden>
+        <div class="card-eyebrow">What's new</div>
+        <p class="muted" id="upd-changes-lede">—</p>
+        <div id="upd-diff-stats" class="upd-diff-stats" hidden></div>
+        <ul id="upd-commit-list" class="upd-commit-list"></ul>
+      </div>
+
+      <div class="card" id="upd-apply-card" hidden>
+        <div class="card-eyebrow">Apply update</div>
+        <p class="muted">Triggers Cloudflare Pages to rebuild your project from the latest upstream commit on your fork. <b>Sync your fork on GitHub first</b> (one click — open <a id="upd-sync-link" target="_blank" rel="noopener">your fork</a>, hit "Sync fork") so the build pulls today's code, not the snapshot from install day.</p>
+        <label class="form-row">
+          <span>Cloudflare API token <em class="optional">Pages:Edit scope. Not stored.</em></span>
+          <input id="upd-token" type="password" autocomplete="off" placeholder="Paste your CF API token" />
+        </label>
+        <p class="muted">Don't have one handy? <a id="upd-token-link" target="_blank" rel="noopener">Create a new token</a> — the link pre-fills the right permissions.</p>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
+          <button id="upd-apply-go" class="btn btn-primary">Trigger rebuild</button>
+          <span id="upd-apply-status" class="status"></span>
+        </div>
+      </div>
+
+      <div class="card" id="upd-cli-card" hidden>
+        <div class="card-eyebrow">CLI install detected</div>
+        <p class="muted">In-app update is only available for installs done via the browser flow. You installed this site via the terminal, so updates run the same way:</p>
+        <pre class="log" style="margin:8px 0">curl -fsSL https://seo.benjaminb.xyz/install/run.sh | bash</pre>
+        <p class="muted">It detects an existing install with the same project slug and only re-deploys the code — your D1, R2, and admin user are preserved.</p>
       </div>
     </section>
 

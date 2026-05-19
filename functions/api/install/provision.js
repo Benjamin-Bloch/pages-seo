@@ -436,6 +436,22 @@ export const onRequestPost = async ({ env, request }) => {
     await saveStep(env, project, fp, { deploy_started: 1, last_step: 'deploy', last_error: null });
   }
 
+  // Resolve the upstream main commit SHA so the new site can record
+  // what version it's running. Best-effort — public GitHub API, no
+  // auth, falls back to empty string on rate-limit or failure (in
+  // which case the Updates tab will simply say "version unknown" and
+  // any update will replace the unknown with the latest).
+  let installedSha = '';
+  try {
+    const ghr = await fetch('https://api.github.com/repos/Benjamin-Bloch/pages-seo/commits/main', {
+      headers: { 'User-Agent': 'pages-seo-installer', Accept: 'application/vnd.github+json' },
+    });
+    if (ghr.ok) {
+      const d = await ghr.json();
+      if (d?.sha) installedSha = String(d.sha);
+    }
+  } catch { /* ignore */ }
+
   return json(200, {
     ok: true,
     pages_url: pagesUrl,
@@ -443,6 +459,7 @@ export const onRequestPost = async ({ env, request }) => {
     project,
     d1: { id: d1Id, name: project },
     r2: { name: r2Name },
+    installed_sha: installedSha,
     resumed: !!state.account_id,    // true if any state existed before this call
     seed: { email, password, site_name: siteName },
   });

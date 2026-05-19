@@ -152,6 +152,7 @@
     if (name === 'usage') { loadUsage(); }
     if (name === 'covers') { Cover.init(); }
     if (name === 'embeds') { loadEmbeds(); }
+    if (name === 'updates') { Updates.init(); }
     if (name === 'settings') { loadSettings(); loadProviderGrid(); }
   }
 
@@ -2061,6 +2062,9 @@
     // First-login auto-launch — check onboarding state and offer the
     // wizard if it hasn't been completed yet.
     Wizard.maybeAutoOpen();
+    // Background update check — paints the "N" badge on the Updates
+    // tab if upstream has new commits. Doesn't block first paint.
+    setTimeout(() => Updates.quietCheck(), 800);
   }
 
   // ── links / aliases ────────────────────────────────────────────
@@ -2237,10 +2241,15 @@
   // and creates the first user; we then log the operator in with
   // their just-set password so they land in the onboarding wizard.
   const Setup = (() => {
+    // Holds the full install seed (incl. install metadata like
+    // installed_sha, repo coords, CF account id) between readInstallSeed()
+    // and submit(), so the metadata gets forwarded to /api/setup.
+    let pendingSeed = null;
+
     // Decode #install=<base64-json> if the installer redirected here.
-    // The hash carries email + password + site_name from the
-    // installer at seo.benjaminb.xyz/install so the operator never
-    // retypes them. Hash fragments don't get sent to the server.
+    // The hash carries email + password + site_name + install metadata
+    // from the installer at seo.benjaminb.xyz/install so the operator
+    // never retypes them. Hash fragments don't get sent to the server.
     function readInstallSeed() {
       const m = (location.hash || '').match(/(?:^#|&)install=([^&]+)/);
       if (!m) return null;
@@ -2270,6 +2279,7 @@
       // Installer hand-off: pre-fill + auto-submit the setup form.
       const seed = readInstallSeed();
       if (seed) {
+        pendingSeed = seed;
         clearHash();
         $('#setup-site-name').value = seed.site_name || '';
         $('#setup-site-url').value  = location.origin;
@@ -2303,9 +2313,20 @@
       const btn = $('#setup-go');
       btn.disabled = true; btn.textContent = 'Setting up…';
 
+      // Forward install metadata from the URL hash (browser-path
+       // installs only) so the Updates tab has a baseline SHA + repo
+       // coords to compare against upstream HEAD.
+      const installMeta = pendingSeed ? {
+        install_method:     pendingSeed.install_method,
+        installed_sha:      pendingSeed.installed_sha,
+        install_repo_owner: pendingSeed.install_repo_owner,
+        install_repo_name:  pendingSeed.install_repo_name,
+        install_cf_account: pendingSeed.install_cf_account,
+        install_cf_project: pendingSeed.install_cf_project,
+      } : {};
       const { status, body } = await api('/api/setup', {
         method: 'POST',
-        body: JSON.stringify({ site_name, site_url, email, password }),
+        body: JSON.stringify({ site_name, site_url, email, password, ...installMeta }),
       });
       if (status !== 200) {
         btn.disabled = false; btn.textContent = 'Finish setup →';
@@ -2637,6 +2658,184 @@
 
     bindOnce();
     return { open, close, maybeAutoOpen };
+  })();
+
+  // ── updates ────────────────────────────────────────────────────
+  // Shows the operator the upstream commits between what they
+  // installed and the latest main. Browser installs get a one-click
+  // "trigger rebuild" via the Cloudflare API; CLI installs see the
+  // one-liner they need to re-run.
+  const Updates = (() => {
+    const PERMS = [
+      { key: 'page',             type: 'edit' },
+      { key: 'd1',               type: 'edit' },
+      { key: 'workers_r2',       type: 'edit' },
+      { key: 'ai',               type: 'edit' },
+      { key: 'workers_scripts',  type: 'edit' },
+      { key: 'account_settings', type: 'read' },
+    ];
+    const TOKEN_LINK = 'https://dash.cloudflare.com/?to=/:account/api-tokens' +
+      '&permissionGroupKeys=' + encodeURIComponent(JSON.stringify(PERMS)) +
+      '&name=' + encodeURIComponent('pages-seo update');
+
+    let lastState = null;
+
+    function esc(s) {
+      return String(s || '').replace(/[&<>"]/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' })[c]);
+    }
+    function relativeDate(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      const dh = Math.round((Date.now() - d.getTime()) / 3600000);
+      if (dh < 1) return 'just now';
+      if (dh < 24) return dh + 'h ago';
+      const dd = Math.round(dh / 24);
+      if (dd < 30) return dd + 'd ago';
+      return d.toISOString().slice(0, 10);
+    }
+
+    function render(s) {
+      lastState = s;
+      const summary = $('#upd-summary');
+      const changesCard = $('#upd-changes-card');
+      const applyCard = $('#upd-apply-card');
+      const cliCard = $('#upd-cli-card');
+      const badge = $('#updates-badge');
+
+      let pill, label, value;
+      if (s.up_to_date) {
+        pill = '<span class="upd-pill is-current">Up to date</span>';
+        label = 'You\'re running the latest commit on upstream main.';
+        value = s.current ? esc(s.current.short) : 'unknown';
+        badge.hidden = true;
+      } else if (!s.current) {
+        pill = '<span class="upd-pill is-unknown">Unknown</span>';
+        label = 'We don\'t know which commit this install came from. Apply an update to set a baseline.';
+        value = '—';
+        badge.hidden = true;
+      } else {
+        pill = '<span class="upd-pill is-behind">' + s.ahead + ' commit' + (s.ahead === 1 ? '' : 's') + ' behind</span>';
+        label = 'Upstream has moved on. Have a look below and update when you\'re ready.';
+        value = esc(s.current.short);
+        badge.hidden = false;
+        badge.textContent = s.ahead;
+      }
+      summary.innerHTML = `
+        <div class="upd-row"><span class="upd-label">Status</span>${pill}</div>
+        <div class="upd-row"><span class="upd-label">Installed</span><span class="upd-value">${value}</span></div>
+        <div class="upd-row"><span class="upd-label">Latest upstream</span><span class="upd-value">${esc(s.latest?.short || '—')}${s.latest?.date ? ' · ' + esc(relativeDate(s.latest.date)) : ''}</span></div>
+        <div class="upd-row"><span class="upd-label">Install method</span><span class="upd-value">${esc(s.install_method || 'unknown')}</span></div>
+        <div class="upd-row" style="margin-top:6px;color:var(--ink-dim);font-size:13px">${esc(label)}</div>
+      `;
+
+      if (s.commits && s.commits.length) {
+        changesCard.hidden = false;
+        $('#upd-changes-lede').textContent = `${s.commits.length} commit${s.commits.length === 1 ? '' : 's'} from ${s.repo?.owner || 'Benjamin-Bloch'}/${s.repo?.name || 'pages-seo'} since your install.`;
+        const stats = $('#upd-diff-stats');
+        if (s.files_changed) {
+          stats.hidden = false;
+          stats.innerHTML = `${s.files_changed} file${s.files_changed === 1 ? '' : 's'} · <span class="add">+${s.additions}</span> <span class="del">−${s.deletions}</span>`;
+        } else {
+          stats.hidden = true;
+        }
+        const list = $('#upd-commit-list');
+        list.innerHTML = '';
+        for (const c of s.commits) {
+          const li = document.createElement('li');
+          li.innerHTML = `
+            <span class="upd-sha"><a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.short)}</a></span>
+            <span class="upd-msg">${esc(c.message)}</span>
+            <span class="upd-author">${esc(c.author)} · ${esc(relativeDate(c.date))}</span>
+          `;
+          list.appendChild(li);
+        }
+      } else {
+        changesCard.hidden = true;
+      }
+
+      // Show the right action card.
+      if (s.can_apply) {
+        applyCard.hidden = false;
+        cliCard.hidden = true;
+        const owner = s.repo?.owner || '';
+        const repo  = s.repo?.name  || 'pages-seo';
+        if (owner) {
+          $('#upd-sync-link').href = `https://github.com/${owner}/${repo}`;
+          $('#upd-sync-link').textContent = `${owner}/${repo}`;
+        }
+        $('#upd-token-link').href = TOKEN_LINK;
+      } else if (s.install_method === 'cli') {
+        applyCard.hidden = true;
+        cliCard.hidden = false;
+      } else {
+        applyCard.hidden = true;
+        cliCard.hidden = true;
+      }
+    }
+
+    async function check() {
+      const { status, body } = await api('/api/admin/update');
+      if (status !== 200 || !body?.ok) {
+        $('#upd-summary').innerHTML = `<div class="status bad">Couldn't reach GitHub: ${esc(body?.detail || body?.error || status)}</div>`;
+        return;
+      }
+      render(body);
+    }
+
+    async function apply() {
+      const token = $('#upd-token').value.trim();
+      const status = $('#upd-apply-status');
+      const btn = $('#upd-apply-go');
+      if (!token) { status.className = 'status bad'; status.textContent = 'Token required.'; return; }
+      btn.disabled = true;
+      status.className = 'status'; status.textContent = 'Triggering rebuild…';
+      const { status: code, body } = await api('/api/admin/update/apply', {
+        method: 'POST',
+        body: JSON.stringify({ token }),
+      });
+      btn.disabled = false;
+      if (code !== 200 || !body?.ok) {
+        status.className = 'status bad';
+        status.textContent = body?.detail || body?.error || ('HTTP ' + code);
+        return;
+      }
+      status.className = 'status good';
+      status.textContent = 'Rebuild kicked off. Cloudflare usually takes 1–3 minutes to publish.';
+      $('#upd-token').value = '';
+      // Re-check after a moment so the UI flips to "up to date".
+      setTimeout(check, 3000);
+    }
+
+    function bindOnce() {
+      if (bindOnce.done) return;
+      bindOnce.done = true;
+      $('#upd-apply-go').addEventListener('click', apply);
+    }
+
+    function init() {
+      bindOnce();
+      check();
+    }
+
+    // Light-weight check used by the boot path to populate the
+    // header badge without rendering the full pane. We just hit the
+    // GET endpoint and look at .ahead.
+    async function quietCheck() {
+      try {
+        const { status, body } = await api('/api/admin/update');
+        if (status !== 200 || !body?.ok) return;
+        const badge = $('#updates-badge');
+        if (!badge) return;
+        if (body.ahead && body.ahead > 0) {
+          badge.textContent = body.ahead;
+          badge.hidden = false;
+        } else {
+          badge.hidden = true;
+        }
+      } catch { /* ignore */ }
+    }
+
+    return { init, quietCheck };
   })();
 
   // ── content calendar ───────────────────────────────────────────

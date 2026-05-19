@@ -86,6 +86,15 @@ export const onRequestPost = async ({ env, request }) => {
   await setSetting(env, 'site_name_db', site_name);
   await setSetting(env, 'site_url_db',  site_url);
 
+  // 4b. Install metadata for the Updates tab. All optional — CLI
+  // installs supply none of these and the tab falls back gracefully.
+  if (body.install_method)       await setSetting(env, 'install_method',     String(body.install_method).slice(0, 16));
+  if (body.installed_sha)        await setSetting(env, 'installed_sha',      String(body.installed_sha).slice(0, 64));
+  if (body.install_repo_owner)   await setSetting(env, 'install_repo_owner', String(body.install_repo_owner).slice(0, 80));
+  if (body.install_repo_name)    await setSetting(env, 'install_repo_name',  String(body.install_repo_name).slice(0, 100));
+  if (body.install_cf_account)   await setSetting(env, 'install_cf_account', String(body.install_cf_account).slice(0, 64));
+  if (body.install_cf_project)   await setSetting(env, 'install_cf_project', String(body.install_cf_project).slice(0, 64));
+
   // 5. Create the first admin user.
   let creds;
   try { creds = await hashPassword(password); }

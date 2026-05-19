@@ -46,6 +46,19 @@ const FALLBACK = {
   // one-click deploy path). The Pages secret takes precedence.
   site_name_db:            () => '',
   site_url_db:             () => '',
+  // Update-check metadata. Written when the operator installs from
+  // /install (browser path) so the Updates admin tab can compare the
+  // installed commit to upstream HEAD and offer a one-click rebuild.
+  install_method:          () => '',   // 'browser' | 'cli' | ''
+  installed_sha:           () => '',   // upstream main commit SHA at install time
+  install_repo_owner:      () => '',   // user's GitHub fork owner
+  install_repo_name:       () => '',   // user's GitHub fork repo name
+  install_cf_account:      () => '',   // user's Cloudflare account id (no secrets)
+  install_cf_project:      () => '',   // user's Pages project slug
+  install_cf_token:        () => '',   // user's CF API token, encrypted via secret_vault
+  // Last time the user dismissed an "update available" badge — used to
+  // re-show after a fresh upstream commit (compared against latest sha).
+  update_dismissed_sha:    () => '',
   // How the daily blog chain produces its hero image.
   //   'ai'     = generate a fresh image with the AI provider (current default)
   //   'cover'  = render a saved cover template (uses the default template + post title)

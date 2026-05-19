@@ -491,8 +491,17 @@
       const url = data.pages_url || `https://${body.project}.pages.dev`;
       $('#done-url').textContent = url;
       $('#done-url-live').textContent = url;
-      const seedJson = JSON.stringify(data.seed || {
-        email: body.email, password: body.password, site_name: body.site_name,
+      const seedJson = JSON.stringify({
+        ...(data.seed || { email: body.email, password: body.password, site_name: body.site_name }),
+        // Update-check metadata. The new site reads these on first
+        // /admin load and stores them in settings so the Updates tab
+        // can compare upstream HEAD to the SHA installed today.
+        install_method:    'browser',
+        installed_sha:     data.installed_sha || '',
+        install_repo_owner: body.owner,
+        install_repo_name:  body.repo,
+        install_cf_account: data.account?.id || '',
+        install_cf_project: body.project,
       });
       const b64 = btoa(unescape(encodeURIComponent(seedJson)))
         .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
