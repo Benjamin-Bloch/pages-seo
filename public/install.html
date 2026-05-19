@@ -49,8 +49,25 @@
     <!-- ── Pane 1: token + details form ───────────────────────────── -->
     <section class="wiz-pane" id="pane-form">
       <div class="wiz-eyebrow">Install pages-seo on your Cloudflare account</div>
-      <h1 class="wiz-h1"><span class="serif-i">One</span> token,<br/>two minutes.</h1>
+      <h1 class="wiz-h1"><span class="serif-i">Install</span> pages-seo.</h1>
       <p class="wiz-lede">We'll provision a Pages project, a D1 database, an R2 bucket, and the Workers AI binding — all on your Cloudflare account. You'll get a working site at the end with the admin already seeded.</p>
+
+      <!-- Recommended path: the local CLI uses `wrangler pages deploy`
+           under the hood, which is the only public path that can
+           upload a Pages Functions bundle. Skips the GitHub App
+           dance entirely. The browser flow below still works, but
+           Cloudflare requires you to authorise the Workers & Pages
+           GitHub App on first use for it. -->
+      <div class="install-help" style="background:rgba(122,255,240,0.06);border:1px solid rgba(122,255,240,0.25);padding:14px 16px;border-radius:10px;margin:0 0 4px">
+        <p style="margin:0 0 8px"><b style="color:var(--accent)">Recommended:</b> install from your terminal in one command (~2 min):</p>
+        <pre style="margin:0 0 8px;padding:10px 12px;background:var(--bg-soft);border:1px solid var(--line);border-radius:6px;font-family:var(--mono);font-size:13px;color:var(--ink);overflow-x:auto">npx pages-seo-install</pre>
+        <p style="margin:0;color:var(--ink-faint);font-size:11px">Uses <code>wrangler login</code> (browser OAuth), no API token to copy. Works with Node 20+. <a href="https://github.com/Benjamin-Bloch/pages-seo/tree/main/cli" target="_blank" rel="noopener">Read more →</a></p>
+      </div>
+
+      <details class="wiz-details" style="margin-top:4px">
+        <summary>Or install in your browser (requires the Cloudflare Pages GitHub App)</summary>
+        <p class="install-help" style="margin:8px 0 0">The browser installer below uses an API token and creates a Pages project linked to the public <code>pages-seo</code> GitHub repo. Cloudflare requires you to install their <b>Workers &amp; Pages GitHub App</b> on your account before the linkage works — which is an extra step the CLI flow avoids.</p>
+      </details>
 
       <!-- Resume banner: shown when we find a stored draft from a
            previous visit (project slug + site name + email). Token

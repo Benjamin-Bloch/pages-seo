@@ -1,0 +1,24 @@
+{
+  "name": "pages-seo-install",
+  "version": "0.1.0",
+  "description": "One-command installer for pages-seo on Cloudflare. Provisions D1 + R2, deploys the site via wrangler, seeds your admin account.",
+  "type": "module",
+  "bin": {
+    "pages-seo-install": "./index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "author": "Benjamin Bloch <hi@benjaminb.xyz>",
+  "homepage": "https://seo.benjaminb.xyz",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Benjamin-Bloch/pages-seo.git",
+    "directory": "cli"
+  },
+  "keywords": ["cloudflare", "pages", "seo", "blog", "installer"],
+  "dependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

@@ -34,52 +34,50 @@ Plug in a URL (or a keyword list), point a cron at it, and `pages-seo` quietly p
 - **Cover image editor** — canvas-based crop, captions, badges, gradient overlay.
 - **Multi-AI registry** — Workers AI → OpenAI → Anthropic → Gemini → Groq → DeepSeek → Mistral → Together → Cerebras. Each is optional.
 
-## 🚀 5-minute setup
+## 🚀 Install in one command
+
+```bash
+npx pages-seo-install
+```
+
+That's it. The installer will:
+
+1. Check that `wrangler` is installed (offers to install it for you).
+2. Run `wrangler login` if needed — opens your browser, no API token to copy.
+3. Prompt for your project slug, site name, admin email, and password.
+4. Provision a D1 database and an R2 bucket on your Cloudflare account.
+5. Download the latest source, patch `wrangler.toml`, run `wrangler pages deploy` (which uploads both the static assets and the Functions bundle — no GitHub linkage needed).
+6. Set `SITE_NAME` and `SITE_URL` as Pages environment variables.
+7. Open your new site's `/admin` with the credentials baked into the URL hash, so the first-run setup card auto-creates your account.
+
+Total wall-clock time: about 2 minutes. The CLI is idempotent — re-run with the same slug if anything fails and it'll pick up from where it stopped. See [`cli/README.md`](./cli/README.md) for details.
+
+> [!TIP]
+> If you'd rather not run npx, the legacy `bash setup.sh` flow still works from a clone (provisions via Wrangler the same way) — see the section below.
+
+### Alternatives
+
+<details>
+<summary><b>Browser installer at <a href="https://seo.benjaminb.xyz/install">seo.benjaminb.xyz/install</a></b></summary>
+
+The browser flow uses a Cloudflare API token instead of `wrangler login`. It's another option if you can't run Node locally, but it requires you to authorise the **Cloudflare Workers & Pages GitHub App** on your account once (because the browser flow can't deploy Functions via Direct Upload — Cloudflare's public REST API doesn't expose that yet). The CLI above avoids that step entirely.
+</details>
+
+<details>
+<summary><b>From a clone with <code>bash setup.sh</code></b></summary>
 
 ```bash
 git clone https://github.com/Benjamin-Bloch/pages-seo
 cd pages-seo
 npm install -g wrangler && wrangler login
 
-# pick one — they all do the same thing
-npm run setup        # delegates to bash setup.sh
-# or:  bash setup.sh
-# or:  python3 setup.py
-# or:  node setup.js
+npm run setup        # or: bash setup.sh / python3 setup.py / node setup.js
 ```
 
-The setup script:
+Resumable — if a step fails, fix the issue and re-run. Delete `.setup-state` to start over.
+</details>
 
-1. Asks for a project name, site URL, admin email + password, and which AI providers you want to enable.
-2. Generates an `ADMIN_TOKEN` (recovery) + `INDEXNOW_KEY`.
-3. Creates the D1 database and R2 bucket.
-4. Patches `wrangler.toml` with your resource IDs.
-5. Applies the schema and seeds the admin user (PBKDF2-SHA256, 100k iterations).
-6. Pushes every secret to Cloudflare.
-7. Deploys the Pages site.
-8. Optionally deploys the cron Worker.
-
-When it finishes, open `https://<your-domain>/admin`, log in, and you're done.
-
-> [!TIP]
-> The script is **resumable** — if a step fails (network, auth, quota), fix the underlying issue and re-run. Already-done steps are skipped. Delete `.setup-state` to start over.
-
-### One-click deploy (Cloudflare)
-
-Prefer to skip the CLI? Three clicks gets you live:
-
-1. **Fork the repo** → click [Use this template](https://github.com/Benjamin-Bloch/pages-seo/generate) or fork normally.
-2. **Connect to Cloudflare Pages** — in the Cloudflare dashboard go to **Workers & Pages → Create → Pages → Connect to Git**, pick your fork, and accept the defaults (`pages_build_output_dir` is read from `wrangler.toml`).
-3. **Create the bindings** when prompted: a **D1 database** named `pages-seo`, an **R2 bucket** named `pages-seo-images`, and the **Workers AI** binding. Save and deploy.
-
-Open `https://<your-pages-domain>/admin` and the first-run setup card walks you through:
-- picking an admin email + password,
-- entering your site name + URL,
-- which auto-applies the schema, generates `ADMIN_TOKEN` and `INDEXNOW_KEY`, and seeds the first user — no SQL, no `wrangler pages secret put`.
-
-After that, the onboarding wizard takes over and walks you through Brand DNA → AI providers → 28-day content plan.
-
-**Daily automation** (optional): the cron Worker that drives the daily blog still lives in `cron-worker/` and needs `wrangler deploy` once. You can also just hit **"Run now"** from the admin dashboard until you're ready to automate.
+After install, the onboarding wizard walks you through Brand DNA → AI providers → 28-day content plan. **Daily automation** is optional — the cron Worker in `cron-worker/` needs `wrangler deploy` once for that, or just hit **Run now** from the admin dashboard whenever you want a fresh post.
 
 ## 🗓️ Content calendar
 
