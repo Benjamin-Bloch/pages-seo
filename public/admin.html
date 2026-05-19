@@ -40,6 +40,7 @@
       <button class="tab" data-tab="prog">Programmatic</button>
       <button class="tab" data-tab="seo">SEO</button>
       <button class="tab" data-tab="brand">Brand DNA</button>
+      <button class="tab" data-tab="links">Links</button>
       <button class="tab" data-tab="calendar">Calendar</button>
       <button class="tab" data-tab="usage">Usage</button>
       <button class="tab" data-tab="covers">Covers</button>
@@ -290,6 +291,32 @@
           <span id="brand-filter-status" class="status"></span>
         </div>
         <div id="brand-filter-results" class="filter-results" hidden></div>
+      </div>
+    </section>
+
+    <!-- ============ LINKS ============ -->
+    <section data-page="links" class="page" hidden>
+      <div class="cal-head">
+        <div>
+          <h2 class="cal-title">Internal links</h2>
+          <p class="cal-sub">Named shortcuts the AI uses inside generated posts. Empty by default — add the routes that exist on your site, and import every existing page from the sitemap with one click.</p>
+        </div>
+        <div class="cal-actions">
+          <button id="link-sync" class="btn btn-ghost" title="Import every published post + landing page as a link the AI can use">Sync from sitemap</button>
+          <button id="link-add" class="btn btn-primary">+ Add link</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-eyebrow">Curated links</div>
+        <p class="muted">Reserved names (<code>blog</code>, <code>home</code>, <code>rss</code>, <code>sitemap</code>) are always available. Add anything else the AI should reference — login pages, pricing, individual landing pages, anything.</p>
+        <div id="link-list-manual" class="link-list"><div class="muted">Loading…</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-eyebrow">From your sitemap</div>
+        <p class="muted">Auto-imported when you click "Sync". The AI sees these and may link to them where they fit the article naturally. Click sync after publishing new posts.</p>
+        <div id="link-list-sitemap" class="link-list link-list-compact"></div>
       </div>
     </section>
 
@@ -781,6 +808,32 @@
       </div>
       <div id="wiz-4-err" class="wiz-err"></div>
     </section>
+  </div>
+</div>
+
+<!-- Link editor modal -->
+<div id="link-modal" class="cal-modal-backdrop" hidden>
+  <div class="cal-modal">
+    <h3 id="link-modal-title">Add link</h3>
+    <label>Name <em class="muted">(the AI will use this in <code>[text](name)</code>)</em>
+      <input id="link-mod-name" type="text" placeholder="e.g. login" maxlength="40" autocomplete="off" />
+    </label>
+    <label>URL <em class="muted">(root-relative <code>/path</code> or absolute <code>https://…</code>)</em>
+      <input id="link-mod-url" type="text" placeholder="/login" autocomplete="off" />
+    </label>
+    <label>Description <em class="muted">(optional — helps the AI know when to use it)</em>
+      <textarea id="link-mod-desc" maxlength="300" placeholder="e.g. user sign-in page"></textarea>
+    </label>
+    <div class="cal-modal-actions">
+      <div class="left">
+        <button id="link-mod-delete" class="btn btn-ghost danger" hidden>Delete</button>
+      </div>
+      <div class="right">
+        <button id="link-mod-cancel" class="btn btn-ghost">Cancel</button>
+        <button id="link-mod-save" class="btn btn-primary">Save</button>
+      </div>
+    </div>
+    <div id="link-mod-err" class="status bad" style="min-height:18px"></div>
   </div>
 </div>
 

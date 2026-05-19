@@ -17,7 +17,7 @@ import { json } from '../../_lib/util.js';
 import { adminGate } from '../../_lib/auth.js';
 import { generateContent, generateImage } from '../../_lib/ai.js';
 import { sanitiseMarkdownLinks } from '../../_lib/links/sanitise.js';
-import { buildAliases } from '../../_lib/links/aliases.js';
+import { buildAliasMap } from '../../_lib/links/aliases.js';
 import { renderContentPage } from '../../_lib/page_render.js';
 import { loadSettings } from '../../_lib/settings.js';
 
@@ -43,7 +43,7 @@ export const onRequestPost = async ({ request, env }) => {
     key_themes:      body.brand?.key_themes      || settings.brand_key_themes      || undefined,
     topics_to_avoid: body.brand?.topics_to_avoid || settings.brand_topics_to_avoid || undefined,
     service_area:    body.brand?.service_area    || settings.brand_service_area    || undefined,
-    aliases: buildAliases(env),
+    aliases: await buildAliasMap(env),
   };
 
   let content;

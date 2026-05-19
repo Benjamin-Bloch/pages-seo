@@ -4,7 +4,7 @@ import { json, nowSec } from '../../../_lib/util.js';
 import { adminGate } from '../../../_lib/auth.js';
 import { generateContent } from '../../../_lib/ai.js';
 import { sanitiseMarkdownLinks } from '../../../_lib/links/sanitise.js';
-import { buildAliases } from '../../../_lib/links/aliases.js';
+import { buildAliasMap } from '../../../_lib/links/aliases.js';
 import { loadSettings } from '../../../_lib/settings.js';
 import { checkBudget } from '../../../_lib/usage.js';
 
@@ -37,7 +37,7 @@ export const onRequestPost = async ({ request, env }) => {
   // it into the prompt so the model can write [Sign up](signup) etc. After
   // the model returns, the sanitiser expands the aliases and validates
   // every link is on the whitelist before the row hits the DB.
-  const aliases = buildAliases(env);
+  const aliases = await buildAliasMap(env);
   const settings = await loadSettings(env);
 
   // Identify caller: cron Worker sends X-Source-Cron, otherwise treat

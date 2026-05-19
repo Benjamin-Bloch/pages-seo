@@ -293,3 +293,23 @@ CREATE INDEX IF NOT EXISTS idx_calendar_date_status
   ON content_calendar(scheduled_for, status);
 CREATE INDEX IF NOT EXISTS idx_calendar_status_date
   ON content_calendar(status, scheduled_for);
+
+-- Internal link aliases the AI prompt mentions by name. Empty by
+-- default — the operator adds entries from the Aliases admin tab.
+-- Two kinds:
+--   - manual: operator-curated (e.g. login → /login - "user sign-in")
+--   - sitemap: auto-imported references to a published blog post /
+--     programmatic page. These let the AI link to "/blog/<slug>" or
+--     "/p/<slug>" by a friendly name, without polluting the manual
+--     curation list.
+--
+-- When two rows share the same `name`, manual wins on lookup.
+CREATE TABLE IF NOT EXISTS site_aliases (
+  name            TEXT PRIMARY KEY,                -- lowercase identifier the AI uses
+  url             TEXT NOT NULL,                   -- absolute or root-relative URL
+  description     TEXT,                            -- short blurb shown to the LLM
+  kind            TEXT NOT NULL DEFAULT 'manual',  -- manual | sitemap
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_aliases_kind ON site_aliases(kind);

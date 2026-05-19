@@ -47,7 +47,12 @@ function isUrlSafe(url, allowedPrefixes) {
 
 export function sanitiseMarkdownLinks(md, opts = {}) {
   const allowedPrefixes = opts.allowedInternalPrefixes || DEFAULT_INTERNAL_PREFIXES;
-  const aliases = opts.aliases || {}; // { 'signup': '/signup', ... }
+  // Accept both flat ({name:url}) and rich ({name:{url,description}}) shapes.
+  const rawAliases = opts.aliases || {};
+  const aliases = {};
+  for (const [k, v] of Object.entries(rawAliases)) {
+    aliases[k.toLowerCase()] = (v && typeof v === 'object' && 'url' in v) ? v.url : v;
+  }
 
   let out = String(md || '');
 

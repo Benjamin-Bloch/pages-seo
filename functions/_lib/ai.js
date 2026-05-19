@@ -24,15 +24,36 @@ import { renderTemplate } from './template.js';
 
 // ── prompt builders ────────────────────────────────────────────────────
 
+// Accepts two shapes:
+//   { name: 'url' }                                     (legacy flat map)
+//   { name: { url, description, kind } }                (rich map)
+// Sitemap-imported entries get a separate sub-section so the LLM can
+// see existing posts at a glance and link to them when relevant.
 function aliasBlock(aliases) {
   if (!aliases || !Object.keys(aliases).length) return '';
-  const lines = Object.entries(aliases).map(([k, v]) => `  - "${k}" → ${v}`);
-  return [
+
+  const rich = (v) => (v && typeof v === 'object' && 'url' in v) ? v : { url: v, description: '', kind: 'manual' };
+  const entries = Object.entries(aliases).map(([k, v]) => [k, rich(v)]);
+
+  const curated = entries.filter(([, v]) => v.kind !== 'sitemap');
+  const sitemap = entries.filter(([, v]) => v.kind === 'sitemap');
+
+  const fmt = ([k, v]) => `  - "${k}" → ${v.url}${v.description ? ` — ${v.description}` : ''}`;
+  const parts = [
     'Internal link aliases — use these by their NAME inside markdown links,',
-    'e.g. write [Sign up here](signup) and the system expands the URL:',
-    lines.join('\n'),
+    'e.g. write [Sign up here](signup) and the system expands the URL.',
+    'Only link to names listed here; never invent paths.',
     '',
-  ].join('\n');
+    'Curated links:',
+    curated.length ? curated.map(fmt).join('\n') : '  (none yet — the operator hasn\'t configured any)',
+  ];
+  if (sitemap.length) {
+    parts.push('');
+    parts.push(`Existing pages on this site (you may link to any that genuinely fit the context — don't force them):`);
+    parts.push(sitemap.slice(0, 60).map(fmt).join('\n'));
+  }
+  parts.push('');
+  return parts.join('\n');
 }
 
 // Shared chunks used across both prompt builders.

@@ -8,7 +8,7 @@ import { adminGate } from '../../../_lib/auth.js';
 import { generateContent, generateImage } from '../../../_lib/ai.js';
 import { pingIndexNow } from '../../../_lib/indexnow.js';
 import { sanitiseMarkdownLinks } from '../../../_lib/links/sanitise.js';
-import { buildAliases } from '../../../_lib/links/aliases.js';
+import { buildAliasMap } from '../../../_lib/links/aliases.js';
 import { loadSettings } from '../../../_lib/settings.js';
 import { checkBudget } from '../../../_lib/usage.js';
 
@@ -32,7 +32,7 @@ export const onRequestPost = async ({ request, env, waitUntil }) => {
     "UPDATE prog_keywords SET status='processing', attempts=attempts+1, updated_at=? WHERE id=? AND status='pending'"
   ).bind(t0, next.id).run();
 
-  const aliases = buildAliases(env);
+  const aliases = await buildAliasMap(env);
   const settings = await loadSettings(env);
 
   // Budget check before we touch the LLM. Cron pulls a fresh keyword

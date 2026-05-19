@@ -44,7 +44,7 @@ function jsonLD({ site, post, host, kind }) {
   });
 }
 
-export function renderContentPage({ env, request, post, kind }) {
+export function renderContentPage({ env, request, post, kind, related = [] }) {
   const host = new URL(request.url).hostname;
   const site = brand(env);
   const urlPath = post.urlPath;
@@ -55,6 +55,26 @@ export function renderContentPage({ env, request, post, kind }) {
     ? `<img class="hero" src="/image/${esc(post.hero_image_key)}" alt="${esc(post.hero_image_alt || post.title)}" />`
     : '';
   const bodyHTML = renderMarkdown(post.body_markdown);
+
+  // "Read next" — only on /blog/<slug> pages and only when we have at
+  // least one sibling post to link to.
+  const relatedHTML = (kind === 'blog' && related.length) ? `
+<aside class="read-next">
+  <h2 class="read-next-title">Read next</h2>
+  <ul class="read-next-list">
+    ${related.map((r) => `
+      <li>
+        <a href="/blog/${esc(r.slug)}">
+          ${r.hero_image_key ? `<img src="/image/${esc(r.hero_image_key)}" alt="${esc(r.hero_image_alt || r.title)}" loading="lazy" />` : ''}
+          <div class="read-next-meta">
+            <h3>${esc(r.title)}</h3>
+            ${r.meta_description ? `<p>${esc(r.meta_description.slice(0, 140))}</p>` : ''}
+          </div>
+        </a>
+      </li>`).join('')}
+  </ul>
+</aside>` : '';
+
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -88,6 +108,7 @@ ${post.hero_image_key ? `<meta property="og:image" content="https://${host}/imag
   <div class="post-date">${esc(dateStr)}</div>
   ${heroImg}
   <article class="prose">${bodyHTML}</article>
+  ${relatedHTML}
 </main>
 <footer class="foot">
   <span>${esc(site.name)}</span> · <a href="/">Home</a> · <a href="/blog">Blog</a>

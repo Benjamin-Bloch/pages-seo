@@ -3,6 +3,7 @@ import { json, newId, nowSec, audit } from '../../../_lib/util.js';
 import { adminGate } from '../../../_lib/auth.js';
 import { markTopicUsed } from '../../../_lib/topics.js';
 import { pingIndexNow } from '../../../_lib/indexnow.js';
+import { syncSitemapAliases } from '../../../_lib/links/aliases.js';
 
 export const onRequestPost = async ({ request, env, waitUntil }) => {
   const gate = await adminGate(env, request); if (gate) return gate;
@@ -50,6 +51,9 @@ export const onRequestPost = async ({ request, env, waitUntil }) => {
     pingIndexNow(env, [`https://${host}/blog`, `https://${host}/blog/${job.slug}`], request)
       .catch(() => {})
   );
+  // Refresh the sitemap-kind alias rows so the next post's prompt can
+  // reference this one by slug. Best-effort; no need to block publish.
+  waitUntil(syncSitemapAliases(env).catch(() => {}));
   audit(env, 'admin', 'blog_publish', postId, { job_id: jobId, slug: job.slug });
   return json(200, { ok: true, status: 'published', blog_post_id: postId, slug: job.slug, title: job.title });
 };

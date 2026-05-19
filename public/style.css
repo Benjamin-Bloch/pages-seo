@@ -230,3 +230,45 @@ img { max-width: 100%; height: auto; display: block; }
   .post-shell .hero { aspect-ratio: 1.6; margin-bottom: 28px; }
   .foot { padding: 24px 20px 32px; }
 }
+
+/* ── Read next (end-of-post card grid) ──────────────────────────── */
+.read-next{
+  margin: 56px 0 0;
+  padding: 28px 0 0;
+  border-top: 1px solid var(--line);
+}
+.read-next-title{
+  font-family: var(--font-mono); font-weight: 500;
+  font-size: 0.78rem; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--muted);
+  margin: 0 0 18px;
+}
+.read-next-list{
+  list-style: none; padding: 0; margin: 0;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+.read-next-list li{ margin: 0 }
+.read-next-list a{
+  display: flex; flex-direction: column; gap: 12px;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 10px; padding: 14px; color: var(--ink); text-decoration: none;
+  transition: border-color .2s, transform .2s;
+  height: 100%;
+}
+.read-next-list a:hover{ border-color: var(--ink); transform: translateY(-2px); text-decoration: none; }
+.read-next-list img{
+  width: 100%; aspect-ratio: 1.6; object-fit: cover;
+  border-radius: 6px; background: var(--bg-2);
+}
+.read-next-meta h3{
+  font-size: 1rem; font-weight: 600; line-height: 1.3;
+  margin: 0 0 6px; letter-spacing: -0.005em; color: var(--ink);
+}
+.read-next-meta p{
+  margin: 0; color: var(--muted); font-size: 0.88rem; line-height: 1.5;
+}
+@media (max-width: 600px){
+  .read-next{ margin-top: 40px; padding-top: 24px; }
+  .read-next-list{ grid-template-columns: 1fr; }
+}

@@ -138,6 +138,7 @@
     if (name === 'prog') { loadQueue(); }
     if (name === 'seo') { renderWidgetSnippet(); }
     if (name === 'brand') { loadBrand(); }
+    if (name === 'links') { Links.init(); }
     if (name === 'calendar') { Calendar.init(); }
     if (name === 'usage') { loadUsage(); }
     if (name === 'covers') { Cover.init(); }
@@ -2052,6 +2053,174 @@
     // wizard if it hasn't been completed yet.
     Wizard.maybeAutoOpen();
   }
+
+  // ── links / aliases ────────────────────────────────────────────
+  // Manages the site_aliases table: named shortcuts the LLM uses
+  // inside markdown links. Three flavours surface in the UI:
+  //   - reserved (blog/home/rss/sitemap) — uneditable
+  //   - manual                            — operator-curated, full CRUD
+  //   - sitemap                           — auto-imported from blog/prog
+  //                                          pages via /api/admin/aliases/sync
+  const Links = (() => {
+    let aliases = [];
+    let editingName = null;
+
+    async function load() {
+      const { status, body } = await api('/api/admin/aliases');
+      if (status !== 200) {
+        $('#link-list-manual').innerHTML = '<div class="muted">Failed to load: ' + (body?.error || status) + '</div>';
+        return;
+      }
+      aliases = body.aliases || [];
+      render();
+    }
+
+    function render() {
+      const escH = (s) => String(s || '').replace(/[&<>"]/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' })[c]);
+      const manual = aliases.filter((a) => a.kind === 'manual' || a.kind === 'reserved');
+      const sitemap = aliases.filter((a) => a.kind === 'sitemap');
+
+      const wrap = $('#link-list-manual');
+      if (!manual.length) {
+        wrap.innerHTML = '<div class="muted">No curated links yet. Click <b>+ Add link</b> to teach the AI about a page.</div>';
+      } else {
+        wrap.innerHTML = '';
+        for (const a of manual) {
+          const row = document.createElement('div');
+          row.className = 'link-row' + (a.kind === 'reserved' ? ' is-reserved' : '');
+          row.innerHTML = `
+            <div class="link-name">${escH(a.name)}</div>
+            <div class="link-meta">
+              <span class="link-url">${escH(a.url)}</span>
+              ${a.description ? `<span class="link-desc">${escH(a.description)}</span>` : ''}
+            </div>
+            <span class="link-kind ${a.kind === 'reserved' ? 'is-reserved' : ''}">${escH(a.kind)}</span>
+            <button class="link-edit" type="button" data-name="${escH(a.name)}">Edit</button>
+          `;
+          wrap.appendChild(row);
+        }
+        wrap.querySelectorAll('.link-edit').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const name = btn.dataset.name;
+            const a = aliases.find((x) => x.name === name);
+            if (a && a.kind !== 'reserved') openModal(a);
+          });
+        });
+      }
+
+      const swrap = $('#link-list-sitemap');
+      if (!sitemap.length) {
+        swrap.innerHTML = '<div class="muted">No sitemap-imported links yet. Click <b>Sync from sitemap</b> after publishing a post.</div>';
+      } else {
+        swrap.innerHTML = '';
+        for (const a of sitemap.slice(0, 200)) {
+          const row = document.createElement('div');
+          row.className = 'link-row';
+          row.innerHTML = `
+            <div class="link-meta">
+              <span class="link-url">${escH(a.url)}</span>
+              ${a.description ? `<span class="link-desc">${escH(a.description)}</span>` : ''}
+            </div>
+            <span class="link-kind is-sitemap">sitemap</span>
+          `;
+          swrap.appendChild(row);
+        }
+        if (sitemap.length > 200) {
+          const more = document.createElement('div');
+          more.className = 'muted';
+          more.textContent = `+ ${sitemap.length - 200} more.`;
+          swrap.appendChild(more);
+        }
+      }
+    }
+
+    function openModal(a) {
+      editingName = a?.name || null;
+      $('#link-modal-title').textContent = editingName ? 'Edit link' : 'Add link';
+      $('#link-mod-name').value = a?.name || '';
+      $('#link-mod-name').disabled = !!editingName; // names are immutable once created
+      $('#link-mod-url').value  = a?.url  || '';
+      $('#link-mod-desc').value = a?.description || '';
+      $('#link-mod-delete').hidden = !editingName;
+      $('#link-mod-err').textContent = '';
+      $('#link-modal').hidden = false;
+      setTimeout(() => (editingName ? $('#link-mod-url') : $('#link-mod-name')).focus(), 30);
+    }
+    function closeModal() {
+      $('#link-modal').hidden = true;
+      editingName = null;
+    }
+
+    async function save() {
+      const name = $('#link-mod-name').value.trim().toLowerCase();
+      const url  = $('#link-mod-url').value.trim();
+      const desc = $('#link-mod-desc').value.trim();
+      const err  = $('#link-mod-err'); err.textContent = '';
+      if (!editingName) {
+        if (!/^[a-z0-9][a-z0-9_-]{0,40}$/.test(name)) {
+          err.textContent = 'Name: lowercase letters, digits, _ or -; up to 40 chars.'; return;
+        }
+      }
+      if (!url) { err.textContent = 'URL is required.'; return; }
+      let res;
+      if (editingName) {
+        res = await api('/api/admin/aliases', {
+          method: 'PATCH',
+          body: JSON.stringify({ name: editingName, url, description: desc }),
+        });
+      } else {
+        res = await api('/api/admin/aliases', {
+          method: 'POST',
+          body: JSON.stringify({ name, url, description: desc }),
+        });
+      }
+      if (res.status !== 200) { err.textContent = res.body?.detail || res.body?.error || 'Save failed'; return; }
+      closeModal();
+      load();
+    }
+
+    async function remove() {
+      if (!editingName) return;
+      if (!confirm(`Delete link "${editingName}"?`)) return;
+      const res = await api('/api/admin/aliases?name=' + encodeURIComponent(editingName), { method: 'DELETE' });
+      if (res.status !== 200) { $('#link-mod-err').textContent = res.body?.error || 'Delete failed'; return; }
+      closeModal();
+      load();
+    }
+
+    async function sync() {
+      const btn = $('#link-sync'); const orig = btn.textContent;
+      btn.disabled = true; btn.textContent = 'Syncing…';
+      const res = await api('/api/admin/aliases/sync', { method: 'POST' });
+      btn.disabled = false; btn.textContent = orig;
+      if (res.status === 200) {
+        const r = res.body;
+        const msg = `Sitemap synced — ${r.added || 0} added, ${r.removed || 0} removed (${r.total || 0} total).`;
+        btn.textContent = '✓ ' + msg.slice(0, 50);
+        setTimeout(() => { btn.textContent = orig; }, 3000);
+      } else {
+        alert(res.body?.error || 'Sync failed');
+      }
+      load();
+    }
+
+    function bindOnce() {
+      if (bindOnce.done) return;
+      bindOnce.done = true;
+      $('#link-add').addEventListener('click', () => openModal(null));
+      $('#link-sync').addEventListener('click', sync);
+      $('#link-mod-save').addEventListener('click', save);
+      $('#link-mod-cancel').addEventListener('click', closeModal);
+      $('#link-mod-delete').addEventListener('click', remove);
+      $('#link-modal').addEventListener('click', (e) => { if (e.target.id === 'link-modal') closeModal(); });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !$('#link-modal').hidden) closeModal();
+      });
+    }
+
+    function init() { bindOnce(); load(); }
+    return { init };
+  })();
 
   // ── onboarding wizard ──────────────────────────────────────────
   // First-login guided setup. Walks new operators through:
