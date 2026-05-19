@@ -588,3 +588,141 @@ em.optional{font-style:normal;color:var(--ink-faint);font-size:11px;letter-spaci
   .cal-slot{font-size:11px;padding:4px 6px}
   .cal-week-head span{font-size:9px}
 }
+
+/* ── Onboarding wizard ───────────────────────────────────────────── */
+.wiz{
+  position:fixed;inset:0;z-index:100;
+  background:radial-gradient(900px 500px at 50% 20%, var(--accent-soft), transparent 70%) var(--bg);
+  display:flex;align-items:flex-start;justify-content:center;
+  padding:48px 20px;overflow-y:auto;
+}
+.wiz[hidden]{display:none}
+.wiz-shell{
+  position:relative;width:min(720px,100%);
+  background:var(--bg-card);border:1px solid var(--line-2);
+  border-radius:16px;padding:36px 40px;
+  display:flex;flex-direction:column;gap:18px;
+  box-shadow:0 30px 80px -20px rgba(0,0,0,0.5);
+}
+.wiz-skip{
+  position:absolute;top:16px;right:18px;
+  background:transparent;border:0;color:var(--ink-faint);
+  font:inherit;font-size:12px;cursor:pointer;letter-spacing:.04em;
+  text-transform:uppercase;font-family:var(--mono);
+}
+.wiz-skip:hover{color:var(--ink-dim)}
+
+.wiz-head{margin:0 0 8px}
+.wiz-steps{
+  list-style:none;padding:0;margin:0;
+  display:flex;gap:6px;align-items:center;
+  font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.08em;
+}
+.wiz-step{
+  flex:1;display:flex;align-items:center;gap:8px;
+  padding:8px 10px;border-radius:8px;
+  color:var(--ink-faint);background:var(--bg-soft);
+  border:1px solid var(--line);transition:color .2s,border-color .2s,background .2s;
+}
+.wiz-step span{
+  width:20px;height:20px;border-radius:50%;flex-shrink:0;
+  background:var(--bg-card);border:1px solid var(--line-2);
+  display:inline-flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:600;color:var(--ink-dim);
+}
+.wiz-step b{font-weight:500;font-size:11px}
+.wiz-step.is-current{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+.wiz-step.is-current span{background:var(--accent);color:#06080d;border-color:var(--accent)}
+.wiz-step.is-done{color:var(--good);border-color:rgba(122,252,166,0.3)}
+.wiz-step.is-done span{background:rgba(122,252,166,0.2);color:var(--good);border-color:rgba(122,252,166,0.3)}
+
+.wiz-pane{display:flex;flex-direction:column;gap:14px;animation:wiz-fade .2s ease}
+@keyframes wiz-fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.wiz-h{margin:0;font-size:24px;font-weight:600;letter-spacing:-0.015em;line-height:1.2}
+.wiz-p{margin:0;color:var(--ink-dim);font-size:14px;line-height:1.55}
+
+.wiz-field{display:flex;flex-direction:column;gap:6px}
+.wiz-field span{
+  font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.06em;
+  font-family:var(--mono);
+}
+.wiz-field span em{font-style:normal;color:var(--ink-faint);text-transform:none;letter-spacing:0;font-family:var(--sans)}
+.wiz-field input, .wiz-field textarea{
+  background:var(--bg-soft);border:1px solid var(--line-2);border-radius:8px;
+  padding:11px 14px;color:var(--ink);font:inherit;font-size:14px;
+}
+.wiz-field input:focus,.wiz-field textarea:focus{outline:none;border-color:var(--accent)}
+.wiz-field textarea{resize:vertical;line-height:1.55}
+
+.wiz-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.wiz-row-optional{margin-top:4px}
+.wiz-actions{
+  display:flex;justify-content:space-between;align-items:center;
+  gap:8px;margin-top:6px;
+}
+.wiz-actions .btn{font-size:14px;padding:11px 22px}
+.wiz-err{color:var(--bad);font-size:13px;min-height:16px;margin:0}
+.wiz-loading{
+  padding:24px;text-align:center;color:var(--ink-dim);font-size:14px;
+  background:var(--bg-soft);border:1px solid var(--line);border-radius:10px;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+}
+.wiz-loading::before{
+  content:"";width:16px;height:16px;border-radius:50%;
+  border:2px solid var(--line-2);border-top-color:var(--accent);
+  animation:wiz-spin .8s linear infinite;
+}
+@keyframes wiz-spin{to{transform:rotate(360deg)}}
+
+.wiz-provs{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.wiz-prov{
+  display:flex;flex-direction:column;gap:6px;padding:12px 14px;
+  background:var(--bg-soft);border:1px solid var(--line);border-radius:10px;
+  transition:border-color .15s;
+}
+.wiz-prov.is-set{border-color:var(--good)}
+.wiz-prov-head{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.wiz-prov-head b{font-size:13px;font-weight:600}
+.wiz-prov-head .wiz-prov-pill{
+  font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;
+  padding:2px 6px;border-radius:4px;color:var(--ink-faint);
+  background:transparent;border:1px solid var(--line);
+}
+.wiz-prov.is-set .wiz-prov-pill{color:var(--good);border-color:rgba(122,252,166,0.4);background:rgba(122,252,166,0.08)}
+.wiz-prov input{
+  background:var(--bg-card);border:1px solid var(--line-2);border-radius:6px;
+  padding:8px 10px;color:var(--ink);font:inherit;font-size:12px;font-family:var(--mono);
+}
+.wiz-prov input:focus{outline:none;border-color:var(--accent)}
+.wiz-prov .wiz-prov-hint{font-size:11px;color:var(--ink-faint)}
+
+.wiz-plan-list{
+  list-style:none;margin:0;padding:8px 0;max-height:340px;overflow-y:auto;
+  display:flex;flex-direction:column;gap:8px;
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+}
+.wiz-plan-list li{
+  display:flex;align-items:flex-start;gap:10px;
+  padding:10px 12px;background:var(--bg-soft);border:1px solid var(--line);border-radius:8px;
+  font-size:13px;line-height:1.45;
+}
+.wiz-plan-date{
+  font-family:var(--mono);font-size:10px;color:var(--ink-faint);
+  letter-spacing:.06em;text-transform:uppercase;
+  white-space:nowrap;padding-top:1px;flex-shrink:0;min-width:78px;
+}
+.wiz-plan-title{flex:1;color:var(--ink);font-weight:500}
+.wiz-plan-kw{
+  display:block;font-size:11px;color:var(--ink-faint);margin-top:2px;font-weight:400;
+}
+
+.topbar-tools{display:flex;gap:6px;align-items:center}
+
+@media (max-width:600px){
+  .wiz-shell{padding:24px 22px;border-radius:12px}
+  .wiz-h{font-size:20px}
+  .wiz-row{grid-template-columns:1fr}
+  .wiz-steps{gap:4px}
+  .wiz-step b{display:none}
+  .wiz-step{flex:0;padding:8px 10px;border-radius:50%;width:36px;height:36px;justify-content:center}
+}

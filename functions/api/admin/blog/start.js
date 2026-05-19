@@ -11,6 +11,7 @@
 import { json, newId, nowSec, audit } from '../../../_lib/util.js';
 import { adminGate } from '../../../_lib/auth.js';
 import { pickNextTopic } from '../../../_lib/topics.js';
+import { planSingleForToday } from '../../../_lib/calendar_planner.js';
 
 function todayUtc() { return new Date().toISOString().slice(0, 10); }
 
@@ -44,7 +45,13 @@ export const onRequestPost = async ({ request, env }) => {
     }
   } else if (body.from_calendar) {
     slot = await nextDueSlot(env);
-    // No due slot is OK — fall through to legacy topic picker.
+    // Empty calendar? Plan one fresh idea for today on the fly. Keeps
+    // the daily cron self-healing — even if the operator forgets to
+    // re-plan, the next run still produces something on-brand.
+    if (!slot) {
+      slot = await planSingleForToday(env, { source: 'cron-jit' }).catch(() => null);
+    }
+    // Still nothing? Fall through to legacy topic picker.
   } else if (body.topic_key && body.angle) {
     topic = { key: String(body.topic_key), angle: String(body.angle) };
   }

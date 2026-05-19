@@ -46,7 +46,10 @@
       <button class="tab" data-tab="embeds">Embeds</button>
       <button class="tab" data-tab="settings">Settings</button>
     </nav>
-    <button id="lock" class="btn btn-ghost btn-sm">Sign out</button>
+    <div class="topbar-tools">
+      <button id="open-wizard" class="btn btn-ghost btn-sm" title="Re-run the onboarding wizard">Setup wizard</button>
+      <button id="lock" class="btn btn-ghost btn-sm">Sign out</button>
+    </div>
   </header>
 
   <main class="pages">
@@ -689,6 +692,96 @@
     </section>
 
   </main>
+</div>
+
+<!-- Onboarding wizard. Hidden until admin.js decides whether to show
+     it (first login with no Brand DNA → auto-open). The "Help → Run
+     onboarding again" entry can re-open it for repeat passes. -->
+<div id="wiz" class="wiz" hidden>
+  <div class="wiz-shell">
+    <button id="wiz-skip" class="wiz-skip" type="button" title="Skip onboarding">Skip for now</button>
+
+    <header class="wiz-head">
+      <ol class="wiz-steps" aria-label="Onboarding progress">
+        <li class="wiz-step" data-step="1"><span>1</span><b>Welcome</b></li>
+        <li class="wiz-step" data-step="2"><span>2</span><b>Brand DNA</b></li>
+        <li class="wiz-step" data-step="3"><span>3</span><b>AI providers</b></li>
+        <li class="wiz-step" data-step="4"><span>4</span><b>Content plan</b></li>
+      </ol>
+    </header>
+
+    <!-- Step 1: Welcome + URL -->
+    <section class="wiz-pane" data-pane="1">
+      <h2 class="wiz-h">Let's get your blog on autopilot.</h2>
+      <p class="wiz-p">Paste your website URL and we'll read your homepage to build a Brand DNA — the voice, audience, and themes every future post inherits. Takes ~30 seconds.</p>
+      <label class="wiz-field">
+        <span>Your website</span>
+        <input id="wiz-url" type="url" placeholder="https://example.com" autocomplete="url" />
+      </label>
+      <div class="wiz-row wiz-row-optional">
+        <label class="wiz-field">
+          <span>Service area <em>(optional)</em></span>
+          <input id="wiz-service-area" type="text" placeholder="e.g. London or UK-wide" />
+        </label>
+        <label class="wiz-field">
+          <span>Topics to avoid <em>(optional)</em></span>
+          <input id="wiz-avoid" type="text" placeholder="e.g. competitor names" />
+        </label>
+      </div>
+      <div class="wiz-actions">
+        <span></span>
+        <button id="wiz-go-2" class="btn btn-primary" type="button">Generate brand DNA →</button>
+      </div>
+      <div id="wiz-1-err" class="wiz-err"></div>
+    </section>
+
+    <!-- Step 2: Review brand DNA -->
+    <section class="wiz-pane" data-pane="2" hidden>
+      <h2 class="wiz-h">Here's how we read your brand.</h2>
+      <p class="wiz-p">Quick scan — tweak anything that's wrong, then save. These fields flow into every prompt the toolkit ever sends.</p>
+      <div id="wiz-brand-loading" class="wiz-loading" hidden>Reading <span id="wiz-loading-url"></span>…</div>
+      <div id="wiz-brand-fields" hidden>
+        <label class="wiz-field"><span>What you do</span><textarea id="wiz-b-business" rows="4" maxlength="2400"></textarea></label>
+        <label class="wiz-field"><span>Voice / tone</span><textarea id="wiz-b-voice" rows="3" maxlength="1200"></textarea></label>
+        <label class="wiz-field"><span>Target audience</span><textarea id="wiz-b-audience" rows="3" maxlength="2000"></textarea></label>
+        <label class="wiz-field"><span>Key themes <em>(one per line)</em></span><textarea id="wiz-b-themes" rows="4" maxlength="1200"></textarea></label>
+        <div class="wiz-row">
+          <label class="wiz-field"><span>Service area</span><input id="wiz-b-area" type="text" maxlength="400" /></label>
+          <label class="wiz-field"><span>Topics to avoid</span><input id="wiz-b-avoid" type="text" maxlength="600" /></label>
+        </div>
+      </div>
+      <div class="wiz-actions">
+        <button class="btn btn-ghost" type="button" data-wiz-back="1">← Back</button>
+        <button id="wiz-go-3" class="btn btn-primary" type="button" disabled>Save & continue →</button>
+      </div>
+      <div id="wiz-2-err" class="wiz-err"></div>
+    </section>
+
+    <!-- Step 3: Providers -->
+    <section class="wiz-pane" data-pane="3" hidden>
+      <h2 class="wiz-h">Pick your AI engines.</h2>
+      <p class="wiz-p">Workers AI is built in and free up to the daily limit. Paste a key for any cloud provider and it joins the fallback chain — leave them blank to start.</p>
+      <div id="wiz-providers" class="wiz-provs"></div>
+      <div class="wiz-actions">
+        <button class="btn btn-ghost" type="button" data-wiz-back="2">← Back</button>
+        <button id="wiz-go-4" class="btn btn-primary" type="button">Continue →</button>
+      </div>
+      <div id="wiz-3-err" class="wiz-err"></div>
+    </section>
+
+    <!-- Step 4: Content plan -->
+    <section class="wiz-pane" data-pane="4" hidden>
+      <h2 class="wiz-h">Your first month, planned.</h2>
+      <p class="wiz-p">We've drafted 28 article ideas from your brand DNA. Glance through; you can swap or remove any of them later from the Calendar tab.</p>
+      <div id="wiz-plan-loading" class="wiz-loading">Planning your content calendar…</div>
+      <ol id="wiz-plan-list" class="wiz-plan-list" hidden></ol>
+      <div class="wiz-actions">
+        <button class="btn btn-ghost" type="button" data-wiz-back="3">← Back</button>
+        <button id="wiz-done" class="btn btn-primary" type="button" disabled>Open my dashboard →</button>
+      </div>
+      <div id="wiz-4-err" class="wiz-err"></div>
+    </section>
+  </div>
 </div>
 
 <!-- Slot editor modal (calendar) -->

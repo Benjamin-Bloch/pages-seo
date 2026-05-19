@@ -2044,8 +2044,258 @@
     const cPlan = $('#cal-plan'); if (cPlan) cPlan.addEventListener('click', () => Calendar.regenerate());
     const cNew = $('#cal-new'); if (cNew) cNew.addEventListener('click', () => Calendar.openModal({ scheduled_for: Calendar.todayIso() }));
 
+    // topbar
+    const ow = $('#open-wizard'); if (ow) ow.addEventListener('click', () => Wizard.open());
+
     activateTab('overview');
+    // First-login auto-launch — check onboarding state and offer the
+    // wizard if it hasn't been completed yet.
+    Wizard.maybeAutoOpen();
   }
+
+  // ── onboarding wizard ──────────────────────────────────────────
+  // First-login guided setup. Walks new operators through:
+  //   1. Welcome + paste your site URL
+  //   2. Generate + review Brand DNA
+  //   3. (Optional) paste cloud-provider API keys
+  //   4. Auto-plan 28-day calendar, preview it, then mark complete
+  // Reuses the existing /api/admin/brand-dna, /api/admin/secrets, and
+  // /api/admin/calendar/plan endpoints — the wizard is just a flow,
+  // not new server-side logic.
+  const Wizard = (() => {
+    let brand = {};
+
+    function show(n) {
+      $$('.wiz-pane').forEach((el) => { el.hidden = parseInt(el.dataset.pane, 10) !== n; });
+      $$('.wiz-step').forEach((el) => {
+        const k = parseInt(el.dataset.step, 10);
+        el.classList.toggle('is-current', k === n);
+        el.classList.toggle('is-done', k < n);
+      });
+    }
+
+    function open() {
+      $('#wiz').hidden = false;
+      show(1);
+      // Pre-populate URL with the saved brand source_url if any.
+      api('/api/admin/brand-dna').then(({ status, body }) => {
+        if (status === 200 && body.brand?.source_url && !$('#wiz-url').value) {
+          $('#wiz-url').value = body.brand.source_url;
+        }
+      }).catch(() => {});
+    }
+
+    function close() {
+      $('#wiz').hidden = true;
+    }
+
+    async function maybeAutoOpen() {
+      try {
+        const { status, body } = await api('/api/admin/onboarding');
+        if (status !== 200) return;
+        if (!body.complete) open();
+      } catch { /* offline / first-run db not ready */ }
+    }
+
+    // ── step 1 → step 2 (generate brand DNA) ──────────────────────
+    async function step1Next() {
+      const url = $('#wiz-url').value.trim();
+      const err = $('#wiz-1-err');
+      err.textContent = '';
+      if (!/^https?:\/\/.+/i.test(url)) { err.textContent = 'Please enter a full URL starting with https://'; return; }
+      const btn = $('#wiz-go-2');
+      btn.disabled = true; btn.textContent = 'Generating…';
+      // Switch to step 2 with loading state; populate fields once back.
+      show(2);
+      $('#wiz-brand-loading').hidden = false;
+      $('#wiz-brand-fields').hidden = true;
+      $('#wiz-loading-url').textContent = new URL(url).hostname;
+      $('#wiz-go-3').disabled = true;
+      const { status, body } = await api('/api/admin/brand-dna', {
+        method: 'POST',
+        body: JSON.stringify({
+          url,
+          service_area:     $('#wiz-service-area').value.trim(),
+          topics_to_avoid:  $('#wiz-avoid').value.trim(),
+        }),
+      });
+      btn.disabled = false; btn.textContent = 'Generate brand DNA →';
+      if (status !== 200 || !body?.brand) {
+        $('#wiz-brand-loading').hidden = true;
+        const msg = body?.detail || body?.error || 'Generation failed.';
+        $('#wiz-2-err').textContent = msg;
+        show(1);
+        err.textContent = msg;
+        return;
+      }
+      brand = body.brand;
+      $('#wiz-b-business').value = brand.business_type || '';
+      $('#wiz-b-voice').value    = brand.voice_tone || '';
+      $('#wiz-b-audience').value = brand.target_audience || '';
+      $('#wiz-b-themes').value   = brand.key_themes || '';
+      $('#wiz-b-area').value     = brand.service_area || '';
+      $('#wiz-b-avoid').value    = brand.topics_to_avoid || '';
+      $('#wiz-brand-loading').hidden = true;
+      $('#wiz-brand-fields').hidden = false;
+      $('#wiz-go-3').disabled = false;
+      brand.source_url = url;
+    }
+
+    // ── step 2 → step 3 (save brand DNA, load providers) ──────────
+    async function step2Next() {
+      const errEl = $('#wiz-2-err'); errEl.textContent = '';
+      const btn = $('#wiz-go-3'); btn.disabled = true; btn.textContent = 'Saving…';
+      const payload = {
+        business_type:    $('#wiz-b-business').value.trim(),
+        voice_tone:       $('#wiz-b-voice').value.trim(),
+        target_audience:  $('#wiz-b-audience').value.trim(),
+        key_themes:       $('#wiz-b-themes').value.trim(),
+        service_area:     $('#wiz-b-area').value.trim(),
+        topics_to_avoid:  $('#wiz-b-avoid').value.trim(),
+        source_url:       brand.source_url || '',
+      };
+      const { status, body } = await api('/api/admin/brand-dna', {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+      btn.disabled = false; btn.textContent = 'Save & continue →';
+      if (status !== 200) { errEl.textContent = body?.error || 'Save failed.'; return; }
+
+      // Load provider state for step 3. Keys whose source is 'unset'
+      // are not yet configured; anything else (pages-secret, vault) is.
+      const secretsR = await api('/api/admin/secrets');
+      const keys = secretsR.body?.keys || {};
+      const configured = new Set(
+        Object.entries(keys).filter(([, v]) => v && v !== 'unset').map(([k]) => k)
+      );
+      renderProviders(configured);
+      show(3);
+    }
+
+    function renderProviders(configured) {
+      const grid = $('#wiz-providers');
+      grid.innerHTML = '';
+      const opts = [
+        { name: 'openai',    label: 'OpenAI',           envKey: 'OPENAI_API_KEY' },
+        { name: 'anthropic', label: 'Anthropic Claude', envKey: 'ANTHROPIC_API_KEY' },
+        { name: 'gemini',    label: 'Google Gemini',    envKey: 'GEMINI_API_KEY' },
+        { name: 'groq',      label: 'Groq',             envKey: 'GROQ_API_KEY' },
+        { name: 'deepseek',  label: 'DeepSeek',         envKey: 'DEEPSEEK_API_KEY' },
+        { name: 'mistral',   label: 'Mistral',          envKey: 'MISTRAL_API_KEY' },
+        { name: 'together',  label: 'Together',         envKey: 'TOGETHER_API_KEY' },
+        { name: 'cerebras',  label: 'Cerebras',         envKey: 'CEREBRAS_API_KEY' },
+      ];
+      // Workers AI banner always-on note.
+      const banner = document.createElement('div');
+      banner.className = 'wiz-prov is-set';
+      banner.style.gridColumn = '1 / -1';
+      banner.innerHTML = '<div class="wiz-prov-head"><b>Cloudflare Workers AI</b><span class="wiz-prov-pill">Built in</span></div><div class="wiz-prov-hint">Llama 3.3 70B for text · Flux 1 schnell for images. No key needed.</div>';
+      grid.appendChild(banner);
+
+      for (const p of opts) {
+        const isSet = configured.has(p.envKey);
+        const card = document.createElement('div');
+        card.className = 'wiz-prov' + (isSet ? ' is-set' : '');
+        card.innerHTML = `
+          <div class="wiz-prov-head">
+            <b>${p.label}</b>
+            <span class="wiz-prov-pill">${isSet ? 'Saved' : 'Optional'}</span>
+          </div>
+          <input type="password" placeholder="${isSet ? '••••••••  (already saved)' : 'Paste API key'}" data-prov="${p.envKey}" autocomplete="off" />
+        `;
+        grid.appendChild(card);
+      }
+    }
+
+    async function step3Next() {
+      const errEl = $('#wiz-3-err'); errEl.textContent = '';
+      const inputs = $$('[data-prov]');
+      const toSave = inputs
+        .map((el) => ({ key: el.dataset.prov, val: el.value.trim() }))
+        .filter((p) => p.val.length > 0);
+      const btn = $('#wiz-go-4'); btn.disabled = true; btn.textContent = 'Saving…';
+      for (const p of toSave) {
+        await api('/api/admin/secrets', {
+          method: 'POST',
+          body: JSON.stringify({ name: p.key, value: p.val }),
+        }).catch(() => {});
+      }
+      btn.disabled = false; btn.textContent = 'Continue →';
+
+      show(4);
+      // Kick off the planner. We don't pass replace:true — if the
+      // user re-runs the wizard later, we keep existing scheduled
+      // slots and only top up gaps.
+      $('#wiz-plan-loading').hidden = false;
+      $('#wiz-plan-list').hidden = true;
+      $('#wiz-done').disabled = true;
+      const { status, body } = await api('/api/admin/calendar/plan', {
+        method: 'POST',
+        body: JSON.stringify({ days: 28, replace: false }),
+      });
+      $('#wiz-plan-loading').hidden = true;
+      if (status !== 200) {
+        $('#wiz-4-err').textContent = body?.detail || body?.error || 'Planning failed.';
+        $('#wiz-done').disabled = false;
+        return;
+      }
+      renderPlan(body.slots || []);
+      $('#wiz-done').disabled = false;
+    }
+
+    function renderPlan(slots) {
+      const list = $('#wiz-plan-list');
+      list.innerHTML = '';
+      if (!slots.length) {
+        const li = document.createElement('li');
+        li.innerHTML = '<span class="wiz-plan-title">No new slots needed — your calendar already has upcoming content.</span>';
+        list.appendChild(li);
+      } else {
+        const monthsShort = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        for (const s of slots) {
+          const li = document.createElement('li');
+          const dt = new Date(s.scheduled_for + 'T00:00:00Z');
+          const dateLabel = `${dt.getUTCDate()} ${monthsShort[dt.getUTCMonth()]}`;
+          li.innerHTML = `<span class="wiz-plan-date">${dateLabel}</span><div class="wiz-plan-title">${esc(s.title)}${s.primary_keyword ? `<span class="wiz-plan-kw">→ ${esc(s.primary_keyword)}</span>` : ''}</div>`;
+          list.appendChild(li);
+        }
+      }
+      list.hidden = false;
+    }
+
+    function esc(s) {
+      return String(s || '').replace(/[&<>"]/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' })[c]);
+    }
+
+    async function done() {
+      await api('/api/admin/onboarding', { method: 'POST' }).catch(() => {});
+      close();
+      // If the user landed on overview, refresh; if on calendar, reload.
+      activateTab('calendar');
+    }
+
+    async function skip() {
+      // Skipping still marks complete so we don't nag on every login.
+      await api('/api/admin/onboarding', { method: 'POST' }).catch(() => {});
+      close();
+    }
+
+    function bindOnce() {
+      if (bindOnce.done) return;
+      bindOnce.done = true;
+      $('#wiz-go-2').addEventListener('click', step1Next);
+      $('#wiz-go-3').addEventListener('click', step2Next);
+      $('#wiz-go-4').addEventListener('click', step3Next);
+      $('#wiz-done').addEventListener('click', done);
+      $('#wiz-skip').addEventListener('click', skip);
+      $$('[data-wiz-back]').forEach((el) => {
+        el.addEventListener('click', () => show(parseInt(el.dataset.wizBack, 10)));
+      });
+    }
+
+    bindOnce();
+    return { open, close, maybeAutoOpen };
+  })();
 
   // ── content calendar ───────────────────────────────────────────
   const Calendar = (() => {

@@ -30,6 +30,12 @@ const FALLBACK = {
   brand_service_area:      () => '',
   brand_source_url:        () => '', // the URL we scraped (informational)
   brand_generated_at:      () => '', // ISO timestamp of last generation
+  // Onboarding wizard completion flag. Empty until the first admin
+  // signs off the wizard; we use that to decide whether to launch the
+  // wizard on next login. Set explicitly via /api/admin/onboarding so
+  // re-running the wizard requires intent (operator opens it from the
+  // help menu).
+  onboarding_complete:     () => '',
   // How the daily blog chain produces its hero image.
   //   'ai'     = generate a fresh image with the AI provider (current default)
   //   'cover'  = render a saved cover template (uses the default template + post title)
