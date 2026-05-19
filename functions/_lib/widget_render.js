@@ -1,4 +1,4 @@
-// Shared Soro-style blog-embed widget renderer.
+// Shared blog-embed widget renderer.
 //
 // Consumers:
 //   /widget.js           → generic widget; uses site name + latest posts

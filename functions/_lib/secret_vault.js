@@ -22,6 +22,8 @@
 //   2. vault row decrypted with current ADMIN_TOKEN
 //   3. undefined
 
+import { getAdminToken } from './admin_token.js';
+
 const PBKDF2_SALT = new TextEncoder().encode('pages-seo:vault:v1');
 const PBKDF2_ITER = 100_000;
 const IV_BYTES = 12;
@@ -69,8 +71,9 @@ function fromB64(s) {
 }
 
 export async function encryptValue(env, plaintext) {
-  if (!env?.ADMIN_TOKEN) throw new Error('admin_token_missing');
-  const key = await deriveKey(env.ADMIN_TOKEN);
+  const adminToken = await getAdminToken(env);
+  if (!adminToken) throw new Error('admin_token_missing');
+  const key = await deriveKey(adminToken);
   const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
   const ct = new Uint8Array(await crypto.subtle.encrypt(
     { name: 'AES-GCM', iv },
@@ -84,8 +87,9 @@ export async function encryptValue(env, plaintext) {
 }
 
 export async function decryptValue(env, packedB64) {
-  if (!env?.ADMIN_TOKEN) throw new Error('admin_token_missing');
-  const key = await deriveKey(env.ADMIN_TOKEN);
+  const adminToken = await getAdminToken(env);
+  if (!adminToken) throw new Error('admin_token_missing');
+  const key = await deriveKey(adminToken);
   const packed = fromB64(packedB64);
   if (packed.length < IV_BYTES + 16) throw new Error('ciphertext_too_short');
   const iv = packed.slice(0, IV_BYTES);

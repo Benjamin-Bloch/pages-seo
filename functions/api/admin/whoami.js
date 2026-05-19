@@ -12,16 +12,32 @@ import { json } from '../../_lib/util.js';
 import { requireAdminAsync } from '../../_lib/auth.js';
 import { missingConfig, configError } from '../../_lib/config.js';
 
+import { getSiteIdentity } from '../../_lib/site_identity.js';
+
 export const onRequestGet = async ({ request, env }) => {
-  const missing = missingConfig(env);
-  if (missing.length) return json(503, configError(missing));
+  const missing = await missingConfig(env);
+  if (missing.length) {
+    // Tell the UI whether this is a fresh deploy that just needs the
+    // setup screen, or a real misconfiguration. The setup screen is
+    // shown when NO users exist yet — at that point /admin is safe to
+    // expose (nobody to authenticate against).
+    let usersCount = 0;
+    if (env?.DB) {
+      try {
+        const r = await env.DB.prepare(`SELECT COUNT(*) AS n FROM users`).first();
+        usersCount = r?.n || 0;
+      } catch { /* table may not exist yet — treat as 0 */ }
+    }
+    return json(503, { ...configError(missing), needs_setup: usersCount === 0 });
+  }
   const auth = await requireAdminAsync(env, request);
   if (!auth) return json(401, { error: 'unauthorized' });
+  const identity = await getSiteIdentity(env);
   return json(200, {
     ok: true,
     email: auth.email || null,
     via: auth.via,
-    site_name: env.SITE_NAME,
-    site_url: env.SITE_URL,
+    site_name: identity.name,
+    site_url: identity.url,
   });
 };

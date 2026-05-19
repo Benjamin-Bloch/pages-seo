@@ -36,7 +36,16 @@
   async function whoamiStatus() {
     const { status, body } = await api('/api/admin/whoami');
     if (status === 200) return { ok: true, info: body };
-    if (status === 503) return { ok: false, reason: 'config', missing: body?.missing || [] };
+    if (status === 503) {
+      // needs_setup === true means no admin user exists yet — the SPA
+      // should render the first-run setup form instead of the dead-end
+      // "missing secrets" message.
+      return {
+        ok: false,
+        reason: body?.needs_setup ? 'setup' : 'config',
+        missing: body?.missing || [],
+      };
+    }
     return { ok: false, reason: 'unauth' };
   }
 
@@ -2222,6 +2231,81 @@
     return { init };
   })();
 
+  // ── first-run setup ───────────────────────────────────────────
+  // Renders the one-time setup card on a fresh one-click deploy.
+  // The server's /api/setup applies the schema, generates secrets,
+  // and creates the first user; we then log the operator in with
+  // their just-set password so they land in the onboarding wizard.
+  const Setup = (() => {
+    function show() {
+      $('#gate').hidden = true;
+      $('#dash').hidden = true;
+      $('#wiz').hidden = true;
+      $('#setup').hidden = false;
+      $('#setup-form-pane').hidden = false;
+      $('#setup-success').hidden = true;
+      setTimeout(() => $('#setup-site-name').focus(), 50);
+    }
+
+    function showSuccess() {
+      $('#setup-form-pane').hidden = true;
+      $('#setup-success').hidden = false;
+    }
+
+    async function submit(e) {
+      e.preventDefault();
+      const err = $('#setup-err'); err.textContent = '';
+      const site_name = $('#setup-site-name').value.trim();
+      const site_url  = $('#setup-site-url').value.trim();
+      const email     = $('#setup-email').value.trim().toLowerCase();
+      const password  = $('#setup-password').value;
+      if (!site_name) { err.textContent = 'Site name is required.'; return; }
+      if (!/^https?:\/\/.+/i.test(site_url)) { err.textContent = 'Site URL must start with http(s)://'; return; }
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { err.textContent = 'Enter a valid email address.'; return; }
+      if (password.length < 12) { err.textContent = 'Password must be 12+ characters.'; return; }
+
+      const btn = $('#setup-go');
+      btn.disabled = true; btn.textContent = 'Setting up…';
+
+      const { status, body } = await api('/api/setup', {
+        method: 'POST',
+        body: JSON.stringify({ site_name, site_url, email, password }),
+      });
+      if (status !== 200) {
+        btn.disabled = false; btn.textContent = 'Finish setup →';
+        err.textContent = body?.detail || body?.error || 'Setup failed.';
+        return;
+      }
+      showSuccess();
+
+      // Immediately log the operator in so the onboarding wizard can
+      // take over without making them retype the password they just
+      // chose.
+      const loginR = await api('/api/admin/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      });
+      btn.disabled = false; btn.textContent = 'Finish setup →';
+      if (loginR.status !== 200) {
+        err.textContent = 'Account created, but auto-login failed. Please sign in manually.';
+        $('#setup').hidden = true;
+        const g = $('#gate'); g.hidden = false;
+        return;
+      }
+      // Hide setup, reload so the SPA boots into the wizard.
+      window.location.reload();
+    }
+
+    function bindOnce() {
+      if (bindOnce.done) return;
+      bindOnce.done = true;
+      $('#setup-form').addEventListener('submit', submit);
+    }
+
+    bindOnce();
+    return { show };
+  })();
+
   // ── onboarding wizard ──────────────────────────────────────────
   // First-login guided setup. Walks new operators through:
   //   1. Welcome + paste your site URL
@@ -2773,6 +2857,7 @@
   (async () => {
     const r = await whoamiStatus();
     if (r.ok) { mount(); return; }
+    if (r.reason === 'setup')  { Setup.show(); return; }
     if (r.reason === 'config') { showConfigError(r.missing); return; }
     showGate();
   })();

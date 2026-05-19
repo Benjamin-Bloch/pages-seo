@@ -26,8 +26,10 @@
   ],
   "scripts": {
     "setup": "bash setup.sh",
-    "deploy": "bash deploy.sh",
+    "deploy": "npm run bundle-schema && bash deploy.sh",
     "dev": "wrangler pages dev public",
+    "bundle-schema": "node scripts/bundle-schema.js",
+    "predeploy": "npm run bundle-schema",
     "db:migrate": "wrangler d1 execute pages-seo --remote --file=schema/init.sql",
     "db:console": "wrangler d1 execute pages-seo --remote --command=\"SELECT count(*) AS posts FROM blog_posts\"",
     "cron:deploy": "cd cron-worker && wrangler deploy"

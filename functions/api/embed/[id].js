@@ -1,6 +1,6 @@
 // GET /api/embed/<id>
 //
-// Returns a self-contained Soro-style widget for a named embed.
+// Returns a self-contained embed widget for a named embed.
 // Settings (title, accent, limit) come from the blog_embeds row.
 //
 // Host page:

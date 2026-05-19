@@ -1,0 +1,25 @@
+name = "pages-seo"
+compatibility_date = "2026-05-18"
+pages_build_output_dir = "./public"
+
+# Template config consumed by the Cloudflare "Create from Git" deploy
+# flow. When you deploy this repo via the dashboard, Cloudflare reads
+# wrangler.toml — but the version checked in points at the demo's
+# production resources. Copy *this* file to wrangler.toml in your fork
+# (or let the create-from-Git flow recognise it) and Cloudflare will
+# offer to create matching D1 + R2 resources for you.
+#
+# If you prefer the CLI path: `bash setup.sh` writes a fresh
+# wrangler.toml with real IDs after provisioning.
+
+[[d1_databases]]
+binding = "DB"
+database_name = "pages-seo"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+[[r2_buckets]]
+binding = "IMAGES"
+bucket_name = "pages-seo-images"
+
+[ai]
+binding = "AI"

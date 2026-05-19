@@ -2,15 +2,16 @@
 //   Clears the session cookie and deletes the matching row in sessions.
 //   Returns 200 either way — logging out is always "successful" from
 //   the caller's perspective.
-import { nowSec } from '../../_lib/util.js';
 import {
   SESSION_COOKIE, readCookie, verifySessionToken, buildSessionCookieClear,
 } from '../../_lib/passwords.js';
+import { getAdminToken } from '../../_lib/admin_token.js';
 
 export const onRequestPost = async ({ env, request }) => {
   const raw = readCookie(request, SESSION_COOKIE);
-  if (raw && env?.ADMIN_TOKEN && env?.DB) {
-    const sessionId = await verifySessionToken(raw, env.ADMIN_TOKEN);
+  const token = env?.DB ? await getAdminToken(env) : '';
+  if (raw && token) {
+    const sessionId = await verifySessionToken(raw, token);
     if (sessionId) {
       await env.DB.prepare('DELETE FROM sessions WHERE id = ?').bind(sessionId).run().catch(() => null);
     }

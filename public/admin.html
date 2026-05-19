@@ -34,6 +34,64 @@
   </div>
 </div>
 
+<!-- First-run setup card. Shown on a fresh one-click deploy when
+     /api/admin/whoami returns { needs_setup: true }. Collects the
+     site identity + admin credentials and POSTs to /api/setup which
+     applies the schema, generates ADMIN_TOKEN + INDEXNOW_KEY, and
+     seeds the first user. -->
+<div id="setup" class="wiz" hidden>
+  <div class="wiz-shell">
+    <header class="wiz-head">
+      <div class="wiz-brand-mark">
+        <span class="wiz-dot"></span>
+        <span class="wiz-brand-text">pages-seo</span>
+      </div>
+      <ol class="wiz-steps" aria-label="Setup progress">
+        <li class="wiz-step is-current"><b>Account</b></li>
+      </ol>
+      <span></span>
+    </header>
+
+    <section class="wiz-pane wiz-pane-center" hidden id="setup-success">
+      <div class="wiz-tick wiz-tick-big">✓</div>
+      <h1 class="wiz-h1"><span class="serif-i">All set.</span></h1>
+      <p class="wiz-lede">Your admin account is ready. Signing you in…</p>
+    </section>
+
+    <section class="wiz-pane" id="setup-form-pane">
+      <div class="wiz-eyebrow">Welcome</div>
+      <h1 class="wiz-h1"><span class="serif-i">Let's</span> set up<br/>your install.</h1>
+      <p class="wiz-lede">Looks like this is a fresh deploy. Pick an email and password for the admin account, tell us where your site lives, and we'll do the rest — schema, secrets, the lot.</p>
+
+      <form id="setup-form" method="post" action="#" autocomplete="on">
+        <div class="wiz-row">
+          <label class="wiz-field">
+            <span>Your site name</span>
+            <input id="setup-site-name" type="text" placeholder="My Site" required maxlength="80" />
+          </label>
+          <label class="wiz-field">
+            <span>Your site URL</span>
+            <input id="setup-site-url" type="url" placeholder="https://example.com" required autocomplete="url" />
+          </label>
+        </div>
+        <label class="wiz-field">
+          <span>Admin email</span>
+          <input id="setup-email" type="email" placeholder="you@example.com" required autocomplete="username" />
+        </label>
+        <label class="wiz-field wiz-field-big">
+          <span>Password <em>(12+ characters)</em></span>
+          <input id="setup-password" type="password" placeholder="" required minlength="12" maxlength="256" autocomplete="new-password" />
+        </label>
+        <div class="wiz-actions wiz-actions-single">
+          <button id="setup-go" class="btn btn-primary wiz-btn-lg" type="submit">Finish setup →</button>
+        </div>
+      </form>
+      <div id="setup-err" class="wiz-err"></div>
+      <p class="wiz-foot-note">This runs once. After it's done, you'll log in like any other admin and the onboarding wizard takes over.</p>
+    </section>
+  </div>
+</div>
+
 <div id="dash" class="dash" hidden>
   <header class="topbar">
     <div class="brand">pages-seo · admin</div>
@@ -544,7 +602,7 @@
       <div class="card">
         <div class="card-eyebrow">What this is</div>
         <h2>Embed your blog anywhere</h2>
-        <p>Create a snippet to paste on any website. The widget renders this site's published blog posts inside an <code>&lt;div id="ps-blog"&gt;</code> container — same pattern as Soro. Each embed gets its own unguessable id, so you can revoke one without affecting the others.</p>
+        <p>Create a snippet to paste on any website. The widget renders this site's published blog posts inside a <code>&lt;div id="ps-blog"&gt;</code> container. Each embed gets its own unguessable id, so you can revoke one without affecting the others.</p>
         <div class="form-grid form-grid-cols">
           <label>
             <span>Name (admin label)</span>

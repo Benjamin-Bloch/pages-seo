@@ -29,7 +29,7 @@ Plug in a URL (or a keyword list), point a cron at it, and `pages-seo` quietly p
 - **Hero images** — Workers AI (Flux) by default; OpenAI / Gemini Imagen as fallback.
 - **Keyword puller** — free Google-Autocomplete-based seed expansion, queues straight into D1.
 - **Sitemap + IndexNow** — automatic XML sitemap, on-publish IndexNow pings, robots.txt.
-- **Embeddable widget** — drop a `<script>` on any site to render your latest posts (Soro-compatible).
+- **Embeddable widget** — drop a `<script>` on any site to render your latest posts.
 - **Admin dashboard** — single-page SPA with email/password login, runs jobs and inspects the queue.
 - **Cover image editor** — canvas-based crop, captions, badges, gradient overlay.
 - **Multi-AI registry** — Workers AI → OpenAI → Anthropic → Gemini → Groq → DeepSeek → Mistral → Together → Cerebras. Each is optional.
@@ -66,9 +66,20 @@ When it finishes, open `https://<your-domain>/admin`, log in, and you're done.
 
 ### One-click deploy (Cloudflare)
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Benjamin-Bloch/pages-seo)
+Prefer to skip the CLI? Three clicks gets you live:
 
-One-click gets the Pages project up; you'll still want to run `bash setup.sh` afterwards to provision D1, R2, secrets, and the cron Worker.
+1. **Fork the repo** → click [Use this template](https://github.com/Benjamin-Bloch/pages-seo/generate) or fork normally.
+2. **Connect to Cloudflare Pages** — in the Cloudflare dashboard go to **Workers & Pages → Create → Pages → Connect to Git**, pick your fork, and accept the defaults (`pages_build_output_dir` is read from `wrangler.toml`).
+3. **Create the bindings** when prompted: a **D1 database** named `pages-seo`, an **R2 bucket** named `pages-seo-images`, and the **Workers AI** binding. Save and deploy.
+
+Open `https://<your-pages-domain>/admin` and the first-run setup card walks you through:
+- picking an admin email + password,
+- entering your site name + URL,
+- which auto-applies the schema, generates `ADMIN_TOKEN` and `INDEXNOW_KEY`, and seeds the first user — no SQL, no `wrangler pages secret put`.
+
+After that, the onboarding wizard takes over and walks you through Brand DNA → AI providers → 28-day content plan.
+
+**Daily automation** (optional): the cron Worker that drives the daily blog still lives in `cron-worker/` and needs `wrangler deploy` once. You can also just hit **"Run now"** from the admin dashboard until you're ready to automate.
 
 ## 🗓️ Content calendar
 
@@ -109,7 +120,7 @@ The cron Worker drives the blog chain at **08:00 UTC** and generates a programma
 
 ## 🔌 Embed your blog anywhere
 
-Two routes, same Soro-compatible contract:
+Two routes, same contract:
 
 ```html
 <!-- Generic (zero config) -->
@@ -155,8 +166,8 @@ functions/               Pages Functions (file-based routing)
 │   ├── calendar/        content-calendar planner + slot CRUD
 │   ├── embed/           CRUD for named blog embeds
 │   └── ...              IndexNow ping, providers list, queue, posts
-├── api/embed/[id].js    Soro-style widget bundle (per-embed)
-├── widget.js.js         Soro-style widget bundle (generic, zero-config)
+├── api/embed/[id].js    embed widget bundle (per-embed)
+├── widget.js.js         embed widget bundle (generic, zero-config)
 ├── blog/                public blog index + /blog/<slug>
 ├── p/[slug].js          public programmatic page
 ├── sitemap.xml.js       full sitemap

@@ -15,6 +15,7 @@ import {
   buildSessionCookie,
   sessionExpirySec,
 } from '../../_lib/passwords.js';
+import { getAdminToken } from '../../_lib/admin_token.js';
 
 const MAX_FAILS = 5;
 const LOCKOUT_SEC = 60 * 60; // 1 hour
@@ -95,7 +96,7 @@ export const onRequestPost = async ({ env, request }) => {
     `UPDATE users SET last_login_at = ? WHERE id = ?`
   ).bind(now, user.id).run().catch(() => null);
 
-  const token = await signSession(sessionId, env.ADMIN_TOKEN);
+  const token = await signSession(sessionId, await getAdminToken(env));
   const maxAge = expires - now;
   return new Response(JSON.stringify({ ok: true, email: user.email }), {
     status: 200,

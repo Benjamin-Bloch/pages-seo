@@ -1,4 +1,4 @@
-// GET /widget.js — generic Soro-style embed snippet.
+// GET /widget.js — generic embed snippet.
 //
 // Usage on the host page:
 //   <div id="ps-blog"></div>

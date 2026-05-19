@@ -16,21 +16,24 @@
 import { json } from './util.js';
 import { missingConfig, configError } from './config.js';
 import { SESSION_COOKIE, readCookie, verifySessionToken } from './passwords.js';
+import { getAdminToken } from './admin_token.js';
 
-function bearerToken(env, request) {
-  const token = env?.ADMIN_TOKEN;
+async function bearerToken(env, request) {
+  const token = await getAdminToken(env);
   if (!token) return false;
   const bearer = (request.headers.get('Authorization') || '').match(/^Bearer\s+(.+)$/i);
   if (bearer && bearer[1].trim() === token) return true;
   const hdr = (request.headers.get('X-Admin-Token') || '').trim();
-  return hdr && hdr === token;
+  return !!(hdr && hdr === token);
 }
 
 async function sessionAuth(env, request) {
-  if (!env?.ADMIN_TOKEN || !env?.DB) return null;
+  if (!env?.DB) return null;
+  const token = await getAdminToken(env);
+  if (!token) return null;
   const raw = readCookie(request, SESSION_COOKIE);
   if (!raw) return null;
-  const sessionId = await verifySessionToken(raw, env.ADMIN_TOKEN);
+  const sessionId = await verifySessionToken(raw, token);
   if (!sessionId) return null;
   const now = Math.floor(Date.now() / 1000);
   const row = await env.DB.prepare(
@@ -43,16 +46,16 @@ async function sessionAuth(env, request) {
   return { sessionId: row.id, userId: row.user_id, email: row.email };
 }
 
-// Sync path — used by code that doesn't want to await. Only the Bearer
-// credential is checked here. Falls through to the async path via the
-// adminGate helper.
-export function requireAdmin(env, request) {
-  return bearerToken(env, request) ? { actor: 'admin' } : null;
+// Legacy sync path. The bearer check is now async because it has to
+// look up the token from D1 settings when the Pages secret isn't set.
+// Existing callers that imported `requireAdmin` get an async version.
+export async function requireAdmin(env, request) {
+  return (await bearerToken(env, request)) ? { actor: 'admin' } : null;
 }
 
 // Async — checks both Bearer AND session cookie.
 export async function requireAdminAsync(env, request) {
-  if (bearerToken(env, request)) return { actor: 'admin', via: 'bearer' };
+  if (await bearerToken(env, request)) return { actor: 'admin', via: 'bearer' };
   const sess = await sessionAuth(env, request);
   if (sess) return { actor: 'admin', via: 'session', ...sess };
   return null;
@@ -64,7 +67,7 @@ export async function requireAdminAsync(env, request) {
 // Now async — accepts both bearer + cookie. All call sites use it as
 // `const gate = await adminGate(...); if (gate) return gate;`.
 export async function adminGate(env, request) {
-  const missing = missingConfig(env);
+  const missing = await missingConfig(env);
   if (missing.length) return json(503, configError(missing));
   const auth = await requireAdminAsync(env, request);
   if (!auth) return json(401, { error: 'unauthorized' });
