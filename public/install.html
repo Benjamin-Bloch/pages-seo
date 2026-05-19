@@ -134,8 +134,23 @@
       <div class="wiz-tick" style="color: var(--bad); background: rgba(255,138,161,0.1); border-color: rgba(255,138,161,0.4); font-size: 28px;">!</div>
       <h1 class="wiz-h1"><span class="serif-i">Hit a snag.</span></h1>
       <p class="wiz-lede" id="fail-detail">—</p>
-      <p class="install-help" style="text-align:center;max-width:480px;margin:0 auto">
-        Your progress is saved. Hitting <b>Resume</b> below picks up from the step that failed — already-created resources (account, D1, R2, Pages project) are reused, not recreated.
+
+      <!-- Specific guidance when the cause is the missing Cloudflare
+           Pages GitHub App connection. Shown only when the server
+           sets hint=github_app_required on the failure response. -->
+      <div id="fail-github" class="install-help" hidden style="text-align:left;max-width:520px;margin:8px auto 0;padding:16px;background:var(--bg-soft);border:1px solid var(--line);border-radius:10px">
+        <p style="margin:0 0 10px"><b>Cloudflare needs one-time access to GitHub.</b> Pages can't see your repo until the <b>Cloudflare Workers &amp; Pages</b> GitHub App is authorised on your account.</p>
+        <p style="margin:0 0 12px">Fastest fix:</p>
+        <ol style="margin:0 0 12px 18px;padding:0">
+          <li style="margin-bottom:6px"><a id="gh-install-app" target="_blank" rel="noopener" class="btn btn-primary" style="font-size:12px;padding:6px 12px">Install GitHub App →</a> (opens in a new tab)</li>
+          <li>Grant access to your <code>pages-seo</code> fork (or "All repositories" if you prefer).</li>
+          <li>Come back here and hit <b>Resume install</b>.</li>
+        </ol>
+        <p style="margin:0;color:var(--ink-faint);font-size:11px">Alternative: visit <a id="gh-dash-link" target="_blank" rel="noopener">Cloudflare → Workers &amp; Pages → Create → Pages → Connect to Git</a> and authorise from there.</p>
+      </div>
+
+      <p class="install-help" style="text-align:center;max-width:480px;margin:8px auto 0">
+        Your progress is saved. Hitting <b>Resume</b> picks up from the step that failed — already-created resources are reused, not recreated.
       </p>
       <div class="wiz-actions wiz-actions-single" style="gap:10px;flex-direction:row">
         <button id="fail-resume" class="btn btn-primary" type="button">Resume install →</button>
@@ -247,6 +262,19 @@
       showPane('fail');
       const at = data?.failed_at ? ` (at step: ${data.failed_at})` : '';
       $('#fail-detail').textContent = (data?.detail || data?.error || ('HTTP ' + r.status)) + at;
+      // Surface the GitHub-app hint when the server says that's the
+      // problem. The install URL is owned by GitHub; the dashboard URL
+      // is owned by Cloudflare (so the user can also authorise from
+      // there). Both come from the failure payload so we don't bake
+      // them into the page.
+      const ghPanel = $('#fail-github');
+      if (data?.hint === 'github_app_required') {
+        $('#gh-install-app').href = data.github_app_install_url || 'https://github.com/apps/cloudflare-workers-and-pages/installations/new';
+        $('#gh-dash-link').href   = data.github_app_dashboard_url || 'https://dash.cloudflare.com/';
+        ghPanel.hidden = false;
+      } else {
+        ghPanel.hidden = true;
+      }
       return;
     }
     finishAllSteps();

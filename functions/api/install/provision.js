@@ -31,8 +31,18 @@ const PROD_BRANCH = 'main';
 const SLUG_RX  = /^[a-z][a-z0-9-]{1,32}$/;
 const EMAIL_RX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
-function fail(at, status, detail) {
-  return json(status, { ok: false, failed_at: at, error: 'install_failed', detail });
+function fail(at, status, detail, extras = {}) {
+  return json(status, { ok: false, failed_at: at, error: 'install_failed', detail, ...extras });
+}
+
+// Detect the "you haven't connected GitHub to Cloudflare Pages on this
+// account yet" failure mode. Cloudflare returns a generic
+// "internal issue with your Cloudflare Pages Git installation"
+// message in that case — we surface a structured hint so the UI can
+// show a one-click Connect GitHub flow instead of a dead end.
+function isGithubInstallError(msg) {
+  if (!msg) return false;
+  return /Git installation|git integration|github app|connect.*git|reinstalling your installation/i.test(msg);
 }
 
 async function tokenFingerprint(token) {
@@ -293,8 +303,18 @@ export const onRequestPost = async ({ env, request }) => {
         pages_created: 1, pages_url: pagesUrl, last_step: 'pages', last_error: null,
       });
     } catch (e) {
-      await saveStep(env, project, fp, { last_step: 'pages', last_error: String(e.message || e) });
-      return fail('pages', 500, String(e.message || e));
+      const msg = String(e.message || e);
+      await saveStep(env, project, fp, { last_step: 'pages', last_error: msg });
+      // Specific actionable hint when the user hasn't connected the
+      // Cloudflare Workers & Pages GitHub App yet (or the install
+      // lost its grant). They need to authorise the app once before
+      // the Pages-create API can read from their fork.
+      const extras = isGithubInstallError(msg) ? {
+        hint: 'github_app_required',
+        github_app_install_url: 'https://github.com/apps/cloudflare-workers-and-pages/installations/new',
+        github_app_dashboard_url: 'https://dash.cloudflare.com/?to=/:account/workers-and-pages/create/pages',
+      } : {};
+      return fail('pages', 500, msg, extras);
     }
   }
 
