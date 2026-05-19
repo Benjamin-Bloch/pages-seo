@@ -119,9 +119,36 @@ async function ensureAccount(token) {
   return { id: r.body.result[0].id, name: r.body.result[0].name };
 }
 
+// Find an existing D1 database by name. Returns its UUID or null.
+// We use the `name` query filter Cloudflare's D1 list endpoint supports
+// to skip walking pages whenever it's available; fall back to a small
+// page walk if the filter isn't honoured.
+async function findD1(token, accountId, name) {
+  const direct = await cfFetch(token, `/accounts/${accountId}/d1/database?name=${encodeURIComponent(name)}&per_page=10`);
+  if (direct.res.ok) {
+    const hit = (direct.body?.result || []).find((r) => r.name === name);
+    if (hit) return hit.uuid;
+    // The filter returned nothing — assume it works and the db doesn't exist.
+    if (Array.isArray(direct.body?.result)) return null;
+  }
+  // Filter may be ignored on older API versions. Walk a few pages.
+  for (let page = 1; page <= 5; page++) {
+    const listR = await cfFetch(token, `/accounts/${accountId}/d1/database?page=${page}&per_page=50`);
+    if (!listR.res.ok) break;
+    const rows = listR.body?.result || [];
+    const hit = rows.find((r) => r.name === name);
+    if (hit) return hit.uuid;
+    if (rows.length < 50) break;
+  }
+  return null;
+}
+
 async function ensureD1(token, accountId, name) {
-  // Try create. If it 4xxs with "already exists", fetch the list and
-  // find the row with this name — we want to reuse it, not error out.
+  // Pre-flight: look first. Avoids the create-then-conflict dance on
+  // every fresh install attempt, even when nothing's wrong.
+  const existing = await findD1(token, accountId, name);
+  if (existing) return { id: existing, name, reused: true };
+
   const createR = await cfFetch(token, `/accounts/${accountId}/d1/database`, {
     method: 'POST',
     body: JSON.stringify({ name }),
@@ -129,42 +156,64 @@ async function ensureD1(token, accountId, name) {
   if (createR.res.ok && createR.body?.result?.uuid) {
     return { id: createR.body.result.uuid, name, reused: false };
   }
+  // A racing-create can still hit a 409 between the lookup and the create.
   const msg = firstErrorMessage(createR.body) || '';
   if (/already exists/i.test(msg)) {
-    // Resolve the existing one. D1 list is paginated; the page size
-    // is small so we walk pages until we find it (cap at 5 pages /
-    // 250 dbs which is well past anyone's realistic count).
-    for (let page = 1; page <= 5; page++) {
-      const listR = await cfFetch(token, `/accounts/${accountId}/d1/database?page=${page}&per_page=50`);
-      if (!listR.res.ok) break;
-      const rows = listR.body?.result || [];
-      const hit = rows.find((r) => r.name === name);
-      if (hit) return { id: hit.uuid, name, reused: true };
-      if (rows.length < 50) break;
-    }
-    throw new Error(`D1 database named "${name}" exists on this account but couldn't be located — try a different project slug, or delete the existing database in the Cloudflare dashboard.`);
+    const after = await findD1(token, accountId, name);
+    if (after) return { id: after, name, reused: true };
   }
   throw new Error(msg || 'Failed to create D1 database.');
 }
 
+async function findR2(token, accountId, name) {
+  // R2 list endpoint: per-bucket pagination via cursor. For our needs
+  // (does this name exist?) a simple page-walk works.
+  let cursor = '';
+  for (let i = 0; i < 5; i++) {
+    const url = `/accounts/${accountId}/r2/buckets?per_page=100${cursor ? '&cursor=' + cursor : ''}`;
+    const r = await cfFetch(token, url);
+    if (!r.res.ok) return null;
+    const buckets = r.body?.result?.buckets || r.body?.result || [];
+    const hit = buckets.find((b) => b.name === name);
+    if (hit) return name;
+    cursor = r.body?.result_info?.cursor || '';
+    if (!cursor) break;
+  }
+  return null;
+}
+
 async function ensureR2(token, accountId, name) {
+  // Pre-flight: skip the create when the bucket already exists.
+  const existing = await findR2(token, accountId, name);
+  if (existing) return { name, reused: true };
+
   const r = await cfFetch(token, `/accounts/${accountId}/r2/buckets`, {
     method: 'POST',
     body: JSON.stringify({ name }),
   });
   if (r.res.ok) return { name, reused: false };
-  // R2 returns 409 with "The bucket you tried to create already exists."
-  // We treat that as a successful reuse.
   if (r.res.status === 409) return { name, reused: true };
   const msg = firstErrorMessage(r.body) || `R2 create failed (HTTP ${r.res.status})`;
   if (/already exists/i.test(msg)) return { name, reused: true };
   throw new Error(msg);
 }
 
+// Look up a Pages project by name. GET /accounts/:account/pages/projects/:name
+// returns 404 cleanly when missing — perfect pre-flight.
+async function findPagesProject(token, accountId, project) {
+  const r = await cfFetch(token, `/accounts/${accountId}/pages/projects/${project}`);
+  if (r.res.ok && r.body?.result?.subdomain) {
+    return { subdomain: r.body.result.subdomain };
+  }
+  return null;
+}
+
 async function ensurePagesProject(token, accountId, project, siteName, d1Id, r2Name) {
-  // Try create. If the project already exists for this account, return
-  // its current subdomain so we can keep going (env patch + deploy
-  // trigger are idempotent enough on their own).
+  // Pre-flight: look up by name first. GET returns 404 cleanly when
+  // missing, which is far cheaper than a failed POST.
+  const existing = await findPagesProject(token, accountId, project);
+  if (existing) return { subdomain: existing.subdomain, reused: true };
+
   const payload = {
     name: project,
     production_branch: PROD_BRANCH,
@@ -204,13 +253,12 @@ async function ensurePagesProject(token, accountId, project, siteName, d1Id, r2N
   if (r.res.ok && r.body?.result?.subdomain) {
     return { subdomain: r.body.result.subdomain, reused: false };
   }
+  // Race fallback: if a project appeared between pre-flight and create,
+  // fetch it now rather than complain.
   const msg = firstErrorMessage(r.body) || '';
   if (/already exists|name is unavailable/i.test(msg)) {
-    const existR = await cfFetch(token, `/accounts/${accountId}/pages/projects/${project}`);
-    if (existR.res.ok && existR.body?.result?.subdomain) {
-      return { subdomain: existR.body.result.subdomain, reused: true };
-    }
-    throw new Error(`Pages project "${project}" exists but couldn't be inspected — try a different slug.`);
+    const after = await findPagesProject(token, accountId, project);
+    if (after) return { subdomain: after.subdomain, reused: true };
   }
   throw new Error(msg || `Pages create failed (HTTP ${r.res.status})`);
 }

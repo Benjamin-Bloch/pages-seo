@@ -52,6 +52,18 @@
       <h1 class="wiz-h1"><span class="serif-i">One</span> token,<br/>two minutes.</h1>
       <p class="wiz-lede">We'll provision a Pages project, a D1 database, an R2 bucket, and the Workers AI binding — all on your Cloudflare account. You'll get a working site at the end with the admin already seeded.</p>
 
+      <!-- Resume banner: shown when we find a stored draft from a
+           previous visit (project slug + site name + email). Token
+           and password are never stored, so the user retypes those
+           two and the rest is filled in. -->
+      <div id="resume-banner" class="install-help" hidden style="background:rgba(122,255,240,0.06);border:1px solid rgba(122,255,240,0.25);padding:12px 14px;border-radius:10px;display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <div>
+          <b style="color:var(--accent)">Welcome back.</b>
+          <span style="color:var(--ink-dim)">We've filled in your last install for <code id="resume-project" style="font-family:var(--mono)">—</code>. Paste your token + password to continue.</span>
+        </div>
+        <button id="resume-clear" type="button" class="btn btn-ghost" style="font-size:11px;padding:5px 10px">Clear</button>
+      </div>
+
       <ol class="install-step-list" style="margin: 4px 0 6px">
         <li class="install-step is-pending"><span class="install-step-icon"></span> Create a token on Cloudflare</li>
         <li class="install-step is-pending"><span class="install-step-icon"></span> Paste it here + name your site</li>
@@ -192,6 +204,59 @@
     '&name=' + encodeURIComponent('pages-seo install');
   $('#token-link').href = tokenLink;
 
+  // ── draft autosave ───────────────────────────────────────────
+  // We persist non-secret form fields so reloading the page (or
+  // bouncing through GitHub to authorise the Cloudflare Pages app)
+  // doesn't make you retype everything. Token and password are NOT
+  // stored — they're high-blast-radius credentials and any future
+  // XSS on this page would exfiltrate them en masse.
+  const DRAFT_KEY = 'pages-seo:install-draft:v1';
+
+  function loadDraft() {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  }
+  function saveDraft() {
+    try {
+      const draft = {
+        project:   $('#f-project').value.trim().toLowerCase(),
+        site_name: $('#f-site-name').value.trim(),
+        email:     $('#f-email').value.trim().toLowerCase(),
+        ts: Date.now(),
+      };
+      // Only persist when at least the project slug is present —
+      // avoids writing empty blobs on first visit.
+      if (draft.project) localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    } catch { /* localStorage may be full or disabled */ }
+  }
+  function clearDraft() {
+    try { localStorage.removeItem(DRAFT_KEY); } catch { /* */ }
+  }
+
+  const draft = loadDraft();
+  if (draft && draft.project) {
+    $('#f-project').value = draft.project || '';
+    $('#f-site-name').value = draft.site_name || '';
+    $('#f-email').value = draft.email || '';
+    $('#resume-project').textContent = draft.project;
+    $('#resume-banner').hidden = false;
+    // Focus the token field so the user can finish where they left off.
+    setTimeout(() => $('#f-token').focus(), 100);
+  }
+  ['#f-project', '#f-site-name', '#f-email'].forEach((sel) => {
+    const el = $(sel);
+    if (el) el.addEventListener('input', saveDraft);
+  });
+  $('#resume-clear').addEventListener('click', () => {
+    clearDraft();
+    $('#f-project').value = '';
+    $('#f-site-name').value = '';
+    $('#f-email').value = '';
+    $('#resume-banner').hidden = true;
+  });
+
   // ── form submit ─────────────────────────────────────────────
   function showPane(id) {
     ['form', 'provision', 'done', 'fail'].forEach((k) => {
@@ -278,6 +343,7 @@
       return;
     }
     finishAllSteps();
+    clearDraft();
     setTimeout(() => {
       showPane('done');
       const url = data.pages_url || `https://${body.project}.pages.dev`;
