@@ -667,6 +667,11 @@ em.optional{font-style:normal;color:var(--ink-faint);font-size:11px;letter-spaci
   animation:wiz-fade .25s ease;
 }
 .wiz-pane[hidden]{display:none}
+/* Catch-all so any wizard child that sets display:flex (loading
+   panel, brand fields, plan list, …) still honours the `hidden`
+   attribute. Without this the loading spinner stays visible after
+   the fields have loaded. */
+.wiz [hidden]{display:none !important}
 .wiz-pane-center{text-align:center;align-items:center;padding:4px 0 8px}
 @keyframes wiz-fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
