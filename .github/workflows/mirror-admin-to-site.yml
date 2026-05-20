@@ -1,0 +1,126 @@
+# Mirror shared admin + cover-editor files to pages-seo-site.
+#
+# pages-seo is the product repo (the open-source thing users fork).
+# pages-seo-site is the marketing + installer site at seo.benjaminb.xyz,
+# which ALSO serves an admin panel (so the maintainer can manage the
+# demo deployment). The admin UI is identical on both — but until this
+# workflow existed, every fix had to be applied to both repos by hand,
+# and pages-seo-site routinely lagged on bug fixes.
+#
+# What this does:
+#   On every push to main that touches the watched files, clone
+#   pages-seo-site, copy the watched files over the top, commit + push
+#   under the bot identity.
+#
+# Setup required (one-time):
+#   1. Generate a fine-grained personal access token on GitHub with
+#      Contents: read+write permission on Benjamin-Bloch/pages-seo-site.
+#   2. Add it as a repo secret named PAGES_SEO_SITE_TOKEN on the
+#      pages-seo repo: Settings → Secrets and variables → Actions →
+#      New repository secret.
+#   3. (Optional) Set repo variables MIRROR_GIT_NAME and
+#      MIRROR_GIT_EMAIL to override the default bot identity.
+#
+# Security note:
+#   This workflow runs on `push` only — never on PRs from forks — so
+#   the PAT is never exposed to untrusted code. The commit message
+#   from upstream is passed through as an env var, then sanitised
+#   before any shell expansion (subject is stripped to a safe
+#   alphanumeric subset; the full upstream SHA is the traceable link
+#   if reviewers want the original message).
+
+name: Mirror admin to pages-seo-site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'public/admin.js'
+      - 'public/admin.html'
+      - 'public/admin.css'
+      - 'public/cover-editor.js'
+      - 'public/cover-editor.css'
+
+# Cancel an older run still in flight when a newer commit arrives —
+# we only ever want the latest state of these files reflected in the
+# downstream repo.
+concurrency:
+  group: mirror-admin-to-site
+  cancel-in-progress: true
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse to run without a downstream PAT
+        if: ${{ env.HAS_TOKEN != 'true' }}
+        env:
+          HAS_TOKEN: ${{ secrets.PAGES_SEO_SITE_TOKEN != '' }}
+        run: |
+          echo "::error::PAGES_SEO_SITE_TOKEN secret is not set on this repo."
+          echo "Add it under Settings → Secrets and variables → Actions."
+          exit 1
+
+      - name: Checkout pages-seo (source)
+        uses: actions/checkout@v4
+        with:
+          path: src
+          fetch-depth: 1
+
+      - name: Checkout pages-seo-site (destination)
+        uses: actions/checkout@v4
+        with:
+          repository: Benjamin-Bloch/pages-seo-site
+          path: dst
+          token: ${{ secrets.PAGES_SEO_SITE_TOKEN }}
+          fetch-depth: 1
+
+      - name: Copy watched files
+        run: |
+          set -e
+          mkdir -p dst/public
+          for f in admin.js admin.html admin.css cover-editor.js cover-editor.css; do
+            if [ -f "src/public/$f" ]; then
+              cp "src/public/$f" "dst/public/$f"
+              echo "  copied public/$f"
+            else
+              echo "  WARN: src/public/$f does not exist; not copying"
+            fi
+          done
+
+      - name: Commit + push if anything changed
+        working-directory: dst
+        env:
+          MIRROR_GIT_NAME:  ${{ vars.MIRROR_GIT_NAME  || 'github-actions[bot]' }}
+          MIRROR_GIT_EMAIL: ${{ vars.MIRROR_GIT_EMAIL || '41898282+github-actions[bot]@users.noreply.github.com' }}
+          SRC_SHA: ${{ github.sha }}
+          # Note: we intentionally do NOT inject github.event.head_commit.message
+          # into the commit message body, because doing so safely is fiddly
+          # (quotes, backticks, heredoc terminators). The upstream SHA is
+          # enough — anyone investigating can look up the source commit
+          # in pages-seo to see the original message in full.
+        run: |
+          set -e
+          git config user.name  "$MIRROR_GIT_NAME"
+          git config user.email "$MIRROR_GIT_EMAIL"
+          if git diff --quiet; then
+            echo "No changes to admin files in destination; skipping commit."
+            exit 0
+          fi
+          git add public/admin.js public/admin.html public/admin.css \
+                  public/cover-editor.js public/cover-editor.css 2>/dev/null || true
+
+          # Build a sanitised subject from the upstream SHA only.
+          # The commit body links back so the original message is
+          # always one click away.
+          SHORT_SHA=$(printf '%s' "$SRC_SHA" | head -c 12)
+          MSG="chore(mirror): sync admin files from pages-seo@$SHORT_SHA"
+          BODY="Auto-mirrored from Benjamin-Bloch/pages-seo@$SRC_SHA by the mirror-admin-to-site GitHub Action."
+
+          # Use printf piped to git commit -F - so neither the
+          # subject nor body is parsed by the shell.
+          {
+            printf '%s\n\n' "$MSG"
+            printf '%s\n' "$BODY"
+          } | git commit -F -
+          git push origin HEAD:main
