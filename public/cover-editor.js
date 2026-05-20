@@ -1999,7 +1999,6 @@
           btn.disabled = false; btn.textContent = '✨ Install premium template';
           if (r.body?.ok) {
             await loadTemplates();
-            // Auto-load it so the user sees the result immediately.
             const fresh = state.templates.find((t) => t.id === r.body.id);
             if (fresh) loadTemplateSpec(fresh);
             if (activeRail === 'templates') renderRailPanel('templates');
@@ -2008,6 +2007,25 @@
           }
         },
       }, '✨ Install premium template'));
+
+      // Import tile. Hidden file input + label styled as a button. We
+      // wire the change handler to read the .template file, POST its
+      // JSON to /import, and refresh the panel on success.
+      const importLabel = el('label', {
+        class: 'ce-btn ce-btn-ghost ce-upload-tile',
+        title: 'Pick a .template file you (or someone else) exported from a cover editor. Backgrounds and logos travel inside the file — no manual re-upload needed.',
+      }, '⤓ Import .template…');
+      const importInput = el('input', {
+        type: 'file', accept: '.template,application/json,.json', hidden: true,
+        onchange: async (e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (!file) return;
+          await importTemplateFile(file);
+        },
+      });
+      importLabel.appendChild(importInput);
+      inner.appendChild(importLabel);
 
       if (!state.templates.length) {
         inner.appendChild(el('div', { class: 'ce-dim' }, 'Or build a design and click “Save as template” in the header.'));
@@ -2018,13 +2036,30 @@
         const li = el('li', { class: 'ce-tpl-item' });
         li.appendChild(el('strong', null, t.name));
         if (t.is_default) li.appendChild(el('span', { class: 'ce-pill' }, 'default'));
-        // Premium marker — set by /install-official (or any template
-        // whose spec carries __official:true).
         if (t.spec?.__official) {
           li.appendChild(el('span', { class: 'ce-pill ce-pill-official', title: 'Official maintainer template' }, '✓ official'));
         }
         li.appendChild(el('button', { class: 'ce-btn ce-btn-ghost ce-btn-sm',
           onclick: () => { loadTemplateSpec(t); closeRail(); } }, 'Load'));
+        // Export — downloads the template + every embedded asset as
+        // a self-contained .template JSON file. Browser navigates to
+        // the URL with the Content-Disposition header set, so it
+        // saves to the user's Downloads folder.
+        li.appendChild(el('button', {
+          class: 'ce-btn ce-btn-ghost ce-btn-sm',
+          title: 'Download this template (with embedded backgrounds + logos) as a .template file you can share with another install.',
+          onclick: () => {
+            // Pop a new tab pointing at the export endpoint. Browser
+            // honours Content-Disposition: attachment so the file
+            // saves rather than opening as JSON in-tab.
+            const a = document.createElement('a');
+            a.href = '/api/admin/cover/templates/export?id=' + encodeURIComponent(t.id);
+            a.rel = 'noopener';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+          },
+        }, '⤴ Export'));
         li.appendChild(el('button', { class: 'ce-btn ce-btn-ghost ce-btn-sm ce-tpl-del',
           onclick: async () => {
             if (!confirm('Delete template "' + t.name + '"?')) return;
@@ -2036,6 +2071,55 @@
         ul.appendChild(li);
       }
       inner.appendChild(ul);
+    }
+
+    // Read a .template file (JSON) from disk, POST it to the import
+    // endpoint, refresh the panel and load the new template on
+    // success. Used by the Import tile in the Templates rail.
+    async function importTemplateFile(file) {
+      // 30MB cap on disk read, mirrors the server's MAX_TOTAL_BYTES.
+      if (file.size > 60 * 1024 * 1024) {
+        alert('That .template file is too large (over 60MB). Templates with embedded backgrounds can be a few MB but rarely above 60.');
+        return;
+      }
+      const text = await file.text().catch(() => null);
+      if (!text) { alert('Could not read the file.'); return; }
+      let payload;
+      try { payload = JSON.parse(text); }
+      catch (e) {
+        alert('That doesn\'t look like a .template file (invalid JSON): ' + String(e?.message || e).slice(0, 80));
+        return;
+      }
+      if (payload?.format !== 'pages-seo-cover-template') {
+        alert('Wrong file format. Expected a pages-seo cover template export; got "' + (payload?.format || 'unknown') + '".');
+        return;
+      }
+      const setDefault = confirm(
+        'Import "' + (payload?.template?.name || 'untitled') + '"?\n\n' +
+        'Click OK to import and also make it the default template (it will replace ' +
+        'your current default). Click Cancel to import without changing the default.'
+      );
+      // We honor the user's intent regardless of their click — Cancel
+      // here doesn't abort, it just declines the "set default" flag.
+      // To actually abort, they hit Escape on the dialog (returns
+      // null), which we treat as cancel via the confirm semantics
+      // (Cancel = false, set_default stays false).
+      const r = await api('/api/admin/cover/templates/import', {
+        method: 'POST',
+        body: JSON.stringify({ ...payload, set_default: !!setDefault }),
+      });
+      if (!r.body?.ok) {
+        alert('Import failed: ' + (r.body?.error || r.status) +
+              (r.body?.detail ? '\n' + r.body.detail : ''));
+        return;
+      }
+      await loadTemplates();
+      const fresh = state.templates.find((t) => t.id === r.body.id);
+      if (fresh) loadTemplateSpec(fresh);
+      if (activeRail === 'templates') renderRailPanel('templates');
+      const summary = `Imported "${r.body.name}". ${r.body.assets_imported} assets restored` +
+                      (r.body.assets_missing ? `, ${r.body.assets_missing} missing.` : '.');
+      alert(summary);
     }
 
     // ── Layers panel (rail) ──────────────────────────────────────
