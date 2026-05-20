@@ -823,6 +823,13 @@
 
     // ── overlay rendering (selection handles + guides) ───────────
     function renderOverlay() {
+      // CRITICAL: when an inline text editor is active, do nothing.
+      // Wiping the overlay would yank the contenteditable mid-edit
+      // and lose focus / value. The editor is removed cleanly on
+      // commit/cancel; any redraws triggered while it's open (e.g.
+      // by a font load or template asset finishing) must not touch
+      // it.
+      if (state.editingTextId && textEditor) return;
       clearChildren(overlay);
       const sel = selectedLayers();
       // Snap guides.
@@ -941,6 +948,17 @@
       return px >= l.x && px <= l.x + l.w && py >= l.y && py <= l.y + l.h;
     }
     function onPointerDown(ev) {
+      // If an inline text editor is open: clicks INSIDE it should
+      // bubble naturally (caret placement etc); clicks OUTSIDE commit
+      // and end editing, then proceed with the normal selection
+      // logic. Without this guard, clicking on the editor's text was
+      // being intercepted by selection code and the contenteditable
+      // never saw the click.
+      if (state.editingTextId && textEditor) {
+        if (textEditor.contains(ev.target)) return; // let the editor handle it
+        endInlineTextEdit(true);
+        // Fall through to normal selection.
+      }
       // Was a handle clicked? Handles live in the overlay layer.
       const handleEl = ev.target.closest('[data-handle]');
       const { x, y } = toCanvasCoords(ev);
@@ -971,6 +989,11 @@
       }
       canvasWrap.setPointerCapture(ev.pointerId);
       beginMove(x, y, ev.altKey);
+      // Remember the layer we just clicked on. If pointerup happens
+      // without movement AND this was already the only selected layer
+      // AND it's a text layer, we'll promote the click to inline edit
+      // (Canva's "click already-selected text again to type" gesture).
+      state.drag.clickedOnText = (hit.kind === 'text' && state.selectedIds.size === 1 && state.selectedIds.has(hit.id));
       redraw();
     }
     function onPointerMove(ev) {
@@ -1018,12 +1041,26 @@
       }
       if (state.drag) {
         const desc = state.drag.descriptor;
+        const clickedOnText = state.drag.clickedOnText;
         // The drag mutated state directly to keep it cheap; we now
         // wrap that in a single history entry by snapshotting the
         // pre-drag state we squirreled away in drag.before.
         const before = state.drag.before;
         const after = snapshot();
-        if (JSON.stringify(before) !== JSON.stringify(after)) {
+        const moved = JSON.stringify(before) !== JSON.stringify(after);
+        // Click without drag on an already-selected text layer →
+        // promote to inline edit. Canva's gesture: first click
+        // selects, second (also a click, not double) starts editing.
+        if (!moved && clickedOnText && desc === 'move') {
+          const id = [...state.selectedIds][0];
+          const layer = state.template.layers.find((l) => l.id === id);
+          state.drag = null;
+          state.snapGuides = [];
+          try { canvasWrap.releasePointerCapture(ev.pointerId); } catch { /* */ }
+          if (layer) beginInlineTextEdit(layer);
+          return;
+        }
+        if (moved) {
           history.past.push({ descriptor: desc, before, after });
           if (history.past.length > history.capacity) history.past.shift();
           history.future.length = 0;
