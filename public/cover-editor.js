@@ -426,8 +426,28 @@
           el('button', { class: 'ce-icon-btn', title: 'Redo (Cmd Shift Z)', onclick: redo }, '↻'),
         ),
         el('div', { class: 'ce-header-right' },
-          el('button', { class: 'ce-btn ce-btn-ghost', onclick: openSaveTemplateDialog }, 'Save as template'),
-          el('button', { class: 'ce-btn', onclick: openApplyDialog }, 'Apply to post'),
+          // Always-visible post picker — was previously only shown
+          // in the idle context-toolbar state, which made it
+          // disappear the moment you selected a layer. That broke
+          // the "load a template → preview against a real post →
+          // apply" flow because the picker was hidden during
+          // editing. Now it lives in the header where it stays put.
+          (() => {
+            const sel = el('select', {
+              id: 'ce-header-post', class: 'ce-preset',
+              title: 'Preview the current template using this post\'s title',
+              style: { maxWidth: '220px' },
+              onchange: () => { syncHeaderToPreview(); refreshPreview(); },
+            }, el('option', { value: '' }, '(preview as post…)'));
+            return sel;
+          })(),
+          el('button', { class: 'ce-btn ce-btn-ghost', onclick: openSaveTemplateDialog }, 'Save'),
+          el('button', { class: 'ce-btn ce-btn-ghost', onclick: openApplyAllDialog,
+            title: 'Re-render every published post\'s cover using the current template' },
+            'Apply to all'),
+          el('button', { class: 'ce-btn', onclick: openApplyDialog,
+            title: 'Apply the rendered cover to the post selected above' },
+            'Apply to post'),
         ),
       );
 
@@ -1799,8 +1819,29 @@
 
     // ── Templates panel (rail) ───────────────────────────────────
     function renderTemplatesPanel(inner) {
+      // Top: "Install premium template" affordance.
+      inner.appendChild(el('button', {
+        class: 'ce-btn ce-btn-ghost ce-upload-tile',
+        title: 'Install the maintainer\'s curated premium template (black + gold serif). Marks it default so new posts use it when hero_image_mode = cover.',
+        onclick: async (e) => {
+          const btn = e.currentTarget;
+          btn.disabled = true; btn.textContent = 'Installing…';
+          const r = await api('/api/admin/cover/install-official', { method: 'POST' });
+          btn.disabled = false; btn.textContent = '✨ Install premium template';
+          if (r.body?.ok) {
+            await loadTemplates();
+            // Auto-load it so the user sees the result immediately.
+            const fresh = state.templates.find((t) => t.id === r.body.id);
+            if (fresh) loadTemplateSpec(fresh);
+            if (activeRail === 'templates') renderRailPanel('templates');
+          } else {
+            alert('Install failed: ' + (r.body?.error || r.status));
+          }
+        },
+      }, '✨ Install premium template'));
+
       if (!state.templates.length) {
-        inner.appendChild(el('div', { class: 'ce-dim' }, 'No templates yet. Build a design, then click “Save as template” in the header.'));
+        inner.appendChild(el('div', { class: 'ce-dim' }, 'Or build a design and click “Save as template” in the header.'));
         return;
       }
       const ul = el('ul', { class: 'ce-tpl-list' });
@@ -1808,6 +1849,11 @@
         const li = el('li', { class: 'ce-tpl-item' });
         li.appendChild(el('strong', null, t.name));
         if (t.is_default) li.appendChild(el('span', { class: 'ce-pill' }, 'default'));
+        // Premium marker — set by /install-official (or any template
+        // whose spec carries __official:true).
+        if (t.spec?.__official) {
+          li.appendChild(el('span', { class: 'ce-pill ce-pill-official', title: 'Official maintainer template' }, '✓ official'));
+        }
         li.appendChild(el('button', { class: 'ce-btn ce-btn-ghost ce-btn-sm',
           onclick: () => { loadTemplateSpec(t); closeRail(); } }, 'Load'));
         li.appendChild(el('button', { class: 'ce-btn ce-btn-ghost ce-btn-sm ce-tpl-del',
@@ -2068,32 +2114,53 @@
     }
     async function loadPosts() {
       const r = await api('/api/admin/blog/list');
-      state.posts = (r.body?.posts || []).filter((p) => p.status === 'published').slice(0, 50);
-      // The post selector lives in the context toolbar's idle state.
-      // Re-render only if nothing is selected (otherwise the toolbar
-      // is showing layer controls and there's no select to populate).
+      state.posts = (r.body?.posts || []).filter((p) => p.status === 'published').slice(0, 200);
+      // The post picker now lives in the header (always visible) AND
+      // in the idle context toolbar. Populate whichever is mounted.
+      const headerSel = $('#ce-header-post', root);
+      if (headerSel) populatePostSelect(headerSel);
       if (selectedLayers().length === 0) renderContextToolbar();
     }
 
-    async function refreshPreview() {
-      const titleField = ($('#ce-preview-title', root)?.value || '').trim();
-      const postId = $('#ce-preview-post', root)?.value || '';
-      const post = postId ? state.posts.find((p) => p.id === postId) : null;
-      const title = titleField || post?.title || '';
-      if (!title) {
-        state.previewCtx = null; redraw(); return;
+    function populatePostSelect(selectEl) {
+      const current = selectEl.value;
+      while (selectEl.options.length > 1) selectEl.remove(1);
+      for (const p of (state.posts || [])) {
+        selectEl.appendChild(el('option', { value: p.id }, p.title.slice(0, 60)));
       }
-      // Build the same context shape the server uses.
-      let settings = {}, whoami = {};
-      try {
-        const s = await api('/api/admin/settings');
-        settings = s.body?.settings || {};
-      } catch { /* */ }
-      try {
-        const w = await api('/api/admin/whoami');
-        whoami = w.body || {};
-      } catch { /* */ }
-      state.previewCtx = {
+      // Restore selection if the post still exists.
+      if (current && state.posts.some((p) => p.id === current)) selectEl.value = current;
+    }
+
+    // Keep header + toolbar pickers in sync. Whichever the user
+    // touched is the source of truth; copy to the other so a later
+    // read finds the same value.
+    function syncHeaderToPreview() {
+      const headerSel = $('#ce-header-post', root);
+      const toolbarSel = $('#ce-preview-post', root);
+      if (headerSel && toolbarSel) toolbarSel.value = headerSel.value;
+    }
+    function syncPreviewToHeader() {
+      const headerSel = $('#ce-header-post', root);
+      const toolbarSel = $('#ce-preview-post', root);
+      if (headerSel && toolbarSel) headerSel.value = toolbarSel.value;
+    }
+
+    // Build the full template context used by the canvas renderer and
+    // server-side template engine. Factored out so apply-all can call
+    // it once per post without re-fetching settings each iteration.
+    async function buildPreviewCtx(opts = {}) {
+      let settings = opts.settings || {};
+      let whoami = opts.whoami || {};
+      if (!opts.settings) {
+        try { const s = await api('/api/admin/settings'); settings = s.body?.settings || {}; } catch { /* */ }
+      }
+      if (!opts.whoami) {
+        try { const w = await api('/api/admin/whoami'); whoami = w.body || {}; } catch { /* */ }
+      }
+      const post = opts.post || null;
+      const title = opts.title || post?.title || '';
+      return {
         title,
         primary_keyword: post?.primary_query || '',
         slug: post?.slug || '',
@@ -2113,6 +2180,22 @@
           topics_to_avoid: settings.brand_topics_to_avoid || '',
         },
       };
+    }
+
+    async function refreshPreview() {
+      // Title input lives in the idle toolbar; post pickers live in
+      // both header and toolbar. Read whichever exists.
+      const titleField = ($('#ce-preview-title', root)?.value || '').trim();
+      const postId = ($('#ce-header-post', root)?.value || $('#ce-preview-post', root)?.value || '');
+      const post = postId ? state.posts.find((p) => p.id === postId) : null;
+      const title = titleField || post?.title || '';
+      if (!title) {
+        state.previewCtx = null; redraw(); return;
+      }
+      // Keep the two pickers in sync.
+      syncPreviewToHeader();
+      syncHeaderToPreview();
+      state.previewCtx = await buildPreviewCtx({ title, post });
       redraw();
     }
 
@@ -2133,31 +2216,157 @@
         alert('Save failed: ' + (r.body?.error || r.status));
       }
     }
+    // Render the current template at native canvas resolution into a
+    // base64 data URL for a specific post. Pure: doesn't touch the
+    // user's selection or trigger a redraw at the end.
+    async function renderPostToBase64(post) {
+      const savedSel = new Set(state.selectedIds);
+      const savedCtx = state.previewCtx;
+      state.selectedIds.clear();
+      state.previewCtx = await buildPreviewCtx({ post, title: post.title });
+      try {
+        await drawCanvas();
+        const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
+        if (!blob) return null;
+        const fr = new FileReader();
+        return await new Promise((res) => {
+          fr.onload = () => res(fr.result);
+          fr.readAsDataURL(blob);
+        });
+      } finally {
+        state.selectedIds = savedSel;
+        state.previewCtx = savedCtx;
+      }
+    }
+
     async function openApplyDialog() {
-      const postId = $('#ce-preview-post', root)?.value || '';
-      if (!postId) { alert('Pick a post in the right-hand preview section first.'); return; }
+      const postId = ($('#ce-header-post', root)?.value || $('#ce-preview-post', root)?.value || '');
+      if (!postId) { alert('Pick a post in the header dropdown first.'); return; }
       const post = state.posts.find((p) => p.id === postId);
       if (!post) return;
-      // Render at full resolution with the post's title.
-      state.previewCtx = { ...(state.previewCtx || {}), title: post.title };
-      // Suppress overlay during the final render.
-      const savedSel = new Set(state.selectedIds);
-      state.selectedIds.clear();
-      await drawCanvas();
-      state.selectedIds = savedSel;
-      const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
-      if (!blob) { alert('Render failed.'); redraw(); return; }
-      const fr = new FileReader();
-      const dataUrl = await new Promise((res) => { fr.onload = () => res(fr.result); fr.readAsDataURL(blob); });
+      const dataUrl = await renderPostToBase64(post);
+      redraw();
+      if (!dataUrl) { alert('Render failed.'); return; }
       const r = await api('/api/admin/cover/apply', {
         method: 'POST',
         body: JSON.stringify({ target: 'post', id: postId, base64: dataUrl }),
       });
-      redraw();
       if (r.body?.ok) {
         alert(`Applied to “${post.title.slice(0, 60)}…”.`);
       } else {
         alert('Apply failed: ' + (r.body?.error || r.status));
+      }
+    }
+
+    // Apply the current template to every published post. Renders
+    // each one client-side (we don't have server-side rendering yet),
+    // posts the resulting PNG, updates a small progress overlay so
+    // the user knows what's happening.
+    async function openApplyAllDialog() {
+      const posts = state.posts || [];
+      if (!posts.length) { alert('No published posts to apply to.'); return; }
+      const ok = confirm(
+        `Apply this template to all ${posts.length} published posts? ` +
+        `This re-renders every cover and replaces it. Future posts will ` +
+        `also use this template if you set "Hero image mode" to "cover" ` +
+        `in Settings (and pick this template as default).`
+      );
+      if (!ok) return;
+
+      const overlay = el('div', { class: 'ce-apply-overlay' },
+        el('div', { class: 'ce-apply-card' },
+          el('h3', null, 'Applying template…'),
+          (() => { const p = el('p', { class: 'ce-apply-status' }, 'Starting…'); return p; })(),
+          el('div', { class: 'ce-apply-bar' }, el('div', { class: 'ce-apply-bar-fill' })),
+        ),
+      );
+      document.body.appendChild(overlay);
+      const status = $('.ce-apply-status', overlay);
+      const barFill = $('.ce-apply-bar-fill', overlay);
+
+      // Pre-fetch settings + whoami once; pass into each iteration so
+      // we don't pay the round-trip per post.
+      let settings = {}, whoami = {};
+      try { settings = (await api('/api/admin/settings')).body?.settings || {}; } catch { /* */ }
+      try { whoami = (await api('/api/admin/whoami')).body || {}; } catch { /* */ }
+
+      let okCount = 0, failCount = 0;
+      const errors = [];
+
+      for (let i = 0; i < posts.length; i++) {
+        const post = posts[i];
+        status.textContent = `(${i + 1}/${posts.length}) ${post.title.slice(0, 70)}`;
+        barFill.style.width = `${((i + 1) / posts.length) * 100}%`;
+
+        try {
+          const savedSel = new Set(state.selectedIds);
+          const savedCtx = state.previewCtx;
+          state.selectedIds.clear();
+          state.previewCtx = await buildPreviewCtx({ post, title: post.title, settings, whoami });
+          await drawCanvas();
+          state.selectedIds = savedSel;
+          state.previewCtx = savedCtx;
+
+          const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
+          if (!blob) { failCount++; errors.push(`${post.slug}: blob_null`); continue; }
+          const fr = new FileReader();
+          const dataUrl = await new Promise((res) => { fr.onload = () => res(fr.result); fr.readAsDataURL(blob); });
+
+          const r = await api('/api/admin/cover/apply', {
+            method: 'POST',
+            body: JSON.stringify({ target: 'post', id: post.id, base64: dataUrl }),
+          });
+          if (r.body?.ok) okCount++;
+          else { failCount++; errors.push(`${post.slug}: ${r.body?.error || r.status}`); }
+        } catch (e) {
+          failCount++;
+          errors.push(`${post.slug}: ${String(e?.message || e).slice(0, 80)}`);
+        }
+      }
+
+      // Also: try to make sure future posts use this template too.
+      // Two things to do (best-effort, non-blocking):
+      //   1. Save the current template as default (if not already).
+      //   2. Set hero_image_mode = 'cover' in settings.
+      try {
+        const def = state.templates.find((t) => t.is_default);
+        if (!def) {
+          await api('/api/admin/cover/templates', {
+            method: 'POST',
+            body: JSON.stringify({ name: 'main', spec: state.template, is_default: true }),
+          });
+          await loadTemplates();
+        }
+        // Settings PUT takes a flat { key: value } body; setting
+        // hero_image_mode='cover' here means future blog jobs will
+        // try the server-side renderer first (and fall back to AI
+        // until that's implemented — see blog/image.js).
+        await api('/api/admin/settings', {
+          method: 'PUT',
+          body: JSON.stringify({ hero_image_mode: 'cover' }),
+        });
+      } catch { /* non-fatal */ }
+
+      // Redraw the editor canvas with whatever the user had selected
+      // before, so the workspace state is restored.
+      redraw();
+
+      status.textContent = `Done: ${okCount} applied, ${failCount} failed.`;
+      barFill.style.width = '100%';
+      // Allow the user to read the result; click to dismiss.
+      overlay.addEventListener('click', () => overlay.remove(), { once: true });
+      const dismiss = el('button', { class: 'ce-btn',
+        style: { marginTop: '14px' },
+        onclick: () => overlay.remove() },
+        failCount ? 'Close' : 'Done',
+      );
+      $('.ce-apply-card', overlay).appendChild(dismiss);
+      if (errors.length) {
+        const det = el('details', { style: { marginTop: '10px', fontSize: '11px', color: 'var(--ink-dim)' } },
+          el('summary', null, `${errors.length} errors — show`),
+          el('pre', { style: { whiteSpace: 'pre-wrap', maxHeight: '200px', overflow: 'auto' } }, errors.join('\n')),
+        );
+        $('.ce-apply-card', overlay).appendChild(det);
       }
     }
 

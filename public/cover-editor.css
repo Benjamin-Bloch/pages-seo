@@ -533,6 +533,46 @@
 }
 .ce-status-hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
 
+/* ── apply-to-all progress overlay ─────────────────────────── */
+.ce-apply-overlay {
+  position: fixed; inset: 0;
+  display: grid; place-items: center;
+  background: rgba(0,0,0,0.6);
+  z-index: 1000;
+}
+.ce-apply-card {
+  background: var(--bg-card);
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  padding: 24px 28px;
+  min-width: 320px; max-width: 520px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+}
+.ce-apply-card h3 { margin: 0 0 8px; font-size: 16px; color: var(--ink); }
+.ce-apply-status {
+  margin: 0 0 12px;
+  font-size: 13px; color: var(--ink-dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ce-apply-bar {
+  height: 6px; width: 100%;
+  background: var(--bg-soft);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.ce-apply-bar-fill {
+  height: 100%; width: 0%;
+  background: var(--accent);
+  transition: width .2s ease;
+}
+
+/* ── official template pill ─────────────────────────────────── */
+.ce-pill-official {
+  background: linear-gradient(90deg, rgba(212,175,98,0.16), rgba(212,175,98,0.08));
+  color: #d4af62;
+  border: 1px solid rgba(212,175,98,0.4);
+}
+
 /* ── frozen state (hero_image_mode = ai) ────────────────────── */
 #cover-content.frozen .ce-root { opacity: 0.5; pointer-events: none; user-select: none; }
 
