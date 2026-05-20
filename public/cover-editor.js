@@ -73,17 +73,132 @@
   }
 
   // ── constants ────────────────────────────────────────────────────
+  // Fonts available in the editor. Each entry has:
+  //   label  — display name in the picker
+  //   value  — CSS font-family stack
+  //   gf     — Google Fonts family + weights to load (or null for system)
+  //   group  — grouping for the picker
+  //
+  // The Google Fonts <link> is injected once at editor init by
+  // injectFontStylesheet(). For ad-hoc fonts the user types in
+  // the "custom font" input, loadGoogleFont() appends a new
+  // stylesheet at runtime.
   const FONT_FAMILIES = [
-    { label: 'System', value: 'system-ui, -apple-system, Segoe UI, sans-serif' },
-    { label: 'Inter',  value: 'Inter, sans-serif' },
-    { label: 'Georgia', value: 'Georgia, serif' },
-    { label: 'Times', value: '"Times New Roman", serif' },
-    { label: 'Helvetica', value: '"Helvetica Neue", Arial, sans-serif' },
-    { label: 'Courier', value: '"Courier New", monospace' },
-    { label: 'Trebuchet', value: '"Trebuchet MS", sans-serif' },
-    { label: 'Impact', value: 'Impact, sans-serif' },
+    // System ─────────────────────────────────────────────
+    { group: 'System', label: 'System sans', value: 'system-ui, -apple-system, Segoe UI, sans-serif' },
+    { group: 'System', label: 'System serif', value: 'Georgia, "Times New Roman", serif' },
+    { group: 'System', label: 'System mono', value: 'ui-monospace, "JetBrains Mono", Menlo, monospace' },
+
+    // Editorial serifs ───────────────────────────────────
+    { group: 'Editorial serif', label: 'Playfair Display', value: '"Playfair Display", Georgia, serif',
+      gf: { family: 'Playfair Display', weights: '400;500;600;700;800;900' } },
+    { group: 'Editorial serif', label: 'Lora',              value: 'Lora, Georgia, serif',
+      gf: { family: 'Lora', weights: '400;500;600;700' } },
+    { group: 'Editorial serif', label: 'Cormorant Garamond', value: '"Cormorant Garamond", Garamond, serif',
+      gf: { family: 'Cormorant Garamond', weights: '300;400;500;600;700' } },
+    { group: 'Editorial serif', label: 'Crimson Pro',       value: '"Crimson Pro", Garamond, serif',
+      gf: { family: 'Crimson Pro', weights: '300;400;500;600;700;800;900' } },
+    { group: 'Editorial serif', label: 'EB Garamond',       value: '"EB Garamond", Garamond, serif',
+      gf: { family: 'EB Garamond', weights: '400;500;600;700;800' } },
+    { group: 'Editorial serif', label: 'Libre Baskerville', value: '"Libre Baskerville", Georgia, serif',
+      gf: { family: 'Libre Baskerville', weights: '400;700' } },
+
+    // Geometric sans ─────────────────────────────────────
+    { group: 'Geometric sans', label: 'Inter',              value: 'Inter, sans-serif',
+      gf: { family: 'Inter', weights: '300;400;500;600;700;800;900' } },
+    { group: 'Geometric sans', label: 'Space Grotesk',      value: '"Space Grotesk", sans-serif',
+      gf: { family: 'Space Grotesk', weights: '300;400;500;600;700' } },
+    { group: 'Geometric sans', label: 'DM Sans',            value: '"DM Sans", sans-serif',
+      gf: { family: 'DM Sans', weights: '400;500;700' } },
+    { group: 'Geometric sans', label: 'Manrope',            value: 'Manrope, sans-serif',
+      gf: { family: 'Manrope', weights: '300;400;500;600;700;800' } },
+    { group: 'Geometric sans', label: 'Plus Jakarta Sans',  value: '"Plus Jakarta Sans", sans-serif',
+      gf: { family: 'Plus Jakarta Sans', weights: '300;400;500;600;700;800' } },
+    { group: 'Geometric sans', label: 'Outfit',             value: 'Outfit, sans-serif',
+      gf: { family: 'Outfit', weights: '300;400;500;600;700;800;900' } },
+
+    // Display / impact ───────────────────────────────────
+    { group: 'Display', label: 'Bebas Neue',     value: '"Bebas Neue", Impact, sans-serif',
+      gf: { family: 'Bebas Neue', weights: '400' } },
+    { group: 'Display', label: 'Anton',          value: 'Anton, Impact, sans-serif',
+      gf: { family: 'Anton', weights: '400' } },
+    { group: 'Display', label: 'Oswald',         value: 'Oswald, Impact, sans-serif',
+      gf: { family: 'Oswald', weights: '300;400;500;600;700' } },
+    { group: 'Display', label: 'Bowlby One',     value: '"Bowlby One", Impact, sans-serif',
+      gf: { family: 'Bowlby One', weights: '400' } },
+    { group: 'Display', label: 'Archivo Black',  value: '"Archivo Black", Impact, sans-serif',
+      gf: { family: 'Archivo Black', weights: '400' } },
+
+    // Mono / technical ───────────────────────────────────
+    { group: 'Mono',    label: 'JetBrains Mono', value: '"JetBrains Mono", monospace',
+      gf: { family: 'JetBrains Mono', weights: '400;500;600;700;800' } },
+    { group: 'Mono',    label: 'IBM Plex Mono',  value: '"IBM Plex Mono", monospace',
+      gf: { family: 'IBM Plex Mono', weights: '300;400;500;600;700' } },
+    { group: 'Mono',    label: 'Space Mono',     value: '"Space Mono", monospace',
+      gf: { family: 'Space Mono', weights: '400;700' } },
   ];
   const FONT_WEIGHTS = ['300', '400', '500', '600', '700', '800'];
+
+  // Track which Google Font families are already loaded so we don't
+  // append duplicate <link> tags every time the user re-selects a font.
+  const loadedFontFamilies = new Set();
+
+  // Inject the master Google Fonts stylesheet for all curated fonts
+  // at editor init. Built as a single URL with families separated by
+  // `&family=…` so one request loads everything.
+  function injectFontStylesheet() {
+    const families = FONT_FAMILIES
+      .filter((f) => f.gf)
+      .map((f) => `family=${encodeURIComponent(f.gf.family).replace(/%20/g, '+')}:wght@${f.gf.weights}`);
+    if (!families.length) return;
+    families.forEach((f) => loadedFontFamilies.add(f.split('@')[0]));
+    const href = 'https://fonts.googleapis.com/css2?' + families.join('&') + '&display=swap';
+    // Avoid duplicate tags if the editor mounts twice.
+    if (document.querySelector(`link[data-ce-fonts]`)) return;
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = href;
+    link.dataset.ceFonts = '1';
+    document.head.appendChild(link);
+    // Preconnect too, for faster first paint.
+    if (!document.querySelector('link[rel="preconnect"][href="https://fonts.gstatic.com"]')) {
+      const pc = document.createElement('link');
+      pc.rel = 'preconnect';
+      pc.href = 'https://fonts.gstatic.com';
+      pc.crossOrigin = 'anonymous';
+      document.head.appendChild(pc);
+    }
+  }
+
+  // Load an ad-hoc Google Font by family name. Sanitises the input
+  // (Google Fonts names are letters / digits / spaces only — anything
+  // else is either a typo or an attempt to inject). Resolves after
+  // the font is actually ready for use on the canvas.
+  async function loadGoogleFont(family) {
+    const clean = String(family || '').trim().replace(/\s+/g, ' ');
+    if (!/^[A-Za-z0-9 ]{2,40}$/.test(clean)) return false;
+    const key = `family=${encodeURIComponent(clean).replace(/%20/g, '+')}`;
+    if (loadedFontFamilies.has(key.split('@')[0])) return true;
+    loadedFontFamilies.add(key.split('@')[0]);
+
+    const href = `https://fonts.googleapis.com/css2?${key}:wght@300;400;500;600;700;800&display=swap`;
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = href;
+    document.head.appendChild(link);
+
+    // Wait for the @font-face declarations to parse, then for the
+    // actual font file to be available for layout.
+    try {
+      if (document.fonts && document.fonts.load) {
+        // load() forces a fetch + decode of the specified font at
+        // 16px — once that resolves the font is usable everywhere.
+        await document.fonts.load(`16px "${clean}"`);
+        await document.fonts.ready;
+      }
+    } catch { /* network or unknown-font; fall through */ }
+    return true;
+  }
   const PRESETS = [
     { label: 'OG default 1200 × 630', w: 1200, h: 630 },
     { label: 'HD 1920 × 1080',        w: 1920, h: 1080 },
@@ -253,11 +368,21 @@
       root = opts.root;
       api = opts.api;
       glue = opts.glue || {};
+      // Kick the Google Fonts request as early as possible so they're
+      // ready by the time the user wires up a real text layer. The
+      // ones used in saved templates are loaded by the same mechanism
+      // (curated set covers them, plus loadGoogleFont fills in any
+      // missing ones referenced by spec.layers).
+      injectFontStylesheet();
       build();
       bindGlobalKeys();
-      // Initial render once mounted.
-      requestAnimationFrame(() => {
+      // Initial render once mounted. We hold the first paint until
+      // document.fonts.ready so text doesn't flash in the fallback
+      // family. Cheap on subsequent loads (already-loaded fonts
+      // resolve immediately).
+      requestAnimationFrame(async () => {
         fitToContainer();
+        try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch { /* */ }
         redraw();
       });
     }
@@ -1346,12 +1471,56 @@
     }
 
     function appendTextControls(l) {
-      // Font family.
+      // Font family — grouped picker. Optgroups keep the long list
+      // navigable; we group by f.group.
       const fam = el('select', { class: 'ce-ctx-input', title: 'Font',
         onchange: () => cmd('text-style', () => l.family = fam.value) });
+      const groups = new Map();  // preserve insertion order
       for (const f of FONT_FAMILIES) {
-        fam.appendChild(el('option', { value: f.value, selected: l.family === f.value }, f.label));
+        const g = f.group || 'Other';
+        if (!groups.has(g)) groups.set(g, []);
+        groups.get(g).push(f);
       }
+      // If the layer's current family is one we don't have in the
+      // curated list (e.g. a previously-loaded custom Google Font),
+      // we still want it selectable — add a one-off option for it.
+      const known = new Set(FONT_FAMILIES.map((f) => f.value));
+      if (l.family && !known.has(l.family)) {
+        const custom = el('optgroup', { label: 'Custom' });
+        custom.appendChild(el('option', { value: l.family, selected: true }, l.family.replace(/^"|"$/g, '').split(',')[0]));
+        fam.appendChild(custom);
+      }
+      for (const [groupName, items] of groups) {
+        const og = el('optgroup', { label: groupName });
+        for (const f of items) {
+          og.appendChild(el('option', { value: f.value, selected: l.family === f.value }, f.label));
+        }
+        fam.appendChild(og);
+      }
+      // "Custom Google Font" mini-input. User types a family name,
+      // hits Enter; we load it and switch the selected layer to it.
+      const customIn = el('input', {
+        type: 'text', class: 'ce-ctx-input', placeholder: 'or paste a Google Font name…',
+        style: { width: '160px' }, title: 'Type any Google Font family (e.g. "Roboto Slab") and press Enter',
+      });
+      customIn.addEventListener('keydown', async (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const name = customIn.value.trim();
+        if (!name) return;
+        customIn.disabled = true;
+        const ok = await loadGoogleFont(name);
+        customIn.disabled = false;
+        if (!ok) {
+          customIn.value = ''; customIn.placeholder = 'Invalid name — letters/digits/spaces only';
+          setTimeout(() => { customIn.placeholder = 'or paste a Google Font name…'; }, 2500);
+          return;
+        }
+        cmd('text-style', () => {
+          l.family = `"${name}", sans-serif`;
+        });
+        customIn.value = '';
+      });
       // Size.
       const size = el('input', {
         type: 'number', class: 'ce-ctx-input ce-ctx-size',
@@ -1386,7 +1555,7 @@
       // Shadow toggle.
       const shadow = ctxIcon('☼', 'Drop shadow', () => cmd('text-style', () => { l.shadow = !l.shadow; }));
       shadow.classList.toggle('is-on', !!l.shadow);
-      contextToolbar.append(fam, size, el('span', { class: 'ce-ctx-sep' }), bold, italic, align, color, shadow);
+      contextToolbar.append(fam, customIn, size, el('span', { class: 'ce-ctx-sep' }), bold, italic, align, color, shadow);
     }
 
     function appendBoxControls(l) {
@@ -1642,6 +1811,24 @@
         updateSizeLabel(); syncPresetSelect();
         fitToContainer();
       });
+      // Pre-warm any custom fonts referenced by text layers in this
+      // template. The curated set is already loaded via injectFont-
+      // Stylesheet(); anything else (a font the user typed into the
+      // custom input in a previous session) needs an explicit load
+      // before redraw or it'll render in the fallback family.
+      const known = new Set(FONT_FAMILIES.map((f) => f.value));
+      const customFamilies = new Set();
+      for (const l of state.template.layers) {
+        if (l.kind === 'text' && l.family && !known.has(l.family)) {
+          // Extract the first quoted name from the stack, e.g.
+          // '"Roboto Slab", sans-serif' → 'Roboto Slab'.
+          const m = String(l.family).match(/^"([^"]+)"/) || String(l.family).match(/^([^,]+)/);
+          if (m) customFamilies.add(m[1].trim());
+        }
+      }
+      if (customFamilies.size) {
+        Promise.all([...customFamilies].map(loadGoogleFont)).then(() => redraw());
+      }
     }
 
     // ── add layer (button or DnD) ────────────────────────────────
