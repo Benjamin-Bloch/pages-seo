@@ -2257,12 +2257,23 @@
       return /^[0-9a-f]{20,128}$/.test(t) ? t : '';
     }
 
+    // Read the GitHub-derived primary email the installer baked into
+    // the magic link as `?email=<addr>`. Returns '' on missing or
+    // malformed values so the form falls back to manual entry.
+    function readPrefillEmail() {
+      const e = new URLSearchParams(location.search).get('email') || '';
+      return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) ? e : '';
+    }
+
     function clearTokenFromUrl() {
-      // Remove the ?setup=… so a refresh doesn't keep the token in
-      // the bar (and so the browser doesn't preserve it in history).
+      // Remove ?setup= AND ?email= so a refresh doesn't keep them
+      // in the bar (and so the browser doesn't preserve them in
+      // history). The email is the user's own, but there's no need
+      // to leave it in the URL once the form has it.
       try {
         const url = new URL(location.href);
         url.searchParams.delete('setup');
+        url.searchParams.delete('email');
         history.replaceState(null, '', url.pathname + (url.search ? url.search : '') + (url.hash || ''));
       } catch { /* */ }
     }
@@ -2278,11 +2289,17 @@
       // Capture the magic-link token (if present) and clear it from
       // the URL bar. We keep the value in setupToken for the POST.
       setupToken = readSetupToken();
+      const prefillEmail = readPrefillEmail();
       clearTokenFromUrl();
 
       // Sensible defaults for the new operator.
       const siteUrlInput = $('#setup-site-url');
       if (siteUrlInput && !siteUrlInput.value) siteUrlInput.value = location.origin;
+      // Prefill the email field with the GitHub primary email the
+      // installer fetched. Saves the user a typing step; they can
+      // overwrite it if they prefer a different admin address.
+      const emailInput = $('#setup-email');
+      if (emailInput && !emailInput.value && prefillEmail) emailInput.value = prefillEmail;
       // Try to populate site name from the SITE_NAME env var via
       // whoami — that's set by the installer at provision time.
       try {
@@ -2291,7 +2308,10 @@
         if (name && !$('#setup-site-name').value) $('#setup-site-name').value = name;
       } catch { /* fine, leave blank for manual entry */ }
 
-      setTimeout(() => $('#setup-email').focus(), 50);
+      setTimeout(() => {
+        const target = (emailInput && emailInput.value) ? $('#setup-password') : $('#setup-email');
+        if (target) target.focus();
+      }, 50);
     }
 
     function showSuccess() {
