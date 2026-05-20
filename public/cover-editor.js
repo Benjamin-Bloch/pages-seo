@@ -231,21 +231,21 @@
   function CoverEditor() {
     const state = makeState();
     const history = makeHistory();
-    let root;        // mount point
-    let api;         // fetch helper from admin.js
-    let glue;        // { onDirty, loadSettings, getWhoami }
-    let canvas;      // <canvas>
-    let ctx2d;       // 2D context
-    let canvasWrap;  // container holding canvas + overlay
-    let overlay;     // absolutely-positioned div over canvas for handles, guides, marquee
-    let textEditor;  // contenteditable div for inline text editing
-    let toolbar;     // floating toolbar
-    let inspector;   // right panel
-    let layersPanel; // left panel section
-    let assetsPanel; // left panel section
-    let zoomLabel;   // toolbar zoom indicator
+    let root;            // mount point
+    let api;             // fetch helper from admin.js
+    let glue;            // { onDirty, loadSettings, getWhoami }
+    let canvas;          // <canvas>
+    let ctx2d;           // 2D context
+    let canvasWrap;      // container holding canvas + overlay
+    let overlay;         // absolutely-positioned div over canvas for handles, guides, marquee
+    let textEditor;      // contenteditable div for inline text editing
+    let contextToolbar;  // selection-aware top toolbar (fixed band)
+    let railEl;          // vertical icon column (left)
+    let panelEl;         // slide-out panel next to the rail
+    let zoomLabel;
     let presetSelect;
     let sizeLabel;
+    let activeRail = null;  // which rail item is open: 'text' | 'uploads' | 'templates' | 'layers' | null
     let dirty = false;
 
     // ─── public init ─────────────────────────────────────────────
@@ -263,33 +263,40 @@
     }
 
     // ─── layout build ────────────────────────────────────────────
+    //
+    // Canva-style layout:
+    //   ┌──────────────────────────────────────────────────────────┐
+    //   │ ce-header  (compact: size + undo/redo + save/apply)      │
+    //   ├────┬─────────┬────────────────────────────────────────────┤
+    //   │    │         │ ce-context-toolbar (selection-aware band)  │
+    //   │ ra │ panel   ├────────────────────────────────────────────┤
+    //   │ il │ (slide- │                                            │
+    //   │    │  out)   │   canvas viewport                          │
+    //   │    │         │                                            │
+    //   │    │         │                          [zoom cluster]    │
+    //   ├────┴─────────┴────────────────────────────────────────────┤
+    //   │ status hint                                                │
+    //   └────────────────────────────────────────────────────────────┘
+    //
+    // Rail is always 60px. Panel collapses to 0px when nothing is
+    // active. No right sidebar — selection controls live in the
+    // context-toolbar, preview-with-title is the toolbar's "nothing
+    // selected" state.
     function build() {
       clearChildren(root);
       root.classList.add('ce-root');
 
-      // ── header / toolbar ─────────────────────────────────────
+      // ── header (compact: just identity + global actions) ─────
       const header = el('header', { class: 'ce-header' },
         el('div', { class: 'ce-header-left' },
           el('label', { class: 'ce-size' },
             (sizeLabel = el('span', null, '1200 × 630')),
             (presetSelect = el('select', { class: 'ce-preset' },
-              ...PRESETS.map((p, i) =>
-                el('option', { value: i }, p.label),
-              ),
+              ...PRESETS.map((p, i) => el('option', { value: i }, p.label)),
               el('option', { value: 'custom' }, 'Custom…'),
             )),
           ),
           el('span', { class: 'ce-divider' }),
-          (() => {
-            const grp = el('div', { class: 'ce-zoom' });
-            const out = el('button', { class: 'ce-icon-btn', title: 'Zoom out (Cmd −)', onclick: () => setZoom(state.zoom / 1.25) }, '−');
-            zoomLabel = el('button', { class: 'ce-zoom-label', title: 'Reset zoom (Cmd 0)', onclick: () => { state.autoFit = true; fitToContainer(); redraw(); } }, '100%');
-            const inn = el('button', { class: 'ce-icon-btn', title: 'Zoom in (Cmd +)', onclick: () => setZoom(state.zoom * 1.25) }, '+');
-            grp.append(out, zoomLabel, inn);
-            return grp;
-          })(),
-        ),
-        el('div', { class: 'ce-header-center' },
           el('button', { class: 'ce-icon-btn', title: 'Undo (Cmd Z)', onclick: undo }, '↺'),
           el('button', { class: 'ce-icon-btn', title: 'Redo (Cmd Shift Z)', onclick: redo }, '↻'),
         ),
@@ -309,7 +316,7 @@
             state.template.width = clamp(w, 200, 4000);
             state.template.height = clamp(h, 200, 4000);
             updateSizeLabel();
-            fitToContainer();
+            requestAnimationFrame(fitToContainer);
           });
         } else {
           const p = PRESETS[parseInt(v, 10)];
@@ -317,84 +324,124 @@
           cmd('resize-canvas', () => {
             state.template.width = p.w; state.template.height = p.h;
             updateSizeLabel();
-            fitToContainer();
+            requestAnimationFrame(fitToContainer);
           });
         }
       });
 
-      // ── body: three-column workspace ──────────────────────────
+      // ── body row: rail + panel + stage ───────────────────────
       const body = el('div', { class: 'ce-body' });
 
-      // Left sidebar — assets + layers
-      const leftSidebar = el('aside', { class: 'ce-sidebar ce-sidebar-left' });
-      const tabBar = el('div', { class: 'ce-sb-tabs' },
-        el('button', { class: 'ce-sb-tab is-active', dataset: { tab: 'assets' }, onclick: (e) => switchSidebarTab(e.target) }, 'Assets'),
-        el('button', { class: 'ce-sb-tab', dataset: { tab: 'layers' }, onclick: (e) => switchSidebarTab(e.target) }, 'Layers'),
-        el('button', { class: 'ce-sb-tab', dataset: { tab: 'templates' }, onclick: (e) => switchSidebarTab(e.target) }, 'Templates'),
+      // Left rail
+      railEl = el('nav', { class: 'ce-rail' },
+        railBtn('text',      'T',  'Text'),
+        railBtn('uploads',   '↥',  'Uploads'),
+        railBtn('templates', '◫',  'Templates'),
+        railBtn('layers',    '☰',  'Layers'),
       );
-      assetsPanel = el('div', { class: 'ce-sb-pane', dataset: { tab: 'assets' } });
-      layersPanel = el('div', { class: 'ce-sb-pane is-hidden', dataset: { tab: 'layers' } });
-      const templatesPanel = el('div', { class: 'ce-sb-pane is-hidden', dataset: { tab: 'templates' } });
-      leftSidebar.append(tabBar, assetsPanel, layersPanel, templatesPanel);
 
-      // Center — canvas viewport
-      const center = el('main', { class: 'ce-center' });
+      // Slide-out panel (collapsed by default)
+      panelEl = el('aside', { class: 'ce-panel is-collapsed' },
+        el('div', { class: 'ce-panel-inner' }),
+      );
+
+      // Stage = top context toolbar + viewport
+      const stage = el('div', { class: 'ce-stage' });
+      contextToolbar = el('div', { class: 'ce-context-toolbar' });
       const viewport = el('div', { class: 'ce-viewport' });
       canvasWrap = el('div', { class: 'ce-canvas-wrap' });
       canvas = el('canvas', { class: 'ce-canvas', width: 1200, height: 630 });
       overlay = el('div', { class: 'ce-overlay' });
       canvasWrap.append(canvas, overlay);
       viewport.appendChild(canvasWrap);
-      center.appendChild(viewport);
 
-      // Right sidebar — inspector + preview
-      const rightSidebar = el('aside', { class: 'ce-sidebar ce-sidebar-right' },
-        el('div', { class: 'ce-sb-pane' },
-          el('h3', { class: 'ce-sb-h' }, 'Preview with title'),
-          el('div', { class: 'ce-row' },
-            el('select', { id: 'ce-preview-post', class: 'ce-input', onchange: refreshPreview }, el('option', { value: '' }, '(pick post)')),
-          ),
-          el('div', { class: 'ce-row' },
-            el('input', { id: 'ce-preview-title', class: 'ce-input', placeholder: 'or type a title…', oninput: refreshPreview }),
-          ),
-        ),
-        (inspector = el('div', { class: 'ce-sb-pane ce-inspector' },
-          el('h3', { class: 'ce-sb-h' }, 'Inspector'),
-          el('p', { class: 'ce-dim' }, 'Select a layer to edit.'),
-        )),
+      // Floating zoom cluster (bottom-right of stage)
+      const zoomCluster = el('div', { class: 'ce-zoom-cluster' },
+        el('button', { class: 'ce-icon-btn', title: 'Zoom out (Cmd −)', onclick: () => setZoom(state.zoom / 1.25) }, '−'),
+        (zoomLabel = el('button', { class: 'ce-zoom-label', title: 'Fit to window (Cmd 0)',
+          onclick: () => { state.autoFit = true; fitToContainer(); redraw(); } }, '100%')),
+        el('button', { class: 'ce-icon-btn', title: 'Zoom in (Cmd +)', onclick: () => setZoom(state.zoom * 1.25) }, '+'),
       );
 
-      body.append(leftSidebar, center, rightSidebar);
+      stage.append(contextToolbar, viewport, zoomCluster);
+      body.append(railEl, panelEl, stage);
 
-      // Status bar at bottom
+      // Status hint
       const status = el('footer', { class: 'ce-status' },
-        el('span', { class: 'ce-status-hint' }, 'Drop images on the canvas · Drag to move · Shift-drag to scale uniformly · Double-click text to edit'),
+        el('span', { class: 'ce-status-hint' }, 'Click a rail icon · Drag images onto the canvas · Double-click text to edit · Shift to constrain'),
       );
 
-      // Floating toolbar above selection (initially hidden)
-      toolbar = el('div', { class: 'ce-float-toolbar', hidden: true });
+      root.append(header, body, status);
 
-      root.append(header, body, status, toolbar);
-
-      // ── viewport handlers ─────────────────────────────────────
+      // Viewport handlers
       ctx2d = canvas.getContext('2d');
       bindCanvas();
       bindDnD();
-      window.addEventListener('resize', () => { fitToContainer(); redraw(); });
-
-      // Initial sidebar render.
-      renderAssetsPanel();
-      renderLayersPanel();
-      renderTemplatesPanel(templatesPanel);
+      // Resize: throttle to next frame so we don't recompute on every pixel.
+      let resizeRaf = 0;
+      window.addEventListener('resize', () => {
+        cancelAnimationFrame(resizeRaf);
+        resizeRaf = requestAnimationFrame(() => { fitToContainer(); redraw(); });
+      });
+      // Also observe the viewport itself in case the panel collapses/expands.
+      if (typeof ResizeObserver !== 'undefined') {
+        const ro = new ResizeObserver(() => {
+          if (!state.autoFit) return;
+          fitToContainer();
+        });
+        ro.observe(viewport);
+      }
     }
 
-    function switchSidebarTab(button) {
-      const sb = button.closest('.ce-sidebar');
-      $$('.ce-sb-tab', sb).forEach((t) => t.classList.toggle('is-active', t === button));
-      const tab = button.dataset.tab;
-      $$('.ce-sb-pane', sb).forEach((p) => {
-        p.classList.toggle('is-hidden', p.dataset.tab !== tab);
-      });
+    // Build one rail button. Clicking toggles the panel.
+    function railBtn(id, icon, label) {
+      const btn = el('button', {
+        class: 'ce-rail-btn',
+        dataset: { rail: id },
+        onclick: () => toggleRail(id),
+      },
+        el('span', { class: 'ce-rail-icon' }, icon),
+        el('span', { class: 'ce-rail-label' }, label),
+      );
+      return btn;
+    }
+
+    function toggleRail(id) {
+      if (activeRail === id) {
+        closeRail();
+      } else {
+        openRail(id);
+      }
+    }
+    function openRail(id) {
+      activeRail = id;
+      $$('.ce-rail-btn', railEl).forEach((b) => b.classList.toggle('is-active', b.dataset.rail === id));
+      panelEl.classList.remove('is-collapsed');
+      renderRailPanel(id);
+      // After the panel layout settles, refit the canvas.
+      requestAnimationFrame(() => { if (state.autoFit) fitToContainer(); });
+    }
+    function closeRail() {
+      activeRail = null;
+      $$('.ce-rail-btn', railEl).forEach((b) => b.classList.remove('is-active'));
+      panelEl.classList.add('is-collapsed');
+      requestAnimationFrame(() => { if (state.autoFit) fitToContainer(); });
+    }
+    function renderRailPanel(id) {
+      const inner = $('.ce-panel-inner', panelEl);
+      clearChildren(inner);
+      const head = el('div', { class: 'ce-panel-head' },
+        el('h3', { class: 'ce-panel-title' }, railTitleFor(id)),
+        el('button', { class: 'ce-panel-close', title: 'Close', onclick: closeRail }, '×'),
+      );
+      inner.appendChild(head);
+      if (id === 'text')      renderTextPanel(inner);
+      if (id === 'uploads')   renderUploadsPanel(inner);
+      if (id === 'templates') renderTemplatesPanel(inner);
+      if (id === 'layers')    renderLayersPanel(inner);
+    }
+    function railTitleFor(id) {
+      return { text: 'Text', uploads: 'Uploads', templates: 'Templates', layers: 'Layers' }[id] || id;
     }
 
     function updateSizeLabel() {
@@ -406,17 +453,33 @@
     }
 
     // ── responsive scaling ────────────────────────────────────────
+    //
+    // The big win for the user experience is that "fit-to-window" is
+    // the default and stays the default until they manually zoom.
+    // Any layout change that affects the viewport's available area
+    // (window resize, rail panel slide-in/out) re-fits if autoFit is
+    // still on.
+    //
+    // Bug history: the previous version capped at 1.0 ("never
+    // upscale"), which made small previews on big screens leave huge
+    // empty space. We now upscale up to 2× for very small designs
+    // (e.g. a 600×400 canvas on a 4K monitor). The hard ceiling
+    // (4×) and floor (0.25×) match the manual zoom range.
     function fitToContainer() {
       const vp = $('.ce-viewport', root);
       if (!vp) return;
-      const padding = 48;
-      const availW = vp.clientWidth  - padding;
-      const availH = vp.clientHeight - padding;
+      // Use the bounding rect so we get the post-flex actual size,
+      // not the pre-layout clientWidth which can lag during transitions.
+      const r = vp.getBoundingClientRect();
+      const padding = 32;
+      const availW = Math.max(0, r.width  - padding * 2);
+      const availH = Math.max(0, r.height - padding * 2);
+      if (availW < 40 || availH < 40) return; // layout not ready yet
       const sw = availW / state.template.width;
       const sh = availH / state.template.height;
-      const fit = Math.min(sw, sh, 1.0); // never upscale past 100% on auto
+      const fit = Math.min(sw, sh);
       if (state.autoFit) {
-        state.zoom = Math.max(0.25, fit);
+        state.zoom = clamp(fit, 0.25, 4);
       }
       applyZoom();
     }
@@ -509,9 +572,20 @@
         try { await drawCanvas(); }
         catch (e) { console.error('[cover] draw', e); }
         renderOverlay();
-        renderInspector();
-        renderLayersPanel();
-        renderFloatingToolbar();
+        renderContextToolbar();
+        // Layers panel only redraws when the layers rail is open —
+        // otherwise the panel is unmounted and there's nothing to do.
+        if (activeRail === 'layers') {
+          const inner = $('.ce-panel-inner', panelEl);
+          if (inner) {
+            clearChildren(inner);
+            inner.appendChild(el('div', { class: 'ce-panel-head' },
+              el('h3', { class: 'ce-panel-title' }, 'Layers'),
+              el('button', { class: 'ce-panel-close', title: 'Close', onclick: closeRail }, '×'),
+            ));
+            renderLayersPanel(inner);
+          }
+        }
       });
     }
 
@@ -1194,117 +1268,156 @@
       });
     }
 
-    // ── floating toolbar ─────────────────────────────────────────
-    function renderFloatingToolbar() {
-      clearChildren(toolbar);
+    // ── contextual top toolbar ──────────────────────────────────
+    //
+    // Lives in the fixed band above the canvas. Contents change based
+    // on what's selected:
+    //   nothing → preview-with-title controls (post picker + title input)
+    //   1 text  → font / size / weight / B / I / color / align / shadow
+    //   1 box   → fill / alpha / radius
+    //   1 logo  → source dropdown
+    //   2+      → align controls; 3+ also distribute
+    // The "common" right-side cluster (z-order / duplicate / lock /
+    // delete / opacity) is always present when something is selected.
+    function renderContextToolbar() {
+      if (!contextToolbar) return;
+      clearChildren(contextToolbar);
       const sel = selectedLayers();
-      if (sel.length === 0) { toolbar.hidden = true; return; }
-
-      // Single text layer → text controls inline.
-      if (sel.length === 1 && sel[0].kind === 'text') {
-        const l = sel[0];
-        appendTextControls(toolbar, l);
-      } else if (sel.length === 1 && sel[0].kind === 'box') {
-        appendBoxControls(toolbar, sel[0]);
-      } else if (sel.length === 1 && sel[0].kind === 'logo') {
-        appendLogoControls(toolbar, sel[0]);
-      } else {
-        appendMultiControls(toolbar, sel);
+      if (sel.length === 0) {
+        renderIdleToolbar();
+        return;
       }
-      // Common controls — always.
-      toolbar.append(
-        el('span', { class: 'ce-tb-sep' }),
-        iconBtn('⇧', 'Bring to front', () => moveZ(+Infinity)),
-        iconBtn('⇩', 'Send to back',  () => moveZ(-Infinity)),
-        iconBtn('⎘', 'Duplicate (⌘D)',  duplicateSelection),
-        iconBtn('🔒', 'Lock / unlock', toggleLock),
-        iconBtn('🗑', 'Delete (⌫)',    deleteSelection),
-      );
+      if (sel.length === 1 && sel[0].kind === 'text') appendTextControls(sel[0]);
+      else if (sel.length === 1 && sel[0].kind === 'box') appendBoxControls(sel[0]);
+      else if (sel.length === 1 && sel[0].kind === 'logo') appendLogoControls(sel[0]);
+      else if (sel.length > 1) appendMultiControls(sel);
 
-      // Position above the selection's bounding box.
-      const bbox = boundingBox(sel);
-      const wrap = canvasWrap.getBoundingClientRect();
-      const rootRect = root.getBoundingClientRect();
-      const cx = (bbox.x + bbox.w / 2) * state.zoom + (wrap.left - rootRect.left);
-      const cy = bbox.y * state.zoom + (wrap.top - rootRect.top);
-      toolbar.hidden = false;
-      toolbar.style.left = `${cx}px`;
-      // Toolbar is translated -50% horizontally + translated above
-      // the bbox top with a small gap. If that would go off the top
-      // of the workspace, flip it below.
-      toolbar.style.top = `${cy}px`;
-      toolbar.style.transform = 'translate(-50%, calc(-100% - 8px))';
-      requestAnimationFrame(() => {
-        const tbRect = toolbar.getBoundingClientRect();
-        if (tbRect.top < rootRect.top + 8) {
-          // Flip below.
-          toolbar.style.top = `${(bbox.y + bbox.h) * state.zoom + (wrap.top - rootRect.top)}px`;
-          toolbar.style.transform = 'translate(-50%, 8px)';
-        }
-      });
+      contextToolbar.append(
+        el('span', { class: 'ce-ctx-spacer' }),
+        el('span', { class: 'ce-ctx-sep' }),
+        ctxIcon('⇧', 'Bring to front', () => moveZ(+Infinity)),
+        ctxIcon('⇩', 'Send to back',   () => moveZ(-Infinity)),
+        ctxIcon('⎘', 'Duplicate (⌘D)', duplicateSelection),
+        // Opacity slider — universally applicable, lives in toolbar
+        // not in a separate inspector.
+        (() => {
+          const layer0 = sel[0];
+          const val = layer0?.opacity != null ? layer0.opacity : 1;
+          const range = el('input', {
+            type: 'range', class: 'ce-ctx-input ce-ctx-range',
+            min: 0, max: 1, step: 0.05, value: String(val),
+            title: 'Opacity',
+            oninput: (e) => cmd('opacity', () => {
+              const v = parseFloat(e.target.value);
+              for (const l of sel) l.opacity = v;
+            }),
+          });
+          return range;
+        })(),
+        ctxIcon('🔒', 'Lock / unlock', toggleLock),
+        ctxIcon('🗑', 'Delete (⌫)',   deleteSelection),
+      );
     }
-    function appendTextControls(toolbar, l) {
+
+    function renderIdleToolbar() {
+      // "Nothing selected" state — the preview-with-title controls.
+      const postSel = el('select', {
+        id: 'ce-preview-post', class: 'ce-ctx-input',
+        onchange: refreshPreview,
+      }, el('option', { value: '' }, '(preview as post…)'));
+      // The current state.posts list is populated by loadPosts(); we
+      // copy them in here on each render.
+      for (const p of (state.posts || [])) {
+        postSel.appendChild(el('option', { value: p.id }, p.title.slice(0, 60)));
+      }
+      const titleIn = el('input', {
+        id: 'ce-preview-title', class: 'ce-ctx-input',
+        placeholder: 'or type a title to preview…',
+        style: { minWidth: '260px', flex: '1' },
+        oninput: refreshPreview,
+      });
+      contextToolbar.append(
+        el('span', { class: 'ce-ctx-lbl' }, 'Preview'),
+        postSel,
+        titleIn,
+        el('span', { class: 'ce-ctx-spacer' }),
+        el('span', { class: 'ce-dim' }, 'Click a rail icon on the left to add elements.'),
+      );
+    }
+
+    function appendTextControls(l) {
       // Font family.
-      const fam = el('select', { class: 'ce-tb-input', onchange: () => cmd('text-style', () => l.family = fam.value) });
+      const fam = el('select', { class: 'ce-ctx-input', title: 'Font',
+        onchange: () => cmd('text-style', () => l.family = fam.value) });
       for (const f of FONT_FAMILIES) {
         fam.appendChild(el('option', { value: f.value, selected: l.family === f.value }, f.label));
       }
       // Size.
-      const size = el('input', { type: 'number', class: 'ce-tb-input ce-tb-size', min: 8, max: 400, value: l.size || 60,
-        oninput: () => cmd('text-style', () => l.size = clamp(parseInt(size.value, 10) || 60, 8, 400)) });
-      // Weight (dropdown).
-      const weight = el('select', { class: 'ce-tb-input', onchange: () => cmd('text-style', () => l.weight = weight.value) });
-      for (const w of FONT_WEIGHTS) weight.appendChild(el('option', { value: w, selected: (l.weight || '600') === w }, w));
-      // Color.
-      const color = el('input', { type: 'color', class: 'ce-tb-color', value: hexOnly(l.color || '#ffffff'),
-        oninput: () => cmd('text-style', () => l.color = color.value) });
+      const size = el('input', {
+        type: 'number', class: 'ce-ctx-input ce-ctx-size',
+        min: 8, max: 400, value: l.size || 60, title: 'Size',
+        oninput: () => cmd('text-style', () => l.size = clamp(parseInt(size.value, 10) || 60, 8, 400)),
+      });
       // Bold toggle (jumps weight between 400 and 700).
-      const bold = iconBtn('B', 'Bold', () => cmd('text-style', () => {
+      const bold = ctxIcon('B', 'Bold', () => cmd('text-style', () => {
         l.weight = (parseInt(l.weight, 10) || 400) >= 600 ? '400' : '700';
       }));
+      bold.style.fontWeight = '800';
       bold.classList.toggle('is-on', (parseInt(l.weight, 10) || 400) >= 600);
-      const italic = iconBtn('I', 'Italic', () => cmd('text-style', () => { l.italic = !l.italic; }));
+      const italic = ctxIcon('I', 'Italic', () => cmd('text-style', () => { l.italic = !l.italic; }));
+      italic.style.fontStyle = 'italic';
       italic.classList.toggle('is-on', !!l.italic);
-      // Align.
-      const align = el('div', { class: 'ce-tb-segmented' });
-      for (const a of ['left', 'center', 'right']) {
-        const b = el('button', { class: 'ce-tb-seg', dataset: { align: a },
-          title: 'Align ' + a, onclick: () => cmd('text-style', () => l.align = a) },
-          a === 'left' ? '⯇' : a === 'right' ? '⯈' : '═');
-        if ((l.align || 'left') === a) b.classList.add('is-on');
-        align.appendChild(b);
-      }
-      const shadow = iconBtn('☼', 'Shadow', () => cmd('text-style', () => { l.shadow = !l.shadow; }));
+      // Align: a single button that cycles through left → center →
+      // right. Avoids the three-near-identical-icons problem the user
+      // pointed out.
+      const ALIGNS = ['left', 'center', 'right'];
+      const ALIGN_GLYPHS = { left: '⫷', center: '═', right: '⫸' };
+      const align = ctxIcon(ALIGN_GLYPHS[l.align || 'left'], 'Align (click to cycle)', () => {
+        cmd('text-style', () => {
+          const i = ALIGNS.indexOf(l.align || 'left');
+          l.align = ALIGNS[(i + 1) % ALIGNS.length];
+        });
+      });
+      // Color picker.
+      const color = el('input', {
+        type: 'color', class: 'ce-ctx-color', value: hexOnly(l.color || '#ffffff'), title: 'Text colour',
+        oninput: () => cmd('text-style', () => l.color = color.value),
+      });
+      // Shadow toggle.
+      const shadow = ctxIcon('☼', 'Drop shadow', () => cmd('text-style', () => { l.shadow = !l.shadow; }));
       shadow.classList.toggle('is-on', !!l.shadow);
-      toolbar.append(fam, size, weight, bold, italic, align, color, shadow);
+      contextToolbar.append(fam, size, el('span', { class: 'ce-ctx-sep' }), bold, italic, align, color, shadow);
     }
-    function appendBoxControls(toolbar, l) {
+
+    function appendBoxControls(l) {
       const baseHex = hexOnly(l.fill || '#000000');
       const baseAlpha = parseAlpha(l.fill, 0.55);
-      const color = el('input', { type: 'color', class: 'ce-tb-color', value: baseHex,
+      const color = el('input', { type: 'color', class: 'ce-ctx-color', value: baseHex, title: 'Fill',
         oninput: () => cmd('box-style', () => { l.fill = hexToRgba(color.value, alpha.value); }) });
-      const alpha = el('input', { type: 'range', class: 'ce-tb-input ce-tb-range', min: 0, max: 1, step: 0.05, value: String(baseAlpha),
+      const alpha = el('input', { type: 'range', class: 'ce-ctx-input ce-ctx-range',
+        min: 0, max: 1, step: 0.05, value: String(baseAlpha), title: 'Fill alpha',
         oninput: () => cmd('box-style', () => { l.fill = hexToRgba(color.value, alpha.value); }) });
-      const radius = el('input', { type: 'number', class: 'ce-tb-input ce-tb-size', min: 0, max: 999, value: l.radius || 0,
+      const radius = el('input', { type: 'number', class: 'ce-ctx-input ce-ctx-size',
+        min: 0, max: 999, value: l.radius || 0, title: 'Corner radius',
         oninput: () => cmd('box-style', () => { l.radius = parseInt(radius.value, 10) || 0; }) });
-      toolbar.append(
-        el('span', { class: 'ce-tb-lbl' }, 'Fill'), color,
-        el('span', { class: 'ce-tb-lbl' }, 'Alpha'), alpha,
-        el('span', { class: 'ce-tb-lbl' }, 'Radius'), radius,
+      contextToolbar.append(
+        el('span', { class: 'ce-ctx-lbl' }, 'Fill'), color, alpha,
+        el('span', { class: 'ce-ctx-sep' }),
+        el('span', { class: 'ce-ctx-lbl' }, 'Radius'), radius,
       );
     }
-    function appendLogoControls(toolbar, l) {
-      const sel = el('select', { class: 'ce-tb-input', onchange: () => cmd('logo-source', () => {
-        l.url = sel.value || null; l.asset_id = null;
-      }) });
+
+    function appendLogoControls(l) {
+      const sel = el('select', { class: 'ce-ctx-input', title: 'Logo source',
+        onchange: () => cmd('logo-source', () => { l.url = sel.value || null; l.asset_id = null; }) });
       sel.appendChild(el('option', { value: '' }, '(no logo)'));
       for (const a of state.assets.logo) {
         sel.appendChild(el('option', { value: a.url, selected: l.url === a.url }, a.original_name || a.id));
       }
-      toolbar.append(el('span', { class: 'ce-tb-lbl' }, 'Source'), sel);
+      contextToolbar.append(el('span', { class: 'ce-ctx-lbl' }, 'Source'), sel);
     }
-    function appendMultiControls(toolbar, sel) {
-      // Align (relative to bounding box).
+
+    function appendMultiControls(sel) {
       const align = (axis, mode) => () => cmd('align', () => {
         const bbox = boundingBox(sel);
         for (const l of sel) {
@@ -1319,27 +1432,30 @@
           }
         }
       });
-      toolbar.append(
-        iconBtn('⫷', 'Align left',   align('x', 'left')),
-        iconBtn('⫸', 'Align right',  align('x', 'right')),
-        iconBtn('⊟', 'Center horizontally', align('x', 'center')),
-        el('span', { class: 'ce-tb-sep' }),
-        iconBtn('⊺', 'Align top',    align('y', 'top')),
-        iconBtn('⊥', 'Align bottom', align('y', 'bottom')),
-        iconBtn('⊟', 'Center vertically', align('y', 'center')),
+      contextToolbar.append(
+        el('span', { class: 'ce-ctx-lbl' }, `${sel.length} selected`),
+        el('span', { class: 'ce-ctx-sep' }),
+        ctxIcon('⫷', 'Align left',    align('x', 'left')),
+        ctxIcon('═', 'Center horiz.', align('x', 'center')),
+        ctxIcon('⫸', 'Align right',   align('x', 'right')),
+        el('span', { class: 'ce-ctx-sep' }),
+        ctxIcon('⊤', 'Align top',     align('y', 'top')),
+        ctxIcon('⌖', 'Center vert.',  align('y', 'center')),
+        ctxIcon('⊥', 'Align bottom',  align('y', 'bottom')),
       );
       if (sel.length >= 3) {
-        toolbar.append(
-          el('span', { class: 'ce-tb-sep' }),
-          iconBtn('⇔', 'Distribute horizontally', () => cmd('distribute', () => distribute(sel, 'x'))),
-          iconBtn('⇕', 'Distribute vertically',   () => cmd('distribute', () => distribute(sel, 'y'))),
+        contextToolbar.append(
+          el('span', { class: 'ce-ctx-sep' }),
+          ctxIcon('⇔', 'Distribute horiz.', () => cmd('distribute', () => distribute(sel, 'x'))),
+          ctxIcon('⇕', 'Distribute vert.',  () => cmd('distribute', () => distribute(sel, 'y'))),
         );
       }
     }
+
     function distribute(layers, axis) {
-      // Sort by axis position; redistribute centers evenly between
-      // the first and last layer's centers.
-      const sorted = [...layers].sort((a, b) => (axis === 'x' ? a.x + a.w / 2 - (b.x + b.w / 2) : a.y + a.h / 2 - (b.y + b.h / 2)));
+      const sorted = [...layers].sort((a, b) => (axis === 'x'
+        ? a.x + a.w / 2 - (b.x + b.w / 2)
+        : a.y + a.h / 2 - (b.y + b.h / 2)));
       if (sorted.length < 3) return;
       const first = sorted[0], last = sorted[sorted.length - 1];
       const start = axis === 'x' ? first.x + first.w / 2 : first.y + first.h / 2;
@@ -1352,83 +1468,155 @@
         else l.y = c - l.h / 2;
       }
     }
-    function iconBtn(label, title, fn) {
-      return el('button', { class: 'ce-tb-icon', title, onclick: fn }, label);
-    }
-
-    // ── inspector (right side) ───────────────────────────────────
-    function renderInspector() {
-      clearChildren(inspector);
-      inspector.appendChild(el('h3', { class: 'ce-sb-h' }, 'Inspector'));
-      const sel = selectedLayers();
-      if (sel.length === 0) {
-        inspector.appendChild(el('p', { class: 'ce-dim' }, 'Select a layer to edit. Or drag an asset onto the canvas.'));
-        return;
-      }
-      const grid = el('div', { class: 'ce-grid' });
-      if (sel.length > 1) {
-        grid.append(label2('Selected', el('span', null, `${sel.length} layers`)));
-      } else {
-        const l = sel[0];
-        grid.append(
-          label2('X', numIn(l.x, (v) => cmd('coords', () => l.x = v))),
-          label2('Y', numIn(l.y, (v) => cmd('coords', () => l.y = v))),
-          label2('W', numIn(l.w, (v) => cmd('coords', () => l.w = v))),
-          label2('H', numIn(l.h, (v) => cmd('coords', () => l.h = v))),
-        );
-        if (l.kind === 'text') {
-          const ta = el('textarea', { class: 'ce-input', rows: 3,
-            oninput: () => cmd('text-edit', () => l.text = ta.value),
-          });
-          ta.value = l.text || '';
-          grid.append(label2('Text', ta, true));
-        }
-        if (l.rotation || l.kind !== 'box') {
-          grid.append(label2('Rotation°', numIn(l.rotation || 0, (v) => cmd('rotate-num', () => l.rotation = v))));
-        }
-        grid.append(label2('Opacity', el('input', {
-          type: 'range', min: 0, max: 1, step: 0.05, value: String(l.opacity ?? 1),
-          oninput: (e) => cmd('opacity', () => l.opacity = parseFloat(e.target.value)),
-        })));
-      }
-      inspector.appendChild(grid);
-    }
-    function label2(label, input, full) {
-      const wrap = el('label', { class: 'ce-grid-row' + (full ? ' ce-grid-full' : '') },
-        el('span', null, label), input);
-      return wrap;
-    }
-    function numIn(value, fn) {
-      const inp = el('input', { type: 'number', class: 'ce-input ce-input-num', value: value ?? 0 });
-      inp.addEventListener('input', () => fn(parseFloat(inp.value) || 0));
-      return inp;
+    function ctxIcon(label, title, fn) {
+      return el('button', { class: 'ce-ctx-icon', title, onclick: fn }, label);
     }
 
     // ── layers panel ─────────────────────────────────────────────
-    function renderLayersPanel() {
-      clearChildren(layersPanel);
-      layersPanel.appendChild(el('div', { class: 'ce-sb-section' },
-        el('h3', { class: 'ce-sb-h' }, 'Layers'),
-        el('div', { class: 'ce-add-row' },
-          el('button', { class: 'ce-btn ce-btn-ghost ce-btn-sm', onclick: () => addLayer('text') }, '+ Text'),
-          el('button', { class: 'ce-btn ce-btn-ghost ce-btn-sm', onclick: () => addLayer('box') }, '+ Box'),
-          el('button', { class: 'ce-btn ce-btn-ghost ce-btn-sm', onclick: () => addLayer('logo') }, '+ Logo'),
-        ),
+    // ── Text panel (rail) ────────────────────────────────────────
+    // Canva-style "add a heading / subheading / body text" presets,
+    // plus a plain "+ Add a text box" button at the top.
+    function renderTextPanel(inner) {
+      inner.appendChild(el('button', { class: 'ce-btn ce-btn-ghost ce-upload-tile',
+        onclick: () => { addLayer('text'); closeRail(); } }, '+ Add a text box'));
+      const presets = el('div', { class: 'ce-presets' });
+      presets.append(
+        el('button', { class: 'ce-preset-card is-heading',
+          onclick: () => { addLayer('text', { text: 'Add a heading', size: 72, weight: '700' }); closeRail(); } }, 'Add a heading'),
+        el('button', { class: 'ce-preset-card is-subheading',
+          onclick: () => { addLayer('text', { text: 'Add a subheading', size: 44, weight: '600' }); closeRail(); } }, 'Add a subheading'),
+        el('button', { class: 'ce-preset-card is-body',
+          onclick: () => { addLayer('text', { text: 'Add body text', size: 22, weight: '400' }); closeRail(); } }, 'Add a little bit of body text'),
+      );
+      inner.appendChild(presets);
+      // Also expose the box layer here, since it's a structural
+      // shape commonly used behind text.
+      inner.appendChild(el('div', { class: 'ce-panel-sec' },
+        el('h4', { class: 'ce-panel-sec-h' }, 'Shapes'),
+        el('button', { class: 'ce-btn ce-btn-ghost ce-upload-tile',
+          onclick: () => { addLayer('box'); closeRail(); } }, '+ Add a box'),
+      ));
+    }
+
+    // ── Uploads panel (rail) ─────────────────────────────────────
+    // Single mixed grid of backgrounds + logos with a badge to tell
+    // them apart, plus one Upload button (kind chosen via small
+    // segmented control at the top).
+    function renderUploadsPanel(inner) {
+      // Two upload tiles — separate for clarity. Background = will
+      // replace the canvas background; Logo = drops onto canvas as a
+      // movable layer.
+      const tile = (kind, label) => {
+        const lbl = el('label', { class: 'ce-upload-tile' }, '+ ', label);
+        lbl.appendChild(el('input', {
+          type: 'file', accept: 'image/*', hidden: true,
+          onchange: (e) => {
+            const f = e.target.files[0];
+            if (f) uploadAsset(kind, f);
+            e.target.value = '';
+          },
+        }));
+        return lbl;
+      };
+      inner.append(tile('background', 'Upload background'), tile('logo', 'Upload logo'));
+      // Mixed grid.
+      const all = [
+        ...(state.assets.background || []).map((a) => ({ ...a, kind: 'background' })),
+        ...(state.assets.logo       || []).map((a) => ({ ...a, kind: 'logo' })),
+      ];
+      if (!all.length) {
+        inner.appendChild(el('div', { class: 'ce-dim' }, 'No uploads yet. Drop an image above, or drag straight onto the canvas.'));
+        return;
+      }
+      const grid = el('div', { class: 'ce-asset-grid' });
+      for (const a of all) {
+        const card = el('div', { class: 'ce-asset', draggable: true });
+        card.appendChild(el('img', { src: a.url, loading: 'lazy', alt: a.original_name || '' }));
+        card.appendChild(el('span', { class: 'ce-asset-badge' }, a.kind === 'background' ? 'BG' : 'Logo'));
+        const del = el('button', {
+          class: 'ce-asset-del', title: 'Delete',
+          onclick: async (e) => {
+            e.stopPropagation();
+            if (!confirm('Delete this asset?')) return;
+            await api('/api/admin/cover/upload?id=' + encodeURIComponent(a.id), { method: 'DELETE' });
+            await loadAssets();
+            if (activeRail === 'uploads') renderRailPanel('uploads');
+          },
+        }, '×');
+        card.appendChild(del);
+        card.addEventListener('dragstart', (e) => {
+          e.dataTransfer.setData('application/x-cover-asset', JSON.stringify({ kind: a.kind, id: a.id, url: a.url }));
+          e.dataTransfer.effectAllowed = 'copy';
+        });
+        card.addEventListener('click', () => {
+          if (a.kind === 'background') {
+            cmd('set-bg', () => { state.template.background = { asset_id: a.id, url: a.url }; });
+          } else {
+            addLayer('logo', { url: a.url, asset_id: a.id });
+          }
+        });
+        grid.appendChild(card);
+      }
+      inner.appendChild(grid);
+    }
+
+    // ── Templates panel (rail) ───────────────────────────────────
+    function renderTemplatesPanel(inner) {
+      if (!state.templates.length) {
+        inner.appendChild(el('div', { class: 'ce-dim' }, 'No templates yet. Build a design, then click “Save as template” in the header.'));
+        return;
+      }
+      const ul = el('ul', { class: 'ce-tpl-list' });
+      for (const t of state.templates) {
+        const li = el('li', { class: 'ce-tpl-item' });
+        li.appendChild(el('strong', null, t.name));
+        if (t.is_default) li.appendChild(el('span', { class: 'ce-pill' }, 'default'));
+        li.appendChild(el('button', { class: 'ce-btn ce-btn-ghost ce-btn-sm',
+          onclick: () => { loadTemplateSpec(t); closeRail(); } }, 'Load'));
+        li.appendChild(el('button', { class: 'ce-btn ce-btn-ghost ce-btn-sm ce-tpl-del',
+          onclick: async () => {
+            if (!confirm('Delete template "' + t.name + '"?')) return;
+            await api('/api/admin/cover/templates?id=' + encodeURIComponent(t.id), { method: 'DELETE' });
+            await loadTemplates();
+            if (activeRail === 'templates') renderRailPanel('templates');
+          },
+        }, '✕'));
+        ul.appendChild(li);
+      }
+      inner.appendChild(ul);
+    }
+
+    // ── Layers panel (rail) ──────────────────────────────────────
+    function renderLayersPanel(inner) {
+      // Add-layer controls at the top of the panel.
+      inner.appendChild(el('div', { class: 'ce-add-row' },
+        el('button', { class: 'ce-btn ce-btn-ghost ce-btn-sm', onclick: () => addLayer('text') }, '+ Text'),
+        el('button', { class: 'ce-btn ce-btn-ghost ce-btn-sm', onclick: () => addLayer('box') }, '+ Box'),
+        el('button', { class: 'ce-btn ce-btn-ghost ce-btn-sm', onclick: () => addLayer('logo') }, '+ Logo'),
       ));
       const ul = el('ul', { class: 'ce-layers' });
+      // Drawn top-of-stack first so visually the layer panel matches
+      // z-order (top item in panel = front of canvas).
       const layers = [...state.template.layers].reverse();
       if (!layers.length) {
-        ul.appendChild(el('li', { class: 'ce-dim' }, 'No layers yet.'));
+        ul.appendChild(el('li', { class: 'ce-dim' }, 'No layers yet. Use the Text / Uploads rails to add some.'));
       }
       for (const l of layers) {
         const li = el('li', { class: 'ce-layer' + (state.selectedIds.has(l.id) ? ' is-selected' : '') });
         const icon = l.kind === 'text' ? '𝐓' : l.kind === 'box' ? '▭' : '🖼';
-        const label = l.kind === 'text' ? (l.text || '(empty)') :
-                      l.kind === 'box'  ? 'Box' :
-                      l.kind === 'logo' ? 'Logo' : l.kind;
+        // For text layers with {title} placeholder, show "Title
+        // placeholder" instead of the raw token — far more readable.
+        const labelText = (() => {
+          if (l.kind === 'box') return 'Box';
+          if (l.kind === 'logo') return 'Logo';
+          const raw = (l.text || '').trim();
+          if (!raw) return '(empty text)';
+          if (raw === '{title}') return 'Title placeholder';
+          return raw;
+        })();
         li.append(
           el('span', { class: 'ce-layer-icon' }, icon),
-          el('span', { class: 'ce-layer-label' }, String(label).slice(0, 28)),
+          el('span', { class: 'ce-layer-label' }, labelText.slice(0, 28)),
         );
         li.addEventListener('click', (e) => {
           if (e.shiftKey) {
@@ -1442,107 +1630,7 @@
         if (l.locked) li.appendChild(el('span', { class: 'ce-layer-lock', title: 'Locked' }, '🔒'));
         ul.appendChild(li);
       }
-      layersPanel.appendChild(ul);
-    }
-
-    // ── assets panel ─────────────────────────────────────────────
-    function renderAssetsPanel() {
-      clearChildren(assetsPanel);
-      assetsPanel.append(
-        el('div', { class: 'ce-sb-section' },
-          el('h3', { class: 'ce-sb-h' }, 'Backgrounds'),
-          (() => {
-            const lbl = el('label', { class: 'ce-btn ce-btn-ghost ce-btn-sm ce-upload-btn' },
-              '+ Upload background',
-              el('input', { type: 'file', accept: 'image/*', hidden: true,
-                onchange: (e) => { const f = e.target.files[0]; if (f) uploadAsset('background', f); e.target.value = ''; }
-              }),
-            );
-            return lbl;
-          })(),
-          assetGrid('background'),
-        ),
-        el('div', { class: 'ce-sb-section' },
-          el('h3', { class: 'ce-sb-h' }, 'Logos'),
-          (() => {
-            const lbl = el('label', { class: 'ce-btn ce-btn-ghost ce-btn-sm ce-upload-btn' },
-              '+ Upload logo',
-              el('input', { type: 'file', accept: 'image/*', hidden: true,
-                onchange: (e) => { const f = e.target.files[0]; if (f) uploadAsset('logo', f); e.target.value = ''; }
-              }),
-            );
-            return lbl;
-          })(),
-          assetGrid('logo'),
-        ),
-      );
-    }
-    function assetGrid(kind) {
-      const grid = el('div', { class: 'ce-asset-grid' });
-      const items = state.assets[kind] || [];
-      if (!items.length) {
-        grid.appendChild(el('div', { class: 'ce-dim' }, kind === 'background' ? 'No backgrounds yet.' : 'No logos yet.'));
-        return grid;
-      }
-      for (const a of items) {
-        const card = el('div', { class: 'ce-asset', draggable: true });
-        card.appendChild(el('img', { src: a.url, loading: 'lazy', alt: a.original_name || '' }));
-        const del = el('button', { class: 'ce-asset-del', title: 'Delete',
-          onclick: async (e) => {
-            e.stopPropagation();
-            if (!confirm('Delete this asset?')) return;
-            await api('/api/admin/cover/upload?id=' + encodeURIComponent(a.id), { method: 'DELETE' });
-            await loadAssets();
-          },
-        }, '×');
-        card.appendChild(del);
-        card.addEventListener('dragstart', (e) => {
-          e.dataTransfer.setData('application/x-cover-asset', JSON.stringify({ kind, id: a.id, url: a.url }));
-          e.dataTransfer.effectAllowed = 'copy';
-        });
-        // Tap-to-add as a fallback for non-DnD touch devices.
-        card.addEventListener('click', () => {
-          if (kind === 'background') {
-            cmd('set-bg', () => { state.template.background = { asset_id: a.id, url: a.url }; });
-          } else {
-            addLayer('logo', { url: a.url, asset_id: a.id });
-          }
-        });
-        grid.appendChild(card);
-      }
-      return grid;
-    }
-
-    // ── templates panel ──────────────────────────────────────────
-    function renderTemplatesPanel(panel) {
-      clearChildren(panel);
-      panel.append(
-        el('div', { class: 'ce-sb-section' },
-          el('h3', { class: 'ce-sb-h' }, 'Saved templates'),
-          (() => {
-            if (!state.templates.length) {
-              return el('div', { class: 'ce-dim' }, 'None yet. Click “Save as template” in the header.');
-            }
-            const ul = el('ul', { class: 'ce-tpl-list' });
-            for (const t of state.templates) {
-              const li = el('li', { class: 'ce-tpl-item' });
-              li.appendChild(el('strong', null, t.name));
-              if (t.is_default) li.appendChild(el('span', { class: 'ce-pill' }, 'default'));
-              li.appendChild(el('button', { class: 'ce-btn ce-btn-ghost ce-btn-sm',
-                onclick: () => loadTemplateSpec(t) }, 'Load'));
-              li.appendChild(el('button', { class: 'ce-btn ce-btn-ghost ce-btn-sm ce-tpl-del',
-                onclick: async () => {
-                  if (!confirm('Delete template "' + t.name + '"?')) return;
-                  await api('/api/admin/cover/templates?id=' + encodeURIComponent(t.id), { method: 'DELETE' });
-                  await loadTemplates();
-                },
-              }, '✕'));
-              ul.appendChild(li);
-            }
-            return ul;
-          })(),
-        ),
-      );
+      inner.appendChild(ul);
     }
 
     function loadTemplateSpec(t) {
@@ -1561,12 +1649,14 @@
       const { width, height } = state.template;
       const base = { id: uid(), kind, x: opts.x ?? 80, y: opts.y ?? 80, locked: false };
       if (kind === 'text') {
+        // Defaults first, opts override. Order matters: any opt key
+        // present in opts should win, so we spread it last.
         Object.assign(base, {
-          w: opts.w ?? Math.min(width - 160, 800), h: opts.h ?? 200,
-          text: opts.text ?? '{title}',
+          w: Math.min(width - 160, 800), h: 200,
+          text: '{title}',
           size: 72, family: FONT_FAMILIES[0].value, weight: '700',
           align: 'left', color: '#ffffff', shadow: true, lineHeight: 1.15,
-        });
+        }, opts);
       } else if (kind === 'box') {
         Object.assign(base, {
           w: opts.w ?? Math.min(width - 160, 800), h: opts.h ?? 250,
@@ -1713,23 +1803,21 @@
       ]);
       state.assets.background = bgs.body?.assets || [];
       state.assets.logo = logos.body?.assets || [];
-      renderAssetsPanel();
+      // Re-render the uploads rail if it's currently open.
+      if (activeRail === 'uploads') renderRailPanel('uploads');
     }
     async function loadTemplates() {
       const { body } = await api('/api/admin/cover/templates');
       state.templates = body?.templates || [];
-      const panel = $('.ce-sb-pane[data-tab="templates"]', root);
-      if (panel) renderTemplatesPanel(panel);
+      if (activeRail === 'templates') renderRailPanel('templates');
     }
     async function loadPosts() {
       const r = await api('/api/admin/blog/list');
       state.posts = (r.body?.posts || []).filter((p) => p.status === 'published').slice(0, 50);
-      const sel = $('#ce-preview-post', root);
-      if (!sel) return;
-      while (sel.options.length > 1) sel.remove(1);
-      for (const p of state.posts) {
-        sel.appendChild(el('option', { value: p.id }, p.title.slice(0, 70)));
-      }
+      // The post selector lives in the context toolbar's idle state.
+      // Re-render only if nothing is selected (otherwise the toolbar
+      // is showing layer controls and there's no select to populate).
+      if (selectedLayers().length === 0) renderContextToolbar();
     }
 
     async function refreshPreview() {
