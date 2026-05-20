@@ -508,11 +508,37 @@
         cancelAnimationFrame(resizeRaf);
         resizeRaf = requestAnimationFrame(() => { fitToContainer(); redraw(); });
       });
-      // Also observe the viewport itself in case the panel collapses/expands.
+      // ResizeObserver on the viewport re-fits when the rail panel
+      // slides in/out. Three defenses against a feedback loop where
+      // fitToContainer changes the canvas size, which appears/removes
+      // a scrollbar, which changes viewport.clientWidth, which
+      // triggers ResizeObserver again:
+      //
+      //   1. Only act if the viewport area changed by >4px since the
+      //      last fit. Scrollbar appearance/disappearance is ~16px,
+      //      so we still react to real layout changes — but a fit
+      //      that didn't actually move the goalposts is ignored.
+      //   2. requestAnimationFrame coalesces multiple notifications
+      //      within a single frame into one fitToContainer call.
+      //   3. Viewport overflow is toggled in applyZoom() based on
+      //      whether the rendered canvas fits — so when autoFit is
+      //      converged, there's no scrollbar to oscillate.
+      //
+      // Together these three break the loop even if one of them
+      // misfires.
       if (typeof ResizeObserver !== 'undefined') {
+        let lastW = 0, lastH = 0, pending = false;
         const ro = new ResizeObserver(() => {
           if (!state.autoFit) return;
-          fitToContainer();
+          if (pending) return;
+          pending = true;
+          requestAnimationFrame(() => {
+            pending = false;
+            const r = viewport.getBoundingClientRect();
+            if (Math.abs(r.width - lastW) < 4 && Math.abs(r.height - lastH) < 4) return;
+            lastW = r.width; lastH = r.height;
+            fitToContainer();
+          });
         });
         ro.observe(viewport);
       }
@@ -617,13 +643,18 @@
     function applyZoom() {
       const { width, height } = state.template;
       canvasWrap.style.width  = `${width * state.zoom}px`;
-      canvasWrap.style.height = `${height * state.zoom}px`;
-      // Match the canvas's CSS size to the wrap; canvas pixel size
-      // stays at native so exports are full-res.
       canvas.style.width  = '100%';
       canvas.style.height = '100%';
+      canvasWrap.style.height = `${height * state.zoom}px`;
+      // When autoFit is on we know the canvas fits the viewport by
+      // construction, so hide overflow — that prevents the scrollbar
+      // ↔ available-area oscillation that produced an infinite
+      // refresh loop. When the user manually zooms beyond fit, allow
+      // scrolling so they can pan the bigger canvas.
+      const vp = $('.ce-viewport', root);
+      if (vp) vp.style.overflow = state.autoFit ? 'hidden' : 'auto';
       if (zoomLabel) zoomLabel.textContent = `${Math.round(state.zoom * 100)}%`;
-      // Reposition floating toolbar + handles.
+      // Reposition handles + guides.
       renderOverlay();
     }
 
