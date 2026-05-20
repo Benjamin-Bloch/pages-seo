@@ -319,25 +319,4 @@ CREATE TABLE IF NOT EXISTS site_aliases (
   updated_at      INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_aliases_kind ON site_aliases(kind);
-
--- Installer state. One row per install attempt keyed by the project
--- slug + a fingerprint of the API token (we never store the token
--- itself). Lets a half-finished install resume on retry rather than
--- restarting from step 1.
-CREATE TABLE IF NOT EXISTS install_state (
-  project          TEXT NOT NULL,                    -- pages slug the user chose
-  token_fp         TEXT NOT NULL,                    -- sha256 of the token, first 16 hex chars
-  account_id       TEXT,
-  d1_id            TEXT,
-  r2_name          TEXT,
-  pages_created    INTEGER NOT NULL DEFAULT 0,       -- 0 | 1
-  deploy_started   INTEGER NOT NULL DEFAULT 0,       -- 0 | 1
-  pages_url        TEXT,
-  last_error       TEXT,
-  last_step        TEXT,
-  created_at       INTEGER NOT NULL,
-  updated_at       INTEGER NOT NULL,
-  PRIMARY KEY (project, token_fp)
-);
-CREATE INDEX IF NOT EXISTS idx_install_updated ON install_state(updated_at DESC);
 `;
