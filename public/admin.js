@@ -3086,8 +3086,73 @@
   // showGate() — which left a small window where a fast Enter press
   // would do a native form submission.
   bindLoginForm();
+
+  // When env.DB is missing, both whoami and setup return 503 — the
+  // whole site is unreachable until the Cloudflare project's bindings
+  // are re-asserted. The installer ships CF_API_TOKEN + CF_ACCOUNT_ID
+  // + CF_PROJECT + SETUP_TOKEN as Pages secrets specifically so we
+  // can self-repair. Try once at boot if bindings look missing.
+  //
+  // Returns true if a repair was attempted (success or fail), so the
+  // caller can re-check whoami afterward.
+  async function tryAutoRepair() {
+    const url = new URL(window.location.href);
+    const setupToken = url.searchParams.get('setup');
+    if (!setupToken) return false; // no auth credential available
+    try {
+      const r = await fetch('/api/repair-bindings', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ setup_token: setupToken }),
+      });
+      const body = await r.json().catch(() => ({}));
+      if (body?.ok) {
+        // Bindings landed. The deploy we triggered will take ~30–60s
+        // to roll out; show a friendly waiting screen and poll whoami
+        // until it stops returning a DB-missing 503.
+        const err = document.getElementById('gate-err');
+        if (err) err.textContent = 'Fixing your site’s database connection… this takes about a minute.';
+        for (let i = 0; i < 60; i++) {
+          await new Promise((res) => setTimeout(res, 2000));
+          // Poll /api/setup until it stops returning no_db_binding.
+          try {
+            const probe = await fetch('/api/setup', { credentials: 'same-origin' });
+            if (probe.status !== 503) return true;
+            const pb = await probe.json().catch(() => ({}));
+            if (pb?.error !== 'no_db_binding') return true;
+          } catch { /* keep polling */ }
+        }
+      }
+    } catch { /* network / fetch failure — fall through to normal error UI */ }
+    return false;
+  }
+
+  // Hits /api/setup; returns true iff the server reports no_db_binding.
+  // We probe this directly (rather than infer from whoami's missing
+  // list) because whoami's list is "SITE_NAME / SITE_URL / ADMIN_TOKEN"
+  // when the DB is missing — those settings live in D1 and look absent
+  // simply because the DB isn't reachable.
+  async function isDbBindingMissing() {
+    try {
+      const r = await fetch('/api/setup', { credentials: 'same-origin' });
+      if (r.status !== 503) return false;
+      const body = await r.json().catch(() => ({}));
+      return body?.error === 'no_db_binding';
+    } catch { return false; }
+  }
+
   (async () => {
-    const r = await whoamiStatus();
+    let r = await whoamiStatus();
+    // DB binding missing → try self-repair before showing the dead-end
+    // "missing secrets" message. Only the magic-link setup token can
+    // authorise this at boot (no session exists yet).
+    if (!r.ok && r.reason !== 'unauth') {
+      if (await isDbBindingMissing()) {
+        const repaired = await tryAutoRepair();
+        if (repaired) r = await whoamiStatus();
+      }
+    }
     if (r.ok) { mount(); return; }
     if (r.reason === 'setup')  { Setup.show(); return; }
     if (r.reason === 'config') { showConfigError(r.missing); return; }
