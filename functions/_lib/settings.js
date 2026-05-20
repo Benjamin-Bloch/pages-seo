@@ -49,6 +49,12 @@ const FALLBACK = {
   // Update-check metadata. Written when the operator installs from
   // /install (browser path) so the Updates admin tab can compare the
   // installed commit to upstream HEAD and offer a one-click rebuild.
+  // Set to '1' on the upstream maintainer's deployment so the
+  // installer / updater pages (/install, /update, /install/run.*) stay
+  // accessible there. Every fresh user install starts with this
+  // empty, so those routes 404 on user-facing domains. Read via
+  // is_maintainer(env) in _lib/maintainer.js.
+  is_maintainer:           () => '',
   install_method:          () => '',   // 'browser' | 'cli' | ''
   installed_sha:           () => '',   // upstream main commit SHA at install time
   install_repo_owner:      () => '',   // user's GitHub fork owner
