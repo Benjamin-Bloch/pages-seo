@@ -109,60 +109,98 @@
       </div>
     </section>
 
-    <section class="wiz-pane" id="pane-browser-identify" hidden>
+    <section class="wiz-pane" id="pane-connect" hidden>
       <div class="wiz-eyebrow">Update via site · step 1 of 3</div>
-      <h1 class="wiz-h1"><span class="serif-i">Which</span> install<br/>are we updating?</h1>
-      <p class="wiz-lede">Tell us where your install lives so we can show you what's changed.</p>
-      <form id="identify-form" autocomplete="off" style="display:flex;flex-direction:column;gap:14px">
-        <div class="wiz-row">
-          <label class="wiz-field">
-            <span>Your GitHub username</span>
-            <input id="f-owner" type="text" required maxlength="80" placeholder="your-username" />
-          </label>
-          <label class="wiz-field">
-            <span>Fork repo name</span>
-            <input id="f-repo" type="text" required maxlength="80" placeholder="pages-seo" value="pages-seo" />
-          </label>
+      <h1 class="wiz-h1"><span class="serif-i">Connect</span> GitHub.</h1>
+      <p class="wiz-lede">We'll figure out which fork is yours after you sign in. Cloudflare can only sync forks that have authorised the Cloudflare Workers &amp; Pages GitHub App, so we use your GitHub session to do that part for you.</p>
+      <p class="wiz-foot-note" style="margin:10px 0 0">Requests <code>public_repo</code> scope. Token stays in an encrypted HttpOnly cookie scoped to <code>/api/update</code>; not persisted in any database.</p>
+      <div class="wiz-actions" style="gap:10px;margin-top:14px">
+        <button class="btn btn-ghost" type="button" data-back="chooser">Back</button>
+        <a id="connect-go" class="btn btn-primary" href="#">Connect GitHub</a>
+      </div>
+    </section>
+
+    <section class="wiz-pane" id="pane-detect" hidden>
+      <div class="wiz-eyebrow">Update via site · finding your install</div>
+      <h1 class="wiz-h1"><span class="serif-i">Looking</span> for your fork.</h1>
+
+      <div id="detect-loading" class="muted">
+        <div class="wiz-spinner" style="display:inline-block;vertical-align:middle;margin-right:10px;width:18px;height:18px"></div>
+        Scanning your GitHub repos for pages-seo forks…
+      </div>
+
+      <div id="detect-found" hidden>
+        <p class="wiz-lede" id="detect-found-msg">Found it.</p>
+        <div id="detect-card" class="commit-list" style="max-height:none"></div>
+        <div class="wiz-actions" style="gap:10px;margin-top:14px">
+          <button class="btn btn-ghost" type="button" data-back="connect">Back</button>
+          <button id="detect-confirm" class="btn btn-primary" type="button">Show me what's new</button>
         </div>
+      </div>
+
+      <div id="detect-pick" hidden>
+        <p class="wiz-lede" id="detect-pick-msg">We found a few pages-seo forks on your account. Pick the one you installed.</p>
         <label class="wiz-field">
-          <span>Currently installed commit <em>(optional, paste the SHA from /admin → Updates)</em></span>
-          <input id="f-sha" type="text" maxlength="40" placeholder="leave blank if unknown" />
+          <span>Your fork</span>
+          <select id="detect-select"></select>
         </label>
-        <div class="wiz-actions" style="gap:10px">
-          <button class="btn btn-ghost" type="button" data-back="chooser">Back</button>
-          <button class="btn btn-primary" type="submit">Show me what's new</button>
+        <div class="wiz-actions" style="gap:10px;margin-top:14px">
+          <button class="btn btn-ghost" type="button" data-back="connect">Back</button>
+          <button id="detect-pick-confirm" class="btn btn-primary" type="button">Continue</button>
         </div>
-        <div id="identify-err" class="wiz-err"></div>
-      </form>
+      </div>
+
+      <div id="detect-empty" hidden>
+        <p class="wiz-lede">We couldn't find a pages-seo fork on your GitHub account. Two ways to fix:</p>
+        <ol style="color:var(--ink-dim);font-size:13px;line-height:1.7;margin:8px 0 14px 18px">
+          <li><a href="https://github.com/Benjamin-Bloch/pages-seo/fork" target="_blank" rel="noopener">Fork the upstream repo</a> first, then come back here.</li>
+          <li>Or, if you renamed your fork, paste its owner + name below.</li>
+        </ol>
+        <form id="manual-form" style="display:flex;flex-direction:column;gap:12px">
+          <div class="wiz-row">
+            <label class="wiz-field">
+              <span>GitHub owner</span>
+              <input id="m-owner" type="text" required maxlength="80" placeholder="your-username" />
+            </label>
+            <label class="wiz-field">
+              <span>Repo name</span>
+              <input id="m-repo" type="text" required maxlength="80" placeholder="my-fork-name" />
+            </label>
+          </div>
+          <div class="wiz-actions" style="gap:10px">
+            <button class="btn btn-ghost" type="button" data-back="connect">Back</button>
+            <button class="btn btn-primary" type="submit">Continue</button>
+          </div>
+        </form>
+      </div>
+
+      <div id="detect-err" class="wiz-err"></div>
     </section>
 
     <section class="wiz-pane" id="pane-diff" hidden>
       <div class="wiz-eyebrow">Update via site · step 2 of 3</div>
       <h1 class="wiz-h1"><span class="serif-i">What's</span> new.</h1>
-      <div id="diff-summary" class="muted" style="margin-top:6px">Loading…</div>
+      <p class="wiz-lede" id="diff-fork-line">Loading…</p>
+      <div id="diff-summary" class="muted" style="margin-top:6px"></div>
       <div id="diff-stats" class="muted" hidden style="font-family:var(--mono);font-size:12px;margin-top:8px"></div>
       <ul id="commit-list" class="commit-list"></ul>
       <div class="wiz-actions" style="gap:10px;margin-top:14px">
-        <button class="btn btn-ghost" type="button" data-back="browser-identify">Back</button>
+        <button class="btn btn-ghost" type="button" data-back="detect">Back</button>
         <button id="go-apply" class="btn btn-primary" type="button">Apply update</button>
       </div>
     </section>
 
     <section class="wiz-pane" id="pane-apply" hidden>
       <div class="wiz-eyebrow">Update via site · step 3 of 3</div>
-      <h1 class="wiz-h1"><span class="serif-i">Two</span> small permissions.</h1>
-      <p class="wiz-lede">We need to sync your GitHub fork (so it has the latest commits) and trigger your Cloudflare Pages project to redeploy.</p>
+      <h1 class="wiz-h1"><span class="serif-i">One</span> last token.</h1>
+      <p class="wiz-lede">Paste a Cloudflare API token so we can trigger your Pages project to rebuild. We'll sync your GitHub fork automatically (you're already connected as <code id="apply-login">—</code>).</p>
       <ol class="upd-step-list" id="apply-steps">
-        <li class="upd-step is-pending" data-step="gh"><span class="upd-icon"></span> Connect GitHub <span id="gh-status" style="margin-left:auto;font-size:11px;color:var(--ink-faint)"></span></li>
-        <li class="upd-step is-pending" data-step="cf"><span class="upd-icon"></span> Paste Cloudflare token</li>
+        <li class="upd-step is-done" data-step="gh"><span class="upd-icon"></span> Connected to GitHub <span id="gh-status" style="margin-left:auto;font-size:11px;color:var(--ink-faint)"></span></li>
+        <li class="upd-step is-pending" data-step="cf"><span class="upd-icon"></span> Cloudflare API token</li>
         <li class="upd-step is-pending" data-step="sync"><span class="upd-icon"></span> Sync your fork with upstream</li>
         <li class="upd-step is-pending" data-step="rebuild"><span class="upd-icon"></span> Trigger Pages rebuild</li>
       </ol>
       <div style="display:flex;flex-direction:column;gap:14px;margin-top:14px">
-        <div>
-          <a id="gh-connect" class="btn btn-primary" href="#" style="font-size:13px">Connect GitHub</a>
-          <span class="muted" style="margin-left:10px;font-size:12px">Requests <code>public_repo</code>; used once to merge upstream into your fork.</span>
-        </div>
         <label class="wiz-field wiz-field-big">
           <span>Cloudflare API token <em>(Pages:Edit; not stored)</em></span>
           <input id="cf-token" type="password" autocomplete="off" placeholder="Paste the token" />
@@ -223,7 +261,7 @@
   var $ = function (s) { return document.querySelector(s); };
   var $$ = function (s) { return Array.prototype.slice.call(document.querySelectorAll(s)); };
 
-  var STAGE = { 'chooser':'chooser', 'browser-identify':'diff', 'diff':'diff', 'apply':'apply', 'done':'apply', 'cli':'chooser' };
+  var STAGE = { 'chooser':'chooser', 'connect':'chooser', 'detect':'diff', 'diff':'diff', 'apply':'apply', 'done':'apply', 'cli':'chooser' };
   function show(name) {
     $$('.wiz-pane').forEach(function (el) { el.hidden = el.id !== ('pane-' + name); });
     var stage = STAGE[name];
@@ -238,61 +276,141 @@
     try { history.replaceState(null, '', '#' + name); } catch (e) {}
   }
   $$('[data-pick]').forEach(function (b) {
-    b.addEventListener('click', function () { show(b.dataset.pick === 'browser' ? 'browser-identify' : 'cli'); });
+    b.addEventListener('click', function () { show(b.dataset.pick === 'browser' ? 'connect' : 'cli'); });
   });
   $$('[data-back]').forEach(function (b) {
     b.addEventListener('click', function () { show(b.dataset.back); });
   });
 
-  var DRAFT_KEY = 'pages-seo:update-draft:v1';
+  // ─── draft (CLI slug only; everything else comes from GitHub) ─
+  var DRAFT_KEY = 'pages-seo:update-draft:v2';
   function loadDraft() { try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch (e) { return null; } }
   function saveDraft() {
-    try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({
-        owner: $('#f-owner').value.trim(),
-        repo:  $('#f-repo').value.trim() || 'pages-seo',
-        sha:   $('#f-sha').value.trim(),
-        slug:  $('#cli-slug').value.trim()
-      }));
-    } catch (e) {}
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ slug: $('#cli-slug').value.trim() })); } catch (e) {}
   }
   var draft = loadDraft();
-  if (draft) {
-    if (draft.owner) $('#f-owner').value = draft.owner;
-    if (draft.repo)  $('#f-repo').value  = draft.repo;
-    if (draft.sha)   $('#f-sha').value   = draft.sha;
-    if (draft.slug)  $('#cli-slug').value = draft.slug;
-  }
-  ['#f-owner', '#f-repo', '#f-sha', '#cli-slug'].forEach(function (sel) {
-    var el = $(sel); if (el) el.addEventListener('input', saveDraft);
+  if (draft && draft.slug) $('#cli-slug').value = draft.slug;
+  $('#cli-slug').addEventListener('input', saveDraft);
+
+  // ─── live state ──────────────────────────────────────────────
+  // identifyState is filled in once GitHub OAuth + repo-detect
+  // succeed. From then on the diff + apply panes use it.
+  var identifyState = null;
+
+  // ─── pane 1: Connect GitHub ──────────────────────────────────
+  $('#connect-go').addEventListener('click', function (e) {
+    e.preventDefault();
+    // Empty user-state — we don't know owner/repo until after the
+    // OAuth round-trip resolves the user's GitHub login.
+    location.href = '/api/update/github/start?state=';
   });
 
-  var identifyState = null;
-  $('#identify-form').addEventListener('submit', function (e) {
-    e.preventDefault();
-    var err = $('#identify-err'); err.textContent = '';
-    var owner = $('#f-owner').value.trim();
-    var repo  = $('#f-repo').value.trim() || 'pages-seo';
-    var sha   = $('#f-sha').value.trim();
-    if (!owner) { err.textContent = 'GitHub username is required.'; return; }
-    if (!/^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/.test(owner)) { err.textContent = 'Invalid GitHub username.'; return; }
-    if (sha && !/^[0-9a-f]{7,40}$/.test(sha)) { err.textContent = 'SHA should be 7-40 hex chars.'; return; }
-    identifyState = { owner: owner, repo: repo, sha: sha };
-    saveDraft();
+  // ─── pane 2: detect the user's fork ──────────────────────────
+  function showDetectStep(which) {
+    ['detect-loading','detect-found','detect-pick','detect-empty'].forEach(function (id) {
+      $('#' + id).hidden = id !== which;
+    });
+  }
+
+  function runDetect() {
+    showDetectStep('detect-loading');
+    fetch('/api/update/github/repos').then(function (r) {
+      if (r.status === 401) {
+        // OAuth cookie expired or wasn't set — bounce back to connect.
+        show('connect');
+        return null;
+      }
+      return r.json();
+    }).then(function (d) {
+      if (!d) return;
+      if (!d.ok) {
+        $('#detect-err').textContent = (d.detail || d.error || 'Couldn\'t talk to GitHub.');
+        showDetectStep('detect-empty');
+        return;
+      }
+      if (d.auto) {
+        identifyState = { owner: d.auto.owner, repo: d.auto.name, login: d.login, branch: d.auto.default_branch || 'main' };
+        $('#detect-card').innerHTML =
+          '<li>' +
+          '<span class="commit-sha">' + esc(d.auto.full_name) + '</span>' +
+          '<span class="commit-msg">Fork of Benjamin-Bloch/pages-seo · default branch <code>' + esc(d.auto.default_branch || 'main') + '</code></span>' +
+          '<span class="commit-meta"><a href="' + esc(d.auto.html_url) + '" target="_blank" rel="noopener">Open on GitHub</a></span>' +
+          '</li>';
+        $('#detect-found-msg').textContent = 'Connected as @' + d.login + '. We\'ll use this fork.';
+        showDetectStep('detect-found');
+        return;
+      }
+      if (d.candidates && d.candidates.length) {
+        // Multiple forks — render dropdown.
+        var sel = $('#detect-select');
+        sel.innerHTML = '';
+        d.candidates.forEach(function (c) {
+          var opt = document.createElement('option');
+          opt.value = c.full_name;
+          opt.textContent = c.full_name;
+          opt.dataset.owner = c.owner;
+          opt.dataset.repo = c.name;
+          opt.dataset.branch = c.default_branch || 'main';
+          opt.dataset.html_url = c.html_url || '';
+          sel.appendChild(opt);
+        });
+        $('#detect-pick-msg').textContent = 'Connected as @' + d.login + '. We found ' + d.candidates.length + ' pages-seo forks on your account — pick the one you installed.';
+        showDetectStep('detect-pick');
+        return;
+      }
+      // None found.
+      showDetectStep('detect-empty');
+    }).catch(function (e) {
+      $('#detect-err').textContent = 'Network error: ' + (e && e.message || e);
+      showDetectStep('detect-empty');
+    });
+  }
+
+  $('#detect-confirm').addEventListener('click', function () {
+    if (!identifyState) return;
     show('diff');
     loadDiff();
   });
 
+  $('#detect-pick-confirm').addEventListener('click', function () {
+    var sel = $('#detect-select');
+    if (!sel.value) return;
+    var opt = sel.options[sel.selectedIndex];
+    identifyState = {
+      owner: opt.dataset.owner,
+      repo:  opt.dataset.repo,
+      branch: opt.dataset.branch || 'main',
+      login: identifyState && identifyState.login,
+    };
+    show('diff');
+    loadDiff();
+  });
+
+  $('#manual-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var owner = $('#m-owner').value.trim();
+    var repo  = $('#m-repo').value.trim();
+    if (!/^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/.test(owner)) { $('#detect-err').textContent = 'Invalid GitHub username.'; return; }
+    if (!/^[A-Za-z0-9._-]{1,100}$/.test(repo))         { $('#detect-err').textContent = 'Invalid repo name.'; return; }
+    identifyState = { owner: owner, repo: repo, branch: 'main', login: identifyState && identifyState.login };
+    show('diff');
+    loadDiff();
+  });
+
+  // ─── pane 3: diff ────────────────────────────────────────────
   function loadDiff() {
     var sum = $('#diff-summary');
     var stats = $('#diff-stats');
     var list = $('#commit-list');
+    var forkLine = $('#diff-fork-line');
+    forkLine.innerHTML = 'Updating <code>' + esc(identifyState.owner + '/' + identifyState.repo) + '</code> from upstream Benjamin-Bloch/pages-seo.';
     sum.textContent = 'Loading commits from GitHub…';
     list.innerHTML = '';
     stats.hidden = true;
-    var url = new URL('/api/update/diff', location.origin);
-    if (identifyState.sha) url.searchParams.set('base', identifyState.sha);
-    fetch(url.toString()).then(function (r) {
+    // We don't pass `base` — diff endpoint shows latest + last 30
+    // commits unconditionally so the user has context even when we
+    // don't know what they last installed.
+    fetch('/api/update/diff').then(function (r) {
       return r.json().then(function (d) { return { ok: r.ok, d: d, status: r.status }; });
     }).then(function (res) {
       var r = res.ok, d = res.d, status = res.status;
@@ -300,29 +418,25 @@
         sum.innerHTML = '<span class="status bad">Couldn\'t load commits: ' + esc((d && (d.detail || d.error)) || status) + '</span>';
         return;
       }
-      if (d.up_to_date) {
-        sum.innerHTML = '<span class="stat-pill is-current">Up to date</span> Your install is on the latest commit (<code>' + esc(d.latest.short) + '</code>). Nothing to do.';
-        $('#go-apply').disabled = true;
-        return;
-      }
       $('#go-apply').disabled = false;
-      var pill = d.current
-        ? '<span class="stat-pill is-behind">' + d.ahead + ' commit' + (d.ahead === 1 ? '' : 's') + ' behind</span>'
-        : '<span class="stat-pill is-behind">Unknown baseline</span>';
-      sum.innerHTML = pill + ' <span style="margin-left:6px;color:var(--ink-dim)">Latest upstream: <code>' + esc(d.latest.short) + '</code> · ' + esc(relTime(d.latest.date)) + '</span>';
-      if (d.files_changed) {
-        stats.hidden = false;
-        stats.innerHTML = d.files_changed + ' file' + (d.files_changed === 1 ? '' : 's') +
-          ' · <span style="color:var(--good)">+' + d.additions + '</span> <span style="color:var(--bad)">−' + d.deletions + '</span>';
-      }
-      (d.commits || []).forEach(function (c) {
-        var li = document.createElement('li');
-        li.innerHTML =
-          '<span class="commit-sha"><a href="' + esc(c.url) + '" target="_blank" rel="noopener">' + esc(c.short) + '</a></span>' +
-          '<span class="commit-msg">' + esc(c.message) + '</span>' +
-          '<span class="commit-meta">' + esc(c.author) + ' · ' + esc(relTime(c.date)) + '</span>';
-        list.appendChild(li);
-      });
+      sum.innerHTML = '<span style="color:var(--ink-dim)">Latest upstream commit: <code>' + esc(d.latest.short) + '</code> · ' + esc(relTime(d.latest.date)) + ' · <i>' + esc(d.latest.message || '') + '</i></span>';
+
+      // Without a base SHA the compare API isn't called, so we
+      // separately fetch the last 30 commits from upstream main to
+      // give the user *something* to read.
+      return fetch('https://api.github.com/repos/Benjamin-Bloch/pages-seo/commits?per_page=30')
+        .then(function (r) { return r.json(); })
+        .then(function (arr) {
+          if (!Array.isArray(arr)) return;
+          arr.forEach(function (c) {
+            var li = document.createElement('li');
+            li.innerHTML =
+              '<span class="commit-sha"><a href="' + esc(c.html_url) + '" target="_blank" rel="noopener">' + esc((c.sha || '').slice(0, 7)) + '</a></span>' +
+              '<span class="commit-msg">' + esc((c.commit && c.commit.message || '').split('\n')[0].slice(0, 200)) + '</span>' +
+              '<span class="commit-meta">' + esc(c.author && c.author.login || c.commit && c.commit.author && c.commit.author.name || 'unknown') + ' · ' + esc(relTime(c.commit && c.commit.author && c.commit.author.date)) + '</span>';
+            list.appendChild(li);
+          });
+        });
     }).catch(function (e) {
       sum.innerHTML = '<span class="status bad">Network error: ' + esc(e && e.message || e) + '</span>';
     });
@@ -330,7 +444,7 @@
 
   $('#go-apply').addEventListener('click', function () {
     show('apply');
-    refreshGhStatus();
+    refreshApplyHeader();
     var PERMS = [
       { key: 'page',             type: 'edit' },
       { key: 'd1',               type: 'edit' },
@@ -344,38 +458,17 @@
       '&name=' + encodeURIComponent('pages-seo update');
   });
 
-  function refreshGhStatus() {
-    fetch('/api/update/github/status').then(function (r) { return r.json(); }).then(function (d) {
-      if (d && d.connected) {
-        markStep('gh', 'done');
-        $('#gh-status').textContent = 'Connected as ' + d.login;
-        $('#gh-connect').textContent = 'Reconnect GitHub';
-      } else {
-        markStep('gh', 'pending');
-        $('#gh-status').textContent = '';
-        $('#gh-connect').textContent = 'Connect GitHub';
-      }
-      maybeEnableRun();
-    }).catch(function () { /* offline */ });
+  // ─── pane 4: apply ───────────────────────────────────────────
+  function refreshApplyHeader() {
+    if (identifyState && identifyState.login) {
+      $('#apply-login').textContent = '@' + identifyState.login;
+      $('#gh-status').textContent = 'as @' + identifyState.login;
+    }
   }
-  $('#gh-connect').addEventListener('click', function (e) {
-    e.preventDefault();
-    var state = btoa(JSON.stringify({
-      owner: (identifyState && identifyState.owner) || '',
-      repo:  (identifyState && identifyState.repo)  || 'pages-seo'
-    })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    location.href = '/api/update/github/start?state=' + encodeURIComponent(state);
-  });
-
   $('#cf-token').addEventListener('input', function () {
     if ($('#cf-token').value.trim().length > 10) markStep('cf', 'done'); else markStep('cf', 'pending');
-    maybeEnableRun();
+    $('#run-update').disabled = !($('#cf-token').value.trim().length > 10);
   });
-  function maybeEnableRun() {
-    var ghDone = $('#apply-steps li[data-step="gh"]').classList.contains('is-done');
-    var cfDone = $('#cf-token').value.trim().length > 10;
-    $('#run-update').disabled = !(ghDone && cfDone);
-  }
   function markStep(name, state) {
     var el = $('#apply-steps li[data-step="' + name + '"]');
     if (!el) return;
@@ -465,21 +558,14 @@
     var params = new URLSearchParams(location.search);
     var ghReturn = params.get('gh') === 'connected';
     if (ghReturn) {
-      try {
-        var stateB64 = params.get('state') || '';
-        var b64 = stateB64.replace(/-/g, '+').replace(/_/g, '/');
-        while (b64.length % 4) b64 += '=';
-        var state = b64 ? JSON.parse(atob(b64)) : null;
-        if (state && state.owner) { $('#f-owner').value = state.owner; }
-        if (state && state.repo)  { $('#f-repo').value  = state.repo; }
-        identifyState = { owner: (state && state.owner) || $('#f-owner').value, repo: (state && state.repo) || 'pages-seo', sha: '' };
-      } catch (e) {}
-      show('apply');
-      refreshGhStatus();
+      // Clear the noisy query so a refresh doesn't re-trigger detect.
+      try { history.replaceState(null, '', location.pathname); } catch (e) {}
+      show('detect');
+      runDetect();
       return;
     }
     var hash = (location.hash || '#chooser').slice(1);
-    if (['chooser','browser-identify','diff','cli'].indexOf(hash) >= 0) show(hash);
+    if (['chooser','connect','cli'].indexOf(hash) >= 0) show(hash);
   })();
 })();
 </script>
