@@ -272,3 +272,35 @@ img { max-width: 100%; height: auto; display: block; }
   .read-next{ margin-top: 40px; padding-top: 24px; }
   .read-next-list{ grid-template-columns: 1fr; }
 }
+
+/* ── pager (paginated /blog archives) ────────────────────────── */
+.pager {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+  margin: 48px 0 16px; padding: 16px 0;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+}
+.pager-prev, .pager-next {
+  text-decoration: none;
+  color: var(--ink);
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.pager-prev:hover, .pager-next:hover { border-color: var(--link); color: var(--link); }
+.pager-nums { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.pager-num {
+  text-decoration: none; color: var(--ink-dim);
+  padding: 6px 10px; border-radius: 6px; min-width: 28px; text-align: center;
+}
+.pager-num:hover { color: var(--link); }
+.pager-current {
+  background: var(--ink); color: var(--bg, #fff);
+  font-weight: 600;
+}
+.pager-pos {
+  margin-left: auto;
+  color: var(--ink-faint, #888);
+  font-size: 12px;
+}
+.page-suffix { color: var(--ink-faint, #888); font-weight: 400; font-size: 0.7em; }

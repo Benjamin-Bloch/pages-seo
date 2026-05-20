@@ -1,5 +1,6 @@
 // /blog/<slug>
 import { renderContentPage } from '../_lib/page_render.js';
+import { loadSettings } from '../_lib/settings.js';
 
 export const onRequestGet = async ({ env, request, params }) => {
   const slug = String(params.slug || '').toLowerCase();
@@ -26,7 +27,12 @@ export const onRequestGet = async ({ env, request, params }) => {
   ).bind(slug).all().catch(() => ({ results: [] }));
   const related = relatedRows.results || [];
 
-  return new Response(renderContentPage({ env, request, post, kind: 'blog', related }), {
+  // Settings — used by the renderer for verification metas and the
+  // JSON-LD WebSite block. Cached at DB level by D1 so per-request
+  // cost is small.
+  const settings = await loadSettings(env).catch(() => ({}));
+
+  return new Response(renderContentPage({ env, request, post, kind: 'blog', related, settings }), {
     headers: {
       'content-type': 'text/html; charset=utf-8',
       'cache-control': 'public, max-age=600, s-maxage=3600',

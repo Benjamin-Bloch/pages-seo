@@ -77,6 +77,19 @@ const FALLBACK = {
   // optional models.dev cache) rather than per-key settings.
   monthly_budget_usd:      () => '10',     // hard-stop cron when this month's spend >= this
   budget_warn_pct:         () => '80',     // show banner at this % of budget
+
+  // Search-engine verification. Both are optional strings the user
+  // pastes in once they've claimed the property in Search Console /
+  // Bing Webmaster Tools. The renderer emits these as meta tags on
+  // every blog + programmatic page so the meta-file verification
+  // path works without manual file uploads to R2.
+  //
+  //   google_site_verification: the value from <meta name="google-
+  //   site-verification" content="…"> in the GSC "Add property →
+  //   HTML tag" flow. Leave empty to skip.
+  //   bing_site_verification: same for Bing's msvalidate.01 meta.
+  google_site_verification: () => '',
+  bing_site_verification:   () => '',
 };
 
 const KEYS = Object.keys(FALLBACK);

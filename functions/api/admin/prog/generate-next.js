@@ -90,6 +90,60 @@ export const onRequestPost = async ({ request, env, waitUntil }) => {
     slug = `${content.slug}-${n + 1}`;
   }
 
+  // Duplicate-content guard. Programmatic pages are the highest risk
+  // for Google's "low-value programmatic content" filter — the kind
+  // of pages that get hit by Helpful Content updates. Two checks:
+  //
+  //   1. Exact-or-near title collision against an existing published
+  //     prog page (normalised: lowercase, strip non-alphanumeric).
+  //     If found, mark this one hidden so it doesn't ship live.
+  //
+  //   2. Meta-description Jaccard similarity against any existing
+  //     page. If ≥0.80 (very similar set of words) we also hide.
+  //     The check is O(N*M) but bounded by the small N (we look only
+  //     at the latest 200 pages, which is plenty for catching the
+  //     "AI keeps repeating the same intro" failure mode).
+  //
+  // When a duplicate is detected we still write the row — saved as
+  // 'hidden' so the admin can review it. The keyword stays marked
+  // 'done' (we did process it) but with an explicit dup note in the
+  // error column so it's easy to find.
+  function normTitle(s) {
+    return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ');
+  }
+  function jaccard(a, b) {
+    const wa = new Set(normTitle(a).split(' ').filter((w) => w.length > 2));
+    const wb = new Set(normTitle(b).split(' ').filter((w) => w.length > 2));
+    if (!wa.size || !wb.size) return 0;
+    let intersect = 0;
+    for (const w of wa) if (wb.has(w)) intersect++;
+    const union = wa.size + wb.size - intersect;
+    return union ? intersect / union : 0;
+  }
+
+  let publishStatus = 'published';
+  let dupReason = null;
+  try {
+    const nt = normTitle(content.title);
+    const existing = await env.DB.prepare(
+      `SELECT slug, title, meta_description FROM prog_pages
+       WHERE status='published' ORDER BY published_at DESC LIMIT 200`
+    ).all().catch(() => ({ results: [] }));
+    for (const row of (existing.results || [])) {
+      if (normTitle(row.title) === nt) {
+        publishStatus = 'hidden';
+        dupReason = 'duplicate_title:' + row.slug;
+        break;
+      }
+      const sim = jaccard(content.meta_description, row.meta_description);
+      if (sim >= 0.80) {
+        publishStatus = 'hidden';
+        dupReason = `duplicate_description(${sim.toFixed(2)}):` + row.slug;
+        break;
+      }
+    }
+  } catch { /* dup check is best-effort */ }
+
   let imageKey = null;
   try {
     const img = await generateImage(env, { prompt: content.hero_image_prompt, source });
@@ -109,19 +163,28 @@ export const onRequestPost = async ({ request, env, waitUntil }) => {
   await env.DB.prepare(
     `INSERT INTO prog_pages (id, slug, keyword, title, meta_description, body_markdown,
         hero_image_key, hero_image_alt, status, ai_provider, created_at, published_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'published', ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     pageId, slug, next.keyword, content.title, content.meta_description, content.body_markdown,
-    imageKey, content.hero_image_alt, content.ai_provider, t, t
+    imageKey, content.hero_image_alt, publishStatus, content.ai_provider, t, t
   ).run();
   await env.DB.prepare(
-    "UPDATE prog_keywords SET status='done', page_id=?, error=NULL, updated_at=? WHERE id=?"
-  ).bind(pageId, t, next.id).run();
+    "UPDATE prog_keywords SET status='done', page_id=?, error=?, updated_at=? WHERE id=?"
+  ).bind(pageId, dupReason, t, next.id).run();
 
+  // Only ping IndexNow when we actually published the page. Hidden
+  // dupes don't need (or want) a crawl.
   const host = new URL(request.url).hostname;
-  waitUntil(
-    pingIndexNow(env, [`https://${host}/p/${slug}`], request).catch(() => {})
-  );
-  audit(env, 'admin', 'prog_generate', pageId, { keyword: next.keyword, slug });
-  return json(200, { ok: true, keyword: next.keyword, slug, page_id: pageId, ai_provider: content.ai_provider });
+  if (publishStatus === 'published') {
+    waitUntil(
+      pingIndexNow(env, [`https://${host}/p/${slug}`], request).catch(() => {})
+    );
+  }
+  audit(env, 'admin', 'prog_generate', pageId, { keyword: next.keyword, slug, status: publishStatus, dupReason });
+  return json(200, {
+    ok: true, keyword: next.keyword, slug, page_id: pageId,
+    ai_provider: content.ai_provider,
+    status: publishStatus,
+    dup_reason: dupReason,
+  });
 };
