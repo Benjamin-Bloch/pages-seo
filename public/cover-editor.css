@@ -573,6 +573,33 @@
   border: 1px solid rgba(212,175,98,0.4);
 }
 
+/* ── variable picker panel ──────────────────────────────────── */
+.ce-var-list { display: flex; flex-direction: column; gap: 4px; }
+.ce-var-item {
+  display: flex; flex-direction: column; gap: 2px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  transition: border-color .12s, background .12s;
+}
+.ce-var-item:hover { border-color: var(--accent); background: var(--accent-soft); }
+.ce-var-item.is-copied { border-color: var(--good); background: rgba(122,252,166,0.08); }
+.ce-var-item code {
+  color: var(--accent);
+  font: 500 12px var(--mono, monospace);
+}
+.ce-var-item.is-copied code { color: var(--good); }
+.ce-var-desc {
+  color: var(--ink-dim);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
 /* ── frozen state (hero_image_mode = ai) ────────────────────── */
 #cover-content.frozen .ce-root { opacity: 0.5; pointer-events: none; user-select: none; }
 

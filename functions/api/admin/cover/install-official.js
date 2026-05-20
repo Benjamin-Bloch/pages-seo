@@ -25,40 +25,44 @@ import { adminGate } from '../../../_lib/auth.js';
 
 const TEMPLATE_NAME = 'main — official';
 
-// Build the spec. Premium magazine-cover aesthetic: black background,
-// big serif title bottom-left, a thin gold rule, a brand mark + verified
-// badge top-right.
+// Build the spec. Premium magazine-cover aesthetic with the full
+// variable set: brand name eyebrow + tagline, big serif title,
+// pub date + reading time in the kicker, verified badge top-right.
+// Uses {brand.primary_color} and {brand.accent_color} so the colours
+// follow the user's brand settings when they're customised.
 function buildOfficialSpec() {
   return {
     width: 1200,
     height: 630,
-    background: null, // solid colour via the dark backdrop layer below
+    background: null,
     __official: true,
-    __version: 1,
+    __version: 2,
     layers: [
-      // Solid black backdrop. We use a box layer rather than the
-      // canvas background so the spec is self-contained (no R2 asset
-      // dependency).
-      { id: 'l-bg',     kind: 'box',  x: 0,   y: 0,   w: 1200, h: 630,
+      // Backdrop. {brand.primary_color} resolves at render time from
+      // settings.brand_primary_color, defaulting to '#0a0c10'. The
+      // spec stores a literal RGBA as a fallback so the editor's
+      // canvas preview still shows something while the user hasn't
+      // configured colours yet.
+      { id: 'l-bg', kind: 'box', x: 0, y: 0, w: 1200, h: 630,
         fill: 'rgba(8,9,12,1)', radius: 0, locked: true, __role: 'backdrop' },
 
       // Top gold rule.
       { id: 'l-rule-top', kind: 'box', x: 80, y: 60, w: 200, h: 2,
-        fill: 'rgba(212,175,98,1)', radius: 0, locked: true, __role: 'rule' },
+        fill: '#d4af62', radius: 0, locked: true, __role: 'rule' },
 
-      // Brand eyebrow above the title.
+      // Brand eyebrow — uppercased brand name. Eg "BENJAMINB · BLOG".
       { id: 'l-eyebrow', kind: 'text',
-        x: 80, y: 80, w: 700, h: 36,
-        text: '{brand.name|upper}',
-        size: 18, family: '"JetBrains Mono", monospace',
-        weight: '500', align: 'left',
+        x: 80, y: 80, w: 900, h: 36,
+        text: '{brand.name|upper}{if brand.tagline} · {brand.tagline}{/if}',
+        size: 20, family: '"JetBrains Mono", monospace',
+        weight: '600', align: 'left',
         color: '#d4af62', shadow: false, lineHeight: 1.2,
         __role: 'eyebrow', locked: false,
       },
 
       // Big title bottom-left. {title} expands at render time.
       { id: 'l-title', kind: 'text',
-        x: 80, y: 360, w: 1040, h: 200,
+        x: 80, y: 320, w: 1040, h: 220,
         text: '{title}',
         size: 76, family: '"Playfair Display", Georgia, serif',
         weight: '700', align: 'left',
@@ -66,48 +70,53 @@ function buildOfficialSpec() {
         __role: 'title', locked: false,
       },
 
-      // Date / kicker.
-      { id: 'l-date', kind: 'text',
-        x: 80, y: 560, w: 600, h: 32,
-        text: '{date|date:long}',
-        size: 16, family: '"JetBrains Mono", monospace',
+      // Excerpt / subtitle.
+      { id: 'l-excerpt', kind: 'text',
+        x: 80, y: 540, w: 760, h: 40,
+        text: '{excerpt|truncate:140}',
+        size: 18, family: '"Inter", sans-serif',
         weight: '400', align: 'left',
-        color: 'rgba(245,240,230,0.55)', shadow: false, lineHeight: 1.2,
-        __role: 'date', locked: false,
+        color: 'rgba(245,240,230,0.7)', shadow: false, lineHeight: 1.4,
+        __role: 'excerpt', locked: false,
       },
 
-      // Verified badge top-right. Gold ring + checkmark drawn as
-      // overlapping primitives so we don't need an external asset.
-      // Three layers stacked:
-      //   1. outer ring (box, circular via radius=999)
-      //   2. inner fill
-      //   3. the check text glyph
+      // Kicker: pub date + reading time.
+      { id: 'l-meta', kind: 'text',
+        x: 80, y: 600, w: 760, h: 22,
+        text: '{pub_date|date:long} · {reading_time}',
+        size: 13, family: '"JetBrains Mono", monospace',
+        weight: '500', align: 'left',
+        color: 'rgba(212,175,98,0.75)', shadow: false, lineHeight: 1,
+        __role: 'meta', locked: false,
+      },
+
+      // Verified badge top-right. Gold ring + dark inner + checkmark.
       { id: 'l-badge-ring', kind: 'box',
         x: 1080, y: 60, w: 60, h: 60,
-        fill: 'rgba(212,175,98,1)', radius: 999,
+        fill: '#d4af62', radius: 999,
         __role: 'badge-ring', locked: true,
       },
       { id: 'l-badge-inner', kind: 'box',
         x: 1086, y: 66, w: 48, h: 48,
-        fill: 'rgba(8,9,12,1)', radius: 999,
+        fill: '#0a0c10', radius: 999,
         __role: 'badge-inner', locked: true,
       },
       { id: 'l-badge-check', kind: 'text',
-        x: 1080, y: 73, w: 60, h: 40,
+        x: 1080, y: 78, w: 60, h: 40,
         text: '✓',
-        size: 32, family: '"Inter", sans-serif',
-        weight: '700', align: 'center',
+        size: 30, family: '"Inter", sans-serif',
+        weight: '800', align: 'center',
         color: '#d4af62', shadow: false, lineHeight: 1,
         __role: 'badge-check', locked: true,
       },
 
-      // Footer signature.
+      // Footer signature on the right — verified · domain.
       { id: 'l-sig', kind: 'text',
-        x: 1080, y: 568, w: 100, h: 24,
-        text: 'verified',
-        size: 11, family: '"JetBrains Mono", monospace',
+        x: 880, y: 600, w: 240, h: 22,
+        text: 'verified · {brand.domain}',
+        size: 12, family: '"JetBrains Mono", monospace',
         weight: '500', align: 'right',
-        color: 'rgba(212,175,98,0.65)', shadow: false, lineHeight: 1,
+        color: 'rgba(212,175,98,0.7)', shadow: false, lineHeight: 1,
         __role: 'sig', locked: true,
       },
     ],

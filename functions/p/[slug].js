@@ -16,6 +16,17 @@ export const onRequestGet = async ({ env, request, params }) => {
   if (post.status === 'hidden') return new Response('Gone', { status: 410, headers: { 'content-type': 'text/plain' } });
   post.urlPath = '/p/' + post.slug;
   const settings = await loadSettings(env).catch(() => ({}));
+  // See blog/[slug].js for the rationale — flag whether a default
+  // cover template exists so page_render.js can route the hero src
+  // through /cover/<slug>.svg.
+  if (settings?.hero_image_mode === 'cover') {
+    try {
+      const t = await env.DB.prepare(
+        'SELECT 1 FROM cover_templates WHERE is_default = 1 LIMIT 1'
+      ).first();
+      settings._has_default_template = !!t;
+    } catch { settings._has_default_template = false; }
+  }
   return new Response(renderContentPage({ env, request, post, kind: 'programmatic', settings }), {
     headers: {
       'content-type': 'text/html; charset=utf-8',

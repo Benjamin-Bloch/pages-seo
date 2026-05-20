@@ -235,10 +235,15 @@
   // Same shape as the server's _lib/template.js so {title} etc.
   // preview consistently. Kept in lockstep with admin.js's earlier
   // copy — if you change one, change both.
+  // Mirror of functions/_lib/template.js. Keep them in lockstep so
+  // every filter in one place works in the other; the cover editor's
+  // preview must produce the same string the server-side renderer
+  // produces at request time.
   const TPL_FILTERS = {
     upper: (v) => String(v ?? '').toUpperCase(),
     lower: (v) => String(v ?? '').toLowerCase(),
     title: (v) => String(v ?? '').replace(/\w\S*/g, (t) => t[0].toUpperCase() + t.slice(1).toLowerCase()),
+    capitalize: (v) => { const s = String(v ?? ''); return s ? s[0].toUpperCase() + s.slice(1) : ''; },
     truncate: (v, n) => {
       const s = String(v ?? '');
       const max = parseInt(n, 10) || 60;
@@ -249,21 +254,141 @@
       return s ? v : (fb ?? '');
     },
     slug: (v) => String(v ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+    kebab: (v) => String(v ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+    snake: (v) => String(v ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''),
     escape: (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])),
+    trim: (v) => String(v ?? '').trim(),
+    first_word: (v) => String(v ?? '').trim().split(/\s+/)[0] || '',
+    domain: (v) => {
+      try { return new URL(String(v ?? '')).hostname.replace(/^www\./, ''); }
+      catch { return String(v ?? '').replace(/^https?:\/\/(www\.)?/, '').split('/')[0]; }
+    },
+    ordinal: (v) => {
+      const n = parseInt(v, 10);
+      if (!Number.isFinite(n)) return String(v ?? '');
+      const s = ['th', 'st', 'nd', 'rd'];
+      const v100 = n % 100;
+      return n + (s[(v100 - 20) % 10] || s[v100] || s[0]);
+    },
+    pad: (v, n) => String(v ?? '').padStart(parseInt(n, 10) || 2, '0'),
+    number_format: (v) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n.toLocaleString('en-US') : String(v ?? '');
+    },
+    pluralize: (v, arg) => {
+      const n = Number(v);
+      const [s, p] = String(arg || '').split(':');
+      const word = (Math.abs(n) === 1) ? (s || '') : (p || (s ? s + 's' : ''));
+      return Number.isFinite(n) ? `${n} ${word}` : String(v ?? '');
+    },
+    replace: (v, arg) => {
+      if (!arg) return String(v ?? '');
+      const idx = arg.indexOf(':');
+      if (idx < 0) return String(v ?? '');
+      return String(v ?? '').split(arg.slice(0, idx)).join(arg.slice(idx + 1));
+    },
+    prepend: (v, s) => (s || '') + String(v ?? ''),
+    append: (v, s) => String(v ?? '') + (s || ''),
+    read_time: (v, arg) => {
+      const w = String(v ?? '').trim().split(/\s+/).filter(Boolean).length;
+      const m = Math.max(1, Math.round(w / 220));
+      return `${m}${arg ? arg : ' min read'}`;
+    },
+    word_count: (v) => String(v ?? '').trim().split(/\s+/).filter(Boolean).length,
     date: (v, fmt) => {
       const d = v ? new Date(v) : new Date();
       if (isNaN(d.getTime())) return '';
       const f = String(fmt || 'short');
-      if (f === 'long') return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+      if (f === 'long' || f === 'medium')
+        return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
       if (f === 'short') return d.toISOString().slice(0, 10);
+      if (f === 'us')    return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      if (f === 'iso')   return d.toISOString();
+      if (f === 'year')  return String(d.getUTCFullYear());
+      if (f === 'month') return d.toLocaleDateString('en-GB', { month: 'long' });
+      if (f === 'day')   return String(d.getUTCDate());
+      if (f === 'dow')   return d.toLocaleDateString('en-GB', { weekday: 'long' });
+      if (f === 'relative') {
+        const diff = (Date.now() - d.getTime()) / 1000;
+        const abs = Math.abs(diff);
+        const past = diff >= 0;
+        const pick = (n, u) => {
+          const r = Math.round(n);
+          return past ? `${r} ${u}${r === 1 ? '' : 's'} ago` : `in ${r} ${u}${r === 1 ? '' : 's'}`;
+        };
+        if (abs < 60) return past ? 'just now' : 'in a moment';
+        if (abs < 3600) return pick(abs / 60, 'minute');
+        if (abs < 86400) return pick(abs / 3600, 'hour');
+        if (abs < 86400 * 30) return pick(abs / 86400, 'day');
+        if (abs < 86400 * 365) return pick(abs / (86400 * 30), 'month');
+        return pick(abs / (86400 * 365), 'year');
+      }
       return f
         .replace(/YYYY/g, d.getUTCFullYear())
         .replace(/MM/g, String(d.getUTCMonth() + 1).padStart(2, '0'))
         .replace(/DD/g, String(d.getUTCDate()).padStart(2, '0'))
         .replace(/HH/g, String(d.getUTCHours()).padStart(2, '0'))
-        .replace(/mm/g, String(d.getUTCMinutes()).padStart(2, '0'));
+        .replace(/mm/g, String(d.getUTCMinutes()).padStart(2, '0'))
+        .replace(/DOW/g, d.toLocaleDateString('en-GB', { weekday: 'long' }));
     },
   };
+
+  // Variable reference — used by the editor's Variables panel to
+  // show the user what's available. Each entry: { name, example,
+  // description }. Keep in sync with template.js's buildBrandContext.
+  const VARIABLE_CATALOGUE = [
+    { group: 'Post', items: [
+      { name: '{title}',           desc: 'The post title' },
+      { name: '{slug}',            desc: 'URL slug, e.g. why-rankings-decay' },
+      { name: '{excerpt}',         desc: 'First 200 chars of the body (markdown stripped)' },
+      { name: '{keywords}',        desc: 'Comma-separated keywords' },
+      { name: '{primary_keyword}', desc: 'Primary search query, if recorded' },
+      { name: '{word_count}',      desc: 'Body word count' },
+      { name: '{reading_time}',    desc: '"5 min read"' },
+      { name: '{provider}',        desc: 'AI provider that wrote the post' },
+    ]},
+    { group: 'Dates', items: [
+      { name: '{pub_date}',        desc: 'Publish date (use with |date:fmt)' },
+      { name: '{pub_date_long}',   desc: '"18 May 2026"' },
+      { name: '{pub_date_short}',  desc: '"2026-05-18"' },
+      { name: '{pub_year}',        desc: '"2026"' },
+      { name: '{pub_month}',       desc: '"May"' },
+      { name: '{pub_dow}',         desc: 'Day of week, e.g. "Wednesday"' },
+      { name: '{update_date}',     desc: 'Last modified date' },
+      { name: '{today_long}',      desc: 'Today\'s date, "18 May 2026"' },
+      { name: '{year}',            desc: 'Current year' },
+    ]},
+    { group: 'Brand', items: [
+      { name: '{brand.name}',          desc: 'Site name' },
+      { name: '{brand.url}',           desc: 'Site URL' },
+      { name: '{brand.domain}',        desc: 'Hostname, no protocol' },
+      { name: '{brand.tagline}',       desc: 'Short subtitle' },
+      { name: '{brand.cta}',           desc: 'Call-to-action text from settings' },
+      { name: '{brand.logo_url}',      desc: 'Logo image URL from settings' },
+      { name: '{brand.primary_color}', desc: 'Hex colour from settings' },
+      { name: '{brand.accent_color}',  desc: 'Hex colour from settings' },
+    ]},
+    { group: 'Site', items: [
+      { name: '{site.host}',      desc: 'e.g. seo.benjaminb.xyz' },
+      { name: '{site.url}',       desc: 'https://<host>' },
+      { name: '{site.canonical}', desc: 'Full canonical URL for the post' },
+    ]},
+    { group: 'Filters', items: [
+      { name: '{x|upper}',         desc: 'UPPERCASE' },
+      { name: '{x|lower}',         desc: 'lowercase' },
+      { name: '{x|title}',         desc: 'Title Case' },
+      { name: '{x|capitalize}',    desc: 'Capitalize first letter only' },
+      { name: '{x|truncate:60}',   desc: 'Cut after 60 chars + …' },
+      { name: '{x|default:"foo"}', desc: 'Fall back when empty' },
+      { name: '{x|date:long}',     desc: 'long / short / us / iso / year / month / dow / relative' },
+      { name: '{x|ordinal}',       desc: '1 → "1st", 22 → "22nd"' },
+      { name: '{x|pluralize:"post"}', desc: 'Auto-plural ("2 posts")' },
+      { name: '{x|replace:"old:new"}', desc: 'Substring replace' },
+      { name: '{x|read_time}',     desc: 'Estimate from word count' },
+      { name: '{x|domain}',        desc: 'Hostname from a URL' },
+      { name: '{if x}…{/if}',      desc: 'Conditional (also {if !x})' },
+    ]},
+  ];
   function tplLookup(ctx, path) {
     if (!path) return undefined;
     const parts = path.split('.');
@@ -483,6 +608,7 @@
         railBtn('uploads',   '↥',  'Uploads'),
         railBtn('templates', '◫',  'Templates'),
         railBtn('layers',    '☰',  'Layers'),
+        railBtn('vars',      '{}', 'Vars'),
       );
 
       // Slide-out panel (collapsed by default)
@@ -610,9 +736,52 @@
       if (id === 'uploads')   renderUploadsPanel(inner);
       if (id === 'templates') renderTemplatesPanel(inner);
       if (id === 'layers')    renderLayersPanel(inner);
+      if (id === 'vars')      renderVarsPanel(inner);
     }
     function railTitleFor(id) {
-      return { text: 'Text', uploads: 'Uploads', templates: 'Templates', layers: 'Layers' }[id] || id;
+      return { text: 'Text', uploads: 'Uploads', templates: 'Templates', layers: 'Layers', vars: 'Variables' }[id] || id;
+    }
+
+    // ── Variables panel ──────────────────────────────────────────
+    // Lists every available template variable, grouped by section.
+    // Click a variable name to copy it to the clipboard (and, if a
+    // text layer is selected, append it to the layer's text).
+    function renderVarsPanel(inner) {
+      inner.appendChild(el('p', { class: 'ce-dim',
+        style: { marginTop: '0', marginBottom: '12px' } },
+        'Click a variable to copy it. If a text layer is selected, it appends to that layer.',
+      ));
+      for (const group of VARIABLE_CATALOGUE) {
+        const sec = el('div', { class: 'ce-panel-sec' },
+          el('h4', { class: 'ce-panel-sec-h' }, group.group),
+        );
+        const list = el('div', { class: 'ce-var-list' });
+        for (const item of group.items) {
+          const btn = el('button', { class: 'ce-var-item',
+            title: item.desc,
+            onclick: () => {
+              // Copy to clipboard always; append to selected text
+              // layer if one exists.
+              try { navigator.clipboard.writeText(item.name); } catch { /* */ }
+              const sel = selectedLayers();
+              if (sel.length === 1 && sel[0].kind === 'text') {
+                cmd('var-insert', () => {
+                  sel[0].text = (sel[0].text || '') + item.name;
+                });
+              }
+              // Flash a quick "copied" hint without disrupting the UI.
+              btn.classList.add('is-copied');
+              setTimeout(() => btn.classList.remove('is-copied'), 800);
+            },
+          },
+            el('code', null, item.name),
+            el('span', { class: 'ce-var-desc' }, item.desc),
+          );
+          list.appendChild(btn);
+        }
+        sec.appendChild(list);
+        inner.appendChild(sec);
+      }
     }
 
     function updateSizeLabel() {
@@ -2149,6 +2318,10 @@
     // Build the full template context used by the canvas renderer and
     // server-side template engine. Factored out so apply-all can call
     // it once per post without re-fetching settings each iteration.
+    // Mirror of functions/_lib/template.js buildBrandContext. We keep
+    // them in lockstep so what the editor previews IS what the server
+    // renders for real visitors. Any new variable added here must
+    // also be added there, and vice versa.
     async function buildPreviewCtx(opts = {}) {
       let settings = opts.settings || {};
       let whoami = opts.whoami || {};
@@ -2160,25 +2333,77 @@
       }
       const post = opts.post || null;
       const title = opts.title || post?.title || '';
+
+      const pubDate    = post?.published_at ? new Date(post.published_at * 1000) : new Date();
+      const updateDate = post?.modified_at  ? new Date(post.modified_at * 1000)
+                       : post?.updated_at   ? new Date(post.updated_at * 1000)
+                       : pubDate;
+      const body  = post?.body_markdown || '';
+      const words = body ? body.trim().split(/\s+/).filter(Boolean).length : 0;
+      const readMins = Math.max(1, Math.round(words / 220));
+      const excerpt = body
+        .replace(/^#+\s*/gm, '')
+        .replace(/\[(.*?)\]\(.*?\)/g, '$1')
+        .replace(/[*_`>]/g, '')
+        .replace(/\s+/g, ' ').trim().slice(0, 200);
+
+      const host = (() => { try { return location.host; } catch { return ''; } })();
+      const baseUrl = host ? `https://${host}` : (settings.site_url || whoami?.site_url || '');
+
       return {
+        // post
         title,
+        slug:            post?.slug || '',
+        excerpt,
+        keywords:        post?.keywords || '',
         primary_keyword: post?.primary_query || '',
-        slug: post?.slug || '',
-        provider: post?.ai_provider || '',
-        has_image: !!post?.hero_image_key,
-        has_logo: state.template.layers.some((l) => l.kind === 'logo' && l.url),
-        date: new Date(),
+        provider:        post?.ai_provider || '',
+        word_count:      words,
+        reading_time:    `${readMins} min read`,
+        body_chars:      body.length,
+        // dates
+        pub_date:        pubDate,
+        update_date:     updateDate,
+        date:            pubDate,
+        now:             new Date(),
+        pub_date_long:   pubDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+        pub_date_short:  pubDate.toISOString().slice(0, 10),
+        pub_year:        String(pubDate.getUTCFullYear()),
+        pub_month:       pubDate.toLocaleDateString('en-GB', { month: 'long' }),
+        pub_day:         String(pubDate.getUTCDate()),
+        pub_dow:         pubDate.toLocaleDateString('en-GB', { weekday: 'long' }),
+        today_long:      new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+        today_short:     new Date().toISOString().slice(0, 10),
+        year:            String(new Date().getUTCFullYear()),
+        // brand
         brand: {
-          name: whoami?.site_name || settings.site_name || 'this site',
-          url:  whoami?.site_url  || settings.site_url  || '/',
-          cta:  settings.site_cta || '',
-          tone: settings.brand_voice_tone || settings.site_tone || '',
-          audience: settings.brand_target_audience || settings.site_audience || '',
-          business_type: settings.brand_business_type || '',
-          service_area:  settings.brand_service_area  || '',
-          key_themes:    settings.brand_key_themes    || '',
+          name:           whoami?.site_name || settings.site_name || 'this site',
+          url:            whoami?.site_url  || settings.site_url  || '/',
+          domain:         host,
+          tagline:        settings.site_tagline || settings.brand_tagline || '',
+          cta:            settings.site_cta || '',
+          tone:           settings.brand_voice_tone || settings.site_tone || '',
+          audience:       settings.brand_target_audience || settings.site_audience || '',
+          business_type:  settings.brand_business_type || '',
+          service_area:   settings.brand_service_area  || '',
+          key_themes:     settings.brand_key_themes    || '',
           topics_to_avoid: settings.brand_topics_to_avoid || '',
+          logo_url:       settings.brand_logo_url || '',
+          primary_color:  settings.brand_primary_color || '#0a0c10',
+          accent_color:   settings.brand_accent_color  || '#d4af62',
         },
+        // site
+        site: {
+          host,
+          url:       baseUrl,
+          canonical: post?.slug ? `${baseUrl}/blog/${post.slug}` : baseUrl,
+          indexnow_key: settings.indexnow_key || '',
+        },
+        // booleans
+        has_image:       !!post?.hero_image_key,
+        has_logo:        state.template.layers.some((l) => l.kind === 'logo' && l.url),
+        is_blog:         true,
+        is_programmatic: false,
       };
     }
 

@@ -37,9 +37,15 @@ function jsonLD({ site, post, host, kind, settings }) {
   const webId   = `${baseUrl}/#website`;
   const pageId  = `${baseUrl}${post.urlPath}#main`;
 
-  const heroAbs = post.hero_image_key
-    ? `${baseUrl}/image/${post.hero_image_key}`
-    : `${baseUrl}/og/${encodeURIComponent(post.slug || 'home')}.png`;  // dynamic fallback
+  // Same three-way precedence as the on-page <img> hero so the
+  // structured-data image, the og:image, and the visible hero are
+  // all the same URL.
+  const useCover = (settings?.hero_image_mode === 'cover') && settings?._has_default_template;
+  const heroAbs = useCover
+    ? `${baseUrl}/cover/${encodeURIComponent(post.slug || 'home')}.svg`
+    : post.hero_image_key
+      ? `${baseUrl}/image/${post.hero_image_key}`
+      : `${baseUrl}/og/${encodeURIComponent(post.slug || 'home')}.svg`;
 
   const graph = [
     {
@@ -108,14 +114,33 @@ export function renderContentPage({ env, request, post, kind, related = [], sett
     year: 'numeric', month: 'long', day: 'numeric',
   });
 
-  // Hero image: explicit width/height + fetchpriority=high so this
-  // image becomes the LCP element with no CLS. decoding=async lets
-  // it not block the main thread. When there's no hero key, we point
-  // at /og/<slug>.png which a future endpoint will render on demand
-  // — and meanwhile, the placeholder div keeps the layout stable.
-  const heroSrc = post.hero_image_key
-    ? `/image/${esc(post.hero_image_key)}`
-    : `/og/${esc(post.slug || 'home')}.svg`;
+  // Hero image source — three-way fall-through, in priority order:
+  //
+  //   1. hero_image_mode === 'cover' AND a default cover_template
+  //      exists → /cover/<slug>.svg. The SVG renders live from the
+  //      template + post variables, so flipping the template
+  //      retroactively updates every post's cover with no per-post
+  //      storage. This is the path that makes "Apply to all" + the
+  //      template editor a single source of truth.
+  //
+  //   2. Else if post.hero_image_key is set → /image/<key>. Legacy
+  //      per-post PNGs (AI-generated or manually applied) keep
+  //      working.
+  //
+  //   3. Else → /og/<slug>.svg. A built-in generic card so we
+  //      ALWAYS emit a valid og:image (never null), even for posts
+  //      that haven't been through the image pipeline.
+  //
+  // The hero is the LCP element so we set width/height,
+  // decoding=async, fetchpriority=high, and a preload link in
+  // <head>. With those four together CLS is zero and LCP-time
+  // drops measurably.
+  const useCoverEndpoint = (settings?.hero_image_mode === 'cover') && settings?._has_default_template;
+  const heroSrc = useCoverEndpoint
+    ? `/cover/${esc(post.slug || 'home')}.svg`
+    : post.hero_image_key
+      ? `/image/${esc(post.hero_image_key)}`
+      : `/og/${esc(post.slug || 'home')}.svg`;
   const heroAlt = esc(post.hero_image_alt || post.title);
   const heroImg = `<img class="hero" src="${heroSrc}" alt="${heroAlt}" width="${HERO_W}" height="${HERO_H}" decoding="async" fetchpriority="high" />`;
 

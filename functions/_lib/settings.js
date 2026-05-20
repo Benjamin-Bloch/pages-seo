@@ -90,6 +90,26 @@ const FALLBACK = {
   //   bing_site_verification: same for Bing's msvalidate.01 meta.
   google_site_verification: () => '',
   bing_site_verification:   () => '',
+
+  // Brand identity for cover templates + JSON-LD. The cover renderer
+  // exposes these as {brand.tagline}, {brand.logo_url}, {brand.
+  // primary_color}, {brand.accent_color} so the same template can
+  // produce different visual identities on different installs without
+  // editing the spec.
+  //
+  //   site_tagline           — short subtitle shown under the brand name
+  //                            ("daily SEO articles", "shop fashion online")
+  //   brand_logo_url         — absolute URL to a small logo image (PNG/SVG)
+  //                            used in the corner of cover templates.
+  //                            Leave empty if you don't want one.
+  //   brand_primary_color    — hex string, used as default fill on box
+  //                            layers ({brand.primary_color}).
+  //   brand_accent_color     — hex string, used as accent/highlight on
+  //                            cover templates ({brand.accent_color}).
+  site_tagline:         () => '',
+  brand_logo_url:       () => '',
+  brand_primary_color:  () => '#0a0c10',
+  brand_accent_color:   () => '#d4af62',
 };
 
 const KEYS = Object.keys(FALLBACK);

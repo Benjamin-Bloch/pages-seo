@@ -32,6 +32,21 @@ export const onRequestGet = async ({ env, request, params }) => {
   // cost is small.
   const settings = await loadSettings(env).catch(() => ({}));
 
+  // Tag the settings with whether a default cover template exists.
+  // If so AND hero_image_mode=cover, the page_render.js layer will
+  // point the hero img + og:image at /cover/<slug>.svg (live
+  // server-rendered from the template + post variables, no per-post
+  // PNG stored). One query per request — D1 indexes is_default, so
+  // it's effectively free.
+  if (settings?.hero_image_mode === 'cover') {
+    try {
+      const t = await env.DB.prepare(
+        'SELECT 1 FROM cover_templates WHERE is_default = 1 LIMIT 1'
+      ).first();
+      settings._has_default_template = !!t;
+    } catch { settings._has_default_template = false; }
+  }
+
   return new Response(renderContentPage({ env, request, post, kind: 'blog', related, settings }), {
     headers: {
       'content-type': 'text/html; charset=utf-8',
