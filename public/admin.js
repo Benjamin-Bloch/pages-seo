@@ -2241,31 +2241,30 @@
   // and creates the first user; we then log the operator in with
   // their just-set password so they land in the onboarding wizard.
   const Setup = (() => {
-    // Holds the full install seed (incl. install metadata like
-    // installed_sha, repo coords, CF account id) between readInstallSeed()
-    // and submit(), so the metadata gets forwarded to /api/setup.
-    let pendingSeed = null;
+    // The setup magic-link token from ?setup=<hex>. Saved here so
+    // submit() can forward it to /api/setup.
+    let setupToken = '';
 
-    // Decode #install=<base64-json> if the installer redirected here.
-    // The hash carries email + password + site_name + install metadata
-    // from the installer at seo.benjaminb.xyz/install so the operator
-    // never retypes them. Hash fragments don't get sent to the server.
-    function readInstallSeed() {
-      const m = (location.hash || '').match(/(?:^#|&)install=([^&]+)/);
-      if (!m) return null;
-      try {
-        let b64 = m[1].replace(/-/g, '+').replace(/_/g, '/');
-        while (b64.length % 4) b64 += '=';
-        const json = decodeURIComponent(escape(atob(b64)));
-        const seed = JSON.parse(json);
-        if (seed && seed.email && seed.password) return seed;
-      } catch { /* malformed — fall back to manual form */ }
-      return null;
+    // Read the magic-link token from ?setup=<token>. The installer
+    // at seo.benjaminb.xyz/install sets SETUP_TOKEN as a Pages env
+    // var on the new project AND hands the operator a URL of the
+    // form https://<their-site>/admin?setup=<token>. The server's
+    // /api/setup matches the token against env.SETUP_TOKEN; only a
+    // matching token allows the password to be set.
+    function readSetupToken() {
+      const params = new URLSearchParams(location.search);
+      const t = params.get('setup') || '';
+      return /^[0-9a-f]{20,128}$/.test(t) ? t : '';
     }
 
-    function clearHash() {
-      try { history.replaceState(null, '', location.pathname + location.search); }
-      catch { /* iframes etc. */ }
+    function clearTokenFromUrl() {
+      // Remove the ?setup=… so a refresh doesn't keep the token in
+      // the bar (and so the browser doesn't preserve it in history).
+      try {
+        const url = new URL(location.href);
+        url.searchParams.delete('setup');
+        history.replaceState(null, '', url.pathname + (url.search ? url.search : '') + (url.hash || ''));
+      } catch { /* */ }
     }
 
     async function show() {
@@ -2276,21 +2275,23 @@
       $('#setup-form-pane').hidden = false;
       $('#setup-success').hidden = true;
 
-      // Installer hand-off: pre-fill + auto-submit the setup form.
-      const seed = readInstallSeed();
-      if (seed) {
-        pendingSeed = seed;
-        clearHash();
-        $('#setup-site-name').value = seed.site_name || '';
-        $('#setup-site-url').value  = location.origin;
-        $('#setup-email').value     = seed.email || '';
-        $('#setup-password').value  = seed.password || '';
-        // Fire the same submit path so server validation + auto-login
-        // happen exactly as if the operator typed it.
-        $('#setup-form').dispatchEvent(new Event('submit', { cancelable: true }));
-        return;
-      }
-      setTimeout(() => $('#setup-site-name').focus(), 50);
+      // Capture the magic-link token (if present) and clear it from
+      // the URL bar. We keep the value in setupToken for the POST.
+      setupToken = readSetupToken();
+      clearTokenFromUrl();
+
+      // Sensible defaults for the new operator.
+      const siteUrlInput = $('#setup-site-url');
+      if (siteUrlInput && !siteUrlInput.value) siteUrlInput.value = location.origin;
+      // Try to populate site name from the SITE_NAME env var via
+      // whoami — that's set by the installer at provision time.
+      try {
+        const w = await api('/api/admin/whoami');
+        const name = w?.body?.site_name;
+        if (name && !$('#setup-site-name').value) $('#setup-site-name').value = name;
+      } catch { /* fine, leave blank for manual entry */ }
+
+      setTimeout(() => $('#setup-email').focus(), 50);
     }
 
     function showSuccess() {
@@ -2313,20 +2314,16 @@
       const btn = $('#setup-go');
       btn.disabled = true; btn.textContent = 'Setting up…';
 
-      // Forward install metadata from the URL hash (browser-path
-       // installs only) so the Updates tab has a baseline SHA + repo
-       // coords to compare against upstream HEAD.
-      const installMeta = pendingSeed ? {
-        install_method:     pendingSeed.install_method,
-        installed_sha:      pendingSeed.installed_sha,
-        install_repo_owner: pendingSeed.install_repo_owner,
-        install_repo_name:  pendingSeed.install_repo_name,
-        install_cf_account: pendingSeed.install_cf_account,
-        install_cf_project: pendingSeed.install_cf_project,
-      } : {};
+      // The magic-link token (if any) gates this POST server-side.
+      // Browser-flow installs have one; CLI installs leave it empty
+      // and the server's gate is then skipped (the user-empty-table
+      // check still prevents anyone else from hijacking the install).
       const { status, body } = await api('/api/setup', {
         method: 'POST',
-        body: JSON.stringify({ site_name, site_url, email, password, ...installMeta }),
+        body: JSON.stringify({
+          site_name, site_url, email, password,
+          setup_token: setupToken,
+        }),
       });
       if (status !== 200) {
         btn.disabled = false; btn.textContent = 'Finish setup →';

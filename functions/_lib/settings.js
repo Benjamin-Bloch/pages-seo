@@ -50,6 +50,11 @@ const FALLBACK = {
   // /install (browser path) so the Updates admin tab can compare the
   // installed commit to upstream HEAD and offer a one-click rebuild.
   install_method:          () => '',   // 'browser' | 'cli' | ''
+  // One-time setup-magic-link token. The browser installer sets this
+  // as a Pages env var (SETUP_TOKEN); the legacy in-app form falls
+  // back to reading it from settings if the env var is unset.
+  // /api/setup consumes it on success by setting onboarding_complete.
+  setup_token:             () => '',
   installed_sha:           () => '',   // upstream main commit SHA at install time
   install_repo_owner:      () => '',   // user's GitHub fork owner
   install_repo_name:       () => '',   // user's GitHub fork repo name

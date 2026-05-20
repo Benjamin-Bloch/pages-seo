@@ -1,24 +1,29 @@
 // POST /api/setup
 //
-// First-run bootstrap for the one-click deploy flow. Called once by
-// the admin SPA when /admin loads and detects "no users exist yet."
-// Gated by that same condition server-side so it can't be invoked a
-// second time to hijack an existing install.
+// First-run bootstrap. Called by the admin SPA when /admin loads
+// with `?setup=<token>` and detects no users exist yet.
 //
-// What it does:
-//   1. Applies the embedded schema (idempotent CREATE TABLE IF NOT EXISTS).
-//   2. Generates a 64-char hex ADMIN_TOKEN and stores it in settings.
-//   3. Generates a 64-char hex INDEXNOW_KEY and stores it in settings.
-//   4. Persists site_name + site_url to settings.
-//   5. Creates the first admin user with the supplied email + password.
+// The token is the install-time magic link. The installer at
+// seo.benjaminb.xyz/install generates a random hex string at
+// install time, sets it as a Pages env var (SETUP_TOKEN) on the
+// new project, and hands the operator a link of the form
+// https://<their-domain>/admin?setup=<token>. On first visit we
+// match the URL token against env.SETUP_TOKEN; on success the
+// admin user is created and the token is invalidated by
+// onboarding_complete being set (we don't try to unset the env
+// var — that would require Pages API calls we don't run here).
+//
+// CLI installs that don't set SETUP_TOKEN fall back to the
+// "first-visitor wins" behaviour they always had: any POST to a
+// users-empty database creates the admin.
 //
 // GET /api/setup
-//   Returns whether setup is still needed (no users) so the SPA can
-//   decide which screen to render.
+//   Returns { ok, needs_setup, requires_token } so the SPA knows
+//   whether to demand a token in the URL.
 
 import { json, nowSec, newId } from '../_lib/util.js';
 import { hashPassword } from '../_lib/passwords.js';
-import { setSetting } from '../_lib/settings.js';
+import { setSetting, loadSettings } from '../_lib/settings.js';
 import { SCHEMA_SQL } from '../_lib/schema.js';
 
 const EMAIL_RX = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -40,10 +45,50 @@ async function userCount(env) {
   }
 }
 
+// Returns the expected token, or '' if none configured.
+async function expectedSetupToken(env) {
+  // Env var (Pages secret) wins. Settings table is checked next so
+  // re-runs from a fresh deploy that re-pushed SETUP_TOKEN as a
+  // setting also work.
+  if (env?.SETUP_TOKEN && String(env.SETUP_TOKEN).trim()) {
+    return String(env.SETUP_TOKEN).trim();
+  }
+  if (!env?.DB) return '';
+  try {
+    const s = await loadSettings(env);
+    return String(s?.setup_token || '').trim();
+  } catch {
+    return '';
+  }
+}
+
+// Constant-time-ish equality so a careful attacker can't infer the
+// token byte-by-byte from response timing. We hash both inputs and
+// compare the digests — collisions in SHA-256 are not a concern.
+async function tokensMatch(a, b) {
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+  // Hash and compare so the loop length is independent of the secret.
+  const enc = new TextEncoder();
+  const [ha, hb] = await Promise.all([
+    crypto.subtle.digest('SHA-256', enc.encode(a)),
+    crypto.subtle.digest('SHA-256', enc.encode(b)),
+  ]);
+  const xa = new Uint8Array(ha), xb = new Uint8Array(hb);
+  let acc = 0;
+  for (let i = 0; i < xa.length; i++) acc |= xa[i] ^ xb[i];
+  return acc === 0;
+}
+
 export const onRequestGet = async ({ env }) => {
   if (!env?.DB) return json(503, { error: 'no_db_binding' });
   const n = await userCount(env);
-  return json(200, { ok: true, needs_setup: n === 0 });
+  const expected = await expectedSetupToken(env);
+  return json(200, {
+    ok: true,
+    needs_setup: n === 0,
+    requires_token: !!expected,
+  });
 };
 
 export const onRequestPost = async ({ env, request }) => {
@@ -56,6 +101,17 @@ export const onRequestPost = async ({ env, request }) => {
 
   let body;
   try { body = await request.json(); } catch { return json(400, { error: 'bad_json' }); }
+
+  // Token gate. If a SETUP_TOKEN is configured (browser-installed
+  // sites), the POST body must include a matching `setup_token`.
+  // CLI installs leave SETUP_TOKEN unset and skip this check.
+  const expected = await expectedSetupToken(env);
+  if (expected) {
+    const supplied = String(body?.setup_token || '').trim();
+    if (!(await tokensMatch(supplied, expected))) {
+      return json(401, { error: 'bad_setup_token', detail: 'Open /admin?setup=<token> from the install URL you were given.' });
+    }
+  }
 
   const email     = String(body?.email || '').trim().toLowerCase();
   const password  = String(body?.password || '');
@@ -106,6 +162,12 @@ export const onRequestPost = async ({ env, request }) => {
     `INSERT INTO users (id, email, password_hash, password_salt, created_at)
      VALUES (?, ?, ?, ?, ?)`
   ).bind(id, email, creds.hash, creds.salt, t).run();
+
+  // 6. Mark setup as done — even though the user-count check above
+  //    already prevents a second run, this gives the admin UI an
+  //    explicit flag to read in case the table-level check ever
+  //    becomes ambiguous (multi-user installs etc.).
+  await setSetting(env, 'onboarding_complete', String(nowSec()));
 
   return json(200, { ok: true, email, site_url });
 };
