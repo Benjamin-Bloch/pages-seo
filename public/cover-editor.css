@@ -1,0 +1,485 @@
+/* Cover editor — Canva-style workspace.
+ *
+ * Layout:
+ *   .ce-root  (full-bleed flex column)
+ *     .ce-header   top toolbar
+ *     .ce-body     (flex row: left sidebar | center canvas | right sidebar)
+ *     .ce-status   bottom strip
+ *     .ce-float-toolbar (absolutely positioned over selection)
+ *
+ * All design tokens reuse admin.css :root variables.
+ */
+
+.ce-root {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 140px);   /* leaves room for top app chrome */
+  min-height: 560px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+  outline: none;
+}
+
+/* ── header ──────────────────────────────────────────────────── */
+.ce-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.ce-header-left, .ce-header-right, .ce-header-center {
+  display: flex; align-items: center; gap: 8px;
+}
+.ce-header-center { gap: 4px; }
+.ce-divider {
+  display: inline-block;
+  width: 1px; height: 22px;
+  background: var(--line);
+  margin: 0 4px;
+}
+.ce-size {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--ink-dim);
+}
+.ce-preset {
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 12px;
+}
+.ce-zoom { display: flex; align-items: center; gap: 2px; }
+.ce-zoom-label {
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font: inherit; font-size: 12px;
+  cursor: pointer; min-width: 56px;
+}
+
+.ce-icon-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--ink-dim);
+  width: 30px; height: 30px;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit; font-size: 14px;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.ce-icon-btn:hover { background: var(--bg-soft); color: var(--ink); border-color: var(--line); }
+
+.ce-btn {
+  background: var(--accent);
+  color: #062826;
+  border: 0; border-radius: 6px;
+  padding: 7px 14px;
+  font: inherit; font-weight: 600; font-size: 13px;
+  cursor: pointer;
+  transition: filter .12s;
+}
+.ce-btn:hover { filter: brightness(.95); }
+.ce-btn-ghost {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line-2);
+}
+.ce-btn-ghost:hover { background: var(--bg-soft); border-color: var(--accent); color: var(--accent); }
+.ce-btn-sm { padding: 4px 8px; font-size: 12px; font-weight: 500; }
+
+/* ── body ────────────────────────────────────────────────────── */
+.ce-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  background: var(--bg);
+}
+
+/* ── sidebars ───────────────────────────────────────────────── */
+.ce-sidebar {
+  width: 260px;
+  background: var(--bg-card);
+  border-right: 1px solid var(--line);
+  display: flex; flex-direction: column;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+.ce-sidebar-right {
+  border-right: 0;
+  border-left: 1px solid var(--line);
+  width: 280px;
+}
+.ce-sb-tabs {
+  display: flex;
+  background: var(--bg-soft);
+  border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 2;
+}
+.ce-sb-tab {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  color: var(--ink-dim);
+  font: inherit; font-size: 12px;
+  padding: 10px 6px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+.ce-sb-tab.is-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.ce-sb-pane { padding: 12px; }
+.ce-sb-pane.is-hidden { display: none; }
+.ce-sb-section + .ce-sb-section { margin-top: 18px; }
+.ce-sb-h {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin: 0 0 8px;
+}
+.ce-add-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+
+/* ── inputs ─────────────────────────────────────────────────── */
+.ce-input {
+  width: 100%;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  border-radius: 6px;
+  padding: 6px 9px;
+  font: inherit; font-size: 13px;
+  box-sizing: border-box;
+}
+.ce-input:focus { outline: none; border-color: var(--accent); }
+.ce-input-num { width: 80px; }
+.ce-row { margin-bottom: 8px; }
+.ce-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+.ce-grid-row { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--ink-dim); }
+.ce-grid-full { grid-column: span 2; }
+
+.ce-dim { color: var(--ink-faint); font-size: 12px; }
+
+/* ── layers list ─────────────────────────────────────────────── */
+.ce-layers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.ce-layer {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+.ce-layer:hover { background: var(--bg-soft); color: var(--ink); }
+.ce-layer.is-selected { background: var(--accent-soft); color: var(--accent); }
+.ce-layer-icon { width: 16px; text-align: center; font-size: 12px; }
+.ce-layer-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ce-layer-lock { font-size: 10px; opacity: 0.6; }
+
+/* ── asset grid ──────────────────────────────────────────────── */
+.ce-upload-btn {
+  display: inline-flex; align-items: center; cursor: pointer; margin-bottom: 8px;
+}
+.ce-asset-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.ce-asset {
+  position: relative;
+  aspect-ratio: 1;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: grab;
+  transition: border-color .15s;
+}
+.ce-asset:hover { border-color: var(--accent); }
+.ce-asset:active { cursor: grabbing; }
+.ce-asset img {
+  width: 100%; height: 100%; object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+.ce-asset-del {
+  position: absolute; top: 4px; right: 4px;
+  width: 20px; height: 20px;
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 12px; line-height: 1;
+  opacity: 0; transition: opacity .12s;
+}
+.ce-asset:hover .ce-asset-del { opacity: 1; }
+
+/* ── templates list ──────────────────────────────────────────── */
+.ce-tpl-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ce-tpl-item {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+.ce-tpl-item strong { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ce-pill {
+  display: inline-block;
+  padding: 1px 6px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 99px;
+  font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
+}
+.ce-tpl-del { color: var(--ink-faint) !important; }
+.ce-tpl-del:hover { color: var(--bad) !important; }
+
+/* ── center: canvas viewport ────────────────────────────────── */
+.ce-center { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ce-viewport {
+  flex: 1;
+  overflow: auto;
+  display: grid;
+  place-items: center;
+  /* Subtle checkerboard so transparent backgrounds are readable. */
+  background:
+    linear-gradient(45deg, #0a0d12 25%, transparent 25%),
+    linear-gradient(-45deg, #0a0d12 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #0a0d12 75%),
+    linear-gradient(-45deg, transparent 75%, #0a0d12 75%),
+    #07090d;
+  background-size: 24px 24px;
+  background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+}
+.ce-canvas-wrap {
+  position: relative;
+  background: #111;            /* matches the canvas default fill */
+  box-shadow:
+    0 0 0 1px var(--line),
+    0 8px 30px rgba(0,0,0,0.6);
+  border-radius: 4px;
+  overflow: visible;           /* let handles + guides poke out */
+  touch-action: none;          /* prevent scroll on pointer drag */
+}
+.ce-canvas {
+  display: block;
+  border-radius: 4px;
+  /* Stretched to wrap via .style — see applyZoom() in cover-editor.js. */
+}
+.ce-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;        /* handles re-enable pointer-events */
+}
+
+/* selection box */
+.ce-selection-box {
+  position: absolute;
+  border: 1.5px solid var(--accent);
+  box-sizing: border-box;
+  pointer-events: none;
+}
+/* handles */
+.ce-handle {
+  position: absolute;
+  width: 10px; height: 10px;
+  background: #fff;
+  border: 1.5px solid var(--accent);
+  border-radius: 2px;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  cursor: nwse-resize;
+}
+.ce-handle-n,  .ce-handle-s  { cursor: ns-resize; }
+.ce-handle-e,  .ce-handle-w  { cursor: ew-resize; }
+.ce-handle-ne, .ce-handle-sw { cursor: nesw-resize; }
+.ce-handle-nw, .ce-handle-se { cursor: nwse-resize; }
+
+.ce-handle-rotate {
+  position: absolute;
+  width: 14px; height: 14px;
+  background: #fff;
+  border: 1.5px solid var(--accent);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  cursor: alias;            /* visual cue for rotate */
+}
+.ce-rotate-link {
+  position: absolute;
+  width: 2px;
+  background: var(--accent);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* snap guides */
+.ce-guide {
+  position: absolute;
+  background: #ff2bd6;
+  pointer-events: none;
+  box-shadow: 0 0 4px #ff2bd6;
+}
+.ce-guide-v { top: 0; bottom: 0; width: 1px; }
+.ce-guide-h { left: 0; right: 0; height: 1px; }
+
+/* marquee */
+.ce-marquee {
+  position: absolute;
+  background: rgba(122,255,240,0.08);
+  border: 1px dashed var(--accent);
+  pointer-events: none;
+}
+
+/* inline text editor */
+.ce-text-editor {
+  position: absolute;
+  background: rgba(0,0,0,0.05);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  pointer-events: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.15;
+  padding: 0;
+  margin: 0;
+  cursor: text;
+  caret-color: var(--accent);
+}
+.ce-text-editor:focus { outline-color: var(--accent); }
+
+/* ── floating toolbar ───────────────────────────────────────── */
+.ce-float-toolbar {
+  position: absolute;
+  z-index: 50;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+  white-space: nowrap;
+}
+.ce-tb-input {
+  background: var(--bg-soft);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 4px 6px;
+  font: inherit; font-size: 12px;
+}
+.ce-tb-input:focus { outline: none; border-color: var(--accent); }
+.ce-tb-size { width: 56px; }
+.ce-tb-range { width: 80px; padding: 0; }
+.ce-tb-color {
+  width: 28px; height: 28px;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 2px;
+  cursor: pointer;
+}
+.ce-tb-lbl { font-size: 10px; color: var(--ink-dim); margin-left: 4px; }
+.ce-tb-sep {
+  display: inline-block;
+  width: 1px; height: 18px;
+  background: var(--line);
+  margin: 0 2px;
+}
+.ce-tb-icon {
+  width: 28px; height: 28px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--ink);
+  border-radius: 5px;
+  cursor: pointer;
+  font: inherit; font-size: 13px; font-weight: 600;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.ce-tb-icon:hover { background: var(--bg-soft); border-color: var(--line); }
+.ce-tb-icon.is-on { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.ce-tb-segmented {
+  display: inline-flex;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.ce-tb-seg {
+  background: transparent;
+  border: 0;
+  color: var(--ink-dim);
+  width: 26px; height: 26px;
+  cursor: pointer;
+  font: inherit; font-size: 11px;
+}
+.ce-tb-seg:hover { background: var(--bg-card); color: var(--ink); }
+.ce-tb-seg.is-on { background: var(--accent); color: #062826; }
+
+/* ── context menu ──────────────────────────────────────────── */
+.ce-context-menu {
+  position: fixed;
+  z-index: 100;
+  min-width: 180px;
+  background: var(--bg-card);
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+  padding: 4px;
+}
+.ce-context-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: 7px 12px;
+  color: var(--ink);
+  font: inherit; font-size: 12px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.ce-context-item:hover { background: var(--accent-soft); color: var(--accent); }
+.ce-context-sep { height: 1px; background: var(--line); margin: 4px 2px; }
+
+/* ── status bar ─────────────────────────────────────────────── */
+.ce-status {
+  padding: 6px 12px;
+  background: var(--bg-card);
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+.ce-status-hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+
+/* ── frozen state (hero_image_mode = ai) ────────────────────── */
+#cover-content.frozen .ce-root { opacity: 0.5; pointer-events: none; user-select: none; }
+
+/* ── responsive ─────────────────────────────────────────────── */
+@media (max-width: 960px) {
+  .ce-sidebar { width: 220px; }
+  .ce-sidebar-right { width: 240px; }
+}
+@media (max-width: 760px) {
+  .ce-root { height: auto; min-height: unset; }
+  .ce-body { flex-direction: column; }
+  .ce-sidebar { width: 100%; border-right: 0; border-bottom: 1px solid var(--line); max-height: 260px; }
+  .ce-sidebar-right { border-left: 0; border-top: 1px solid var(--line); }
+}
