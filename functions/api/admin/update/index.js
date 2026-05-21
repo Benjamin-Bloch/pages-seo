@@ -36,6 +36,15 @@ const UPSTREAM_OWNER = 'Benjamin-Bloch';
 const UPSTREAM_REPO  = 'pages-seo';
 const BRANCH = 'main';
 
+// The canonical version endpoint. Hit this first so:
+//   - We share the rate-limit pool with every other install rather
+//     than burning each install's own 60/hr GitHub quota.
+//   - The answer is edge-cached, so the round-trip is ~30ms instead
+//     of waiting for GitHub from the user's colo.
+// If it's unreachable we fall straight through to direct GitHub
+// calls, so a seo.benjaminb.xyz outage never breaks /admin Updates.
+const CANONICAL_BASE = 'https://seo.benjaminb.xyz';
+
 function ghHeaders() {
   return {
     'User-Agent': 'pages-seo-update',
@@ -43,7 +52,38 @@ function ghHeaders() {
   };
 }
 
+// Canonical-first commit lookup. Falls back to direct GitHub if the
+// canonical site is unreachable or returns a non-2xx (e.g. during
+// its own deploy). Either way the return shape matches what
+// fetchLatest() always returned.
+async function fetchLatestViaCanonical() {
+  try {
+    const r = await fetch(`${CANONICAL_BASE}/api/version`, {
+      cf: { cacheTtl: 60 },   // Workers cache hint; harmless on Pages
+    });
+    if (!r.ok) throw new Error('canonical_' + r.status);
+    const d = await r.json();
+    if (!d?.ok || !d?.sha) throw new Error('canonical_bad_shape');
+    return {
+      sha: d.sha,
+      commit: {
+        message: d.message,
+        author: { date: d.date },
+      },
+      // Pass through the tag info too. The admin renderer ignores
+      // unknown keys, so this is forward-compat for showing
+      // "v1.4.2" instead of a short sha.
+      _tag: d.tag,
+      _tag_html_url: d.tag_html_url,
+    };
+  } catch {
+    return null;  // caller falls back to direct GH
+  }
+}
+
 async function fetchLatest() {
+  const viaCanonical = await fetchLatestViaCanonical();
+  if (viaCanonical) return viaCanonical;
   const r = await fetch(
     `https://api.github.com/repos/${UPSTREAM_OWNER}/${UPSTREAM_REPO}/commits/${BRANCH}`,
     { headers: ghHeaders() },
@@ -52,7 +92,40 @@ async function fetchLatest() {
   return r.json();
 }
 
+// Canonical-first compare. /api/changes returns a tighter shape
+// than GitHub's compare endpoint, but we re-pack it to match what
+// the rest of this file already consumes (commits[], files[],
+// stats fields). Falls back to direct GitHub if canonical fails.
+async function fetchCompareViaCanonical(base) {
+  try {
+    const r = await fetch(
+      `${CANONICAL_BASE}/api/changes?since=${encodeURIComponent(base)}&limit=100`,
+      { cf: { cacheTtl: 60 } },
+    );
+    if (!r.ok) throw new Error('canonical_' + r.status);
+    const d = await r.json();
+    if (!d?.ok || !Array.isArray(d.commits)) throw new Error('canonical_bad_shape');
+    return {
+      commits: d.commits.map((c) => ({
+        sha: c.sha,
+        html_url: c.url,
+        commit: {
+          message: c.subject + (c.body ? '\n\n' + c.body : ''),
+          author: { name: c.author, date: c.date },
+        },
+        author: { login: c.author },
+      })),
+      files: [],   // canonical doesn't surface files; we drop file stats
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function fetchCompare(base, head) {
+  // Canonical first, GitHub direct as fallback.
+  const viaCanonical = await fetchCompareViaCanonical(base);
+  if (viaCanonical) return viaCanonical;
   // GitHub's compare endpoint returns commits + stats in one call.
   // Capped at 250 commits — way more than any sane update window.
   const r = await fetch(

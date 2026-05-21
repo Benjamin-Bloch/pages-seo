@@ -118,6 +118,17 @@
       <button class="tab" data-tab="settings">Settings</button>
     </nav>
     <div class="topbar-tools">
+      <!-- Version badge. Shows your installed version (short sha or
+           release tag). When upstream is ahead, an orange dot appears
+           and the button links to the Updates tab. Populated by
+           Updates.populateBadge() which calls seo.benjaminb.xyz's
+           /api/version, then compares against the installed sha
+           stored in settings. -->
+      <button id="version-badge" class="version-badge" type="button" hidden
+              title="Installed version" data-jump-to="updates">
+        <span class="version-dot" hidden></span>
+        <span class="version-label">…</span>
+      </button>
       <button id="open-wizard" class="btn btn-ghost btn-sm" title="Re-run the onboarding wizard">Setup wizard</button>
       <button id="lock" class="btn btn-ghost btn-sm">Sign out</button>
     </div>

@@ -85,6 +85,76 @@
   // Expose globally so cover-editor.js (separate script) can use it.
   window.psToast = toast;
 
+  // ── version badge ────────────────────────────────────────────
+  // Compares the install's recorded SHA (from settings) against
+  // upstream HEAD (from the canonical /api/version endpoint at
+  // seo.benjaminb.xyz). Shows "v<short-sha>" or the release tag,
+  // plus an orange dot when upstream is ahead.
+  //
+  // Both fetches go through canonical surfaces so we don't burn the
+  // user's per-IP GitHub rate limit. /api/admin/whoami should already
+  // be cheap; /api/version is edge-cached.
+  async function populateVersionBadge() {
+    const btn = document.getElementById('version-badge');
+    const dot = btn?.querySelector('.version-dot');
+    const lbl = btn?.querySelector('.version-label');
+    if (!btn || !lbl) return;
+
+    // Read the locally-installed sha. The install flow saves this
+    // to settings.installed_sha; CLI installs leave it empty and
+    // we just show "unknown".
+    let installedSha = '';
+    try {
+      const r = await api('/api/admin/settings');
+      installedSha = String(r.body?.settings?.installed_sha || '').trim();
+    } catch { /* */ }
+
+    let upstream = null;
+    try {
+      // No-cors-issues: seo.benjaminb.xyz/api/version sets
+      // Access-Control-Allow-Origin: *.
+      const r = await fetch('https://seo.benjaminb.xyz/api/version', {
+        credentials: 'omit',
+      });
+      if (r.ok) upstream = await r.json();
+    } catch { /* */ }
+
+    btn.hidden = false;
+
+    if (!upstream?.ok) {
+      // Couldn't reach the canonical version endpoint. Still show
+      // the installed version if we have one, so the user knows
+      // SOMETHING. No dot, since we can't compare.
+      lbl.textContent = installedSha ? 'v' + installedSha.slice(0, 7) : 'pages-seo';
+      dot.hidden = true;
+      btn.title = 'Couldn\'t check for updates';
+      return;
+    }
+
+    // Prefer the release tag when one exists; fall back to SHA.
+    const label = upstream.tag || ('v' + upstream.short);
+    const ahead = installedSha && installedSha !== upstream.sha
+      && !upstream.sha.startsWith(installedSha)
+      && !installedSha.startsWith(upstream.short);
+
+    if (!installedSha) {
+      // CLI install, or older browser install before we recorded
+      // the SHA. Show upstream's label but no comparison.
+      lbl.textContent = label;
+      dot.hidden = true;
+      btn.title = 'Upstream is at ' + label + '. (Your installed version isn\'t recorded.)';
+    } else if (ahead) {
+      lbl.textContent = 'v' + installedSha.slice(0, 7) + ' → ' + label;
+      dot.hidden = false;
+      btn.title = `Update available: upstream is at ${label}. Click to open the Updates tab.`;
+    } else {
+      lbl.textContent = label;
+      dot.hidden = true;
+      btn.title = 'You\'re running ' + label + ' — up to date with upstream.';
+    }
+  }
+  window.psPopulateVersionBadge = populateVersionBadge;
+
   async function api(path, opts = {}) {
     const headers = { 'content-type': 'application/json', ...(opts.headers || {}) };
     // `credentials: 'same-origin'` is the default, but we set it
@@ -1450,6 +1520,14 @@
     $('#dash').hidden = false;
     $$('.tab').forEach((t) => t.addEventListener('click', () => activateTab(t.dataset.tab)));
     $('#lock').addEventListener('click', doLogout);
+    // Populate the version badge in the top bar. Runs on every
+    // mount so a re-login after an update shows the fresh version.
+    // Failures are silent — the badge stays hidden and the admin
+    // is otherwise unaffected.
+    populateVersionBadge().catch(() => {});
+    // Re-check every 10 minutes while the tab is open so users
+    // notice an upstream release without manually refreshing.
+    setInterval(() => { populateVersionBadge().catch(() => {}); }, 10 * 60 * 1000);
 
     // overview quick-actions reuse the same handlers as their tabs.
     $('#qa-blog').addEventListener('click', () => { activateTab('blog'); runBlogChain(); });
