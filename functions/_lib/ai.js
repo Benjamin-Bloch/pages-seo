@@ -413,11 +413,27 @@ async function workersAIText(env, prompt) {
     // words including the JSON wrapper.
     max_tokens: 8192,
   });
-  // Workers AI may return either a string in `response` or, when the
-  // model emits structured output, an already-parsed object. Cover both.
-  const raw = r?.response ?? r?.result?.response ?? r?.result ?? r;
+  // Workers AI returns one of three shapes depending on the model:
+  //   1. Legacy Llama / TinyLlama:   { response: '<string>' }
+  //   2. Models with structured-output mode: an already-parsed object
+  //      at top level with title/body_markdown/primary_query keys.
+  //   3. Modern OpenAI-compatible chat models (Qwen3, Mistral, etc.):
+  //      { choices: [{ message: { content: '<string>' } }] }
+  // We coerce all three into a single `raw` string (or object) before
+  // parsing. The chat-completion shape arrived with Qwen3 in 2026 and
+  // breaks the older response/result decoder if not handled here.
+  let raw;
+  if (r?.choices?.[0]?.message?.content != null) {
+    raw = r.choices[0].message.content;
+  } else if (r?.response != null) {
+    raw = r.response;
+  } else if (r?.result?.response != null) {
+    raw = r.result.response;
+  } else {
+    raw = r?.result ?? r;
+  }
   let parsed;
-  if (raw && typeof raw === 'object' && !Array.isArray(raw) && (raw.title || raw.body_markdown || raw.primary_query)) {
+  if (raw && typeof raw === 'object' && !Array.isArray(raw) && (raw.title || raw.body_markdown || raw.primary_query || raw.pong != null)) {
     parsed = raw;
   } else if (typeof raw === 'string' && raw.length) {
     parsed = looseJsonParse(raw);
@@ -426,15 +442,17 @@ async function workersAIText(env, prompt) {
   } else {
     throw new Error('workers_ai_unexpected_shape: ' + JSON.stringify(raw).slice(0, 200));
   }
-  // Workers AI doesn't return token counts; estimate from text length.
+  // Token counts: prefer the model's own count if returned (newer
+  // chat-completion shape includes usage); fall back to estimate.
   const respText = typeof raw === 'string' ? raw : JSON.stringify(raw);
+  const u = r?.usage || {};
   return {
     parsed,
     usage: {
       provider: 'workers-ai', model,
-      prompt_tokens: estimateTokens(SYSTEM_JSON_ONLY + prompt),
-      completion_tokens: estimateTokens(respText),
-      estimated: true,
+      prompt_tokens:     u.prompt_tokens     || estimateTokens(SYSTEM_JSON_ONLY + prompt),
+      completion_tokens: u.completion_tokens || estimateTokens(respText),
+      estimated: !u.prompt_tokens,
     },
   };
 }
