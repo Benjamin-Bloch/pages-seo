@@ -262,6 +262,23 @@ async function main() {
 
     log('');
     say('All set');
+    // The seed URL carries the admin email + password in a base64
+    // URL fragment. Browser receives it via location.hash (fragments
+    // never leave the user's machine), the first-run setup card
+    // submits it once, and it stops working.
+    //
+    // Crucially we DO NOT print this URL to stdout — terminal
+    // scrollback, screen-share recordings, and CI logs would all
+    // capture it verbatim. CodeQL flags console.log of anything
+    // containing credentials as "clear-text logging of sensitive
+    // information", and they're right.
+    //
+    // Instead we:
+    //   1. Try to copy the URL to the user's clipboard via the
+    //      platform helper (pbcopy / clip / xclip / wl-copy).
+    //   2. Try to open it directly in the browser.
+    //   3. If both fail, write the URL to a tmpfile and tell the
+    //      user where it is — they cat it once, then delete.
     const seed = JSON.stringify({ email, password, site_name: siteName });
     const b64 = Buffer.from(seed, 'utf8').toString('base64')
       .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -273,18 +290,60 @@ async function main() {
     log(`  Site:   ${C.cyan}${pagesUrl}${C.reset}`);
     log(`  Admin:  ${C.cyan}${pagesUrl}/admin${C.reset}`);
     log('');
-    log(`  Open this link to auto-create your admin account and land in the onboarding wizard:`);
-    log('');
-    log(`  ${C.dim}${adminUrl}${C.reset}`);
-    log('');
-    log(`  ${C.yellow}Note:${C.reset} the link above carries your email + password in a URL fragment`);
-    log(`  so the first-run setup card on /admin can submit it for you automatically.`);
-    log(`  After it's used once (which marks setup complete), it stops working.`);
-    log('');
 
-    const opener = process.platform === 'darwin' ? 'open' :
-                   process.platform === 'win32' ? 'start' : 'xdg-open';
-    try { run(opener, [adminUrl], { stdio: 'ignore' }); } catch { /* user can copy from the log */ }
+    // 1. Clipboard. We do NOT log the URL even on failure.
+    let copied = false;
+    try {
+      let copyCmd = null, copyArgs = [];
+      if (process.platform === 'darwin') copyCmd = 'pbcopy';
+      else if (process.platform === 'win32') { copyCmd = 'clip'; }
+      else if (runOk('sh', ['-c', 'command -v wl-copy >/dev/null'])) copyCmd = 'wl-copy';
+      else if (runOk('sh', ['-c', 'command -v xclip >/dev/null'])) { copyCmd = 'xclip'; copyArgs = ['-selection', 'clipboard']; }
+      if (copyCmd) {
+        const r = run(copyCmd, copyArgs, { input: adminUrl, stdio: ['pipe', 'ignore', 'ignore'] });
+        if (r.status === 0) copied = true;
+      }
+    } catch { /* no clipboard available */ }
+    if (copied) {
+      log(`  ${C.green}✓${C.reset} Your first-run admin link is on your clipboard.`);
+    }
+
+    // 2. Open the URL directly. The browser receives the fragment
+    // but it never appears in stdout / scrollback.
+    let opened = false;
+    try {
+      const opener = process.platform === 'darwin' ? 'open' :
+                     process.platform === 'win32' ? 'start' : 'xdg-open';
+      const r = run(opener, [adminUrl], { stdio: 'ignore' });
+      if (r.status === 0) opened = true;
+    } catch { /* opener missing */ }
+    if (opened) {
+      log(`  ${C.green}✓${C.reset} Opening it in your browser now.`);
+    }
+
+    // 3. Fallback: write to a tmpfile if both clipboard + browser
+    // failed. The fragment is still secret but at least it's in a
+    // file with mode 0600 rather than shell scrollback.
+    if (!copied && !opened) {
+      try {
+        const { writeFileSync, mkdtempSync } = await import('node:fs');
+        const { tmpdir } = await import('node:os');
+        const { join: pjoin } = await import('node:path');
+        const dir = mkdtempSync(pjoin(tmpdir(), 'pages-seo-'));
+        const p = pjoin(dir, 'admin-link.txt');
+        writeFileSync(p, adminUrl + '\n', { mode: 0o600 });
+        log(`  ${C.yellow}!${C.reset} Couldn't open the browser or clipboard.`);
+        log(`  Your first-run admin link is saved to: ${C.cyan}${p}${C.reset}`);
+        log(`  Open the file, click the URL, delete the file afterwards.`);
+      } catch {
+        log(`  ${C.yellow}!${C.reset} Couldn't deliver the first-run admin link automatically.`);
+        log(`  Open ${C.cyan}${pagesUrl}/admin${C.reset} and run the setup card manually,`);
+        log(`  pasting the email and password you just chose.`);
+      }
+    }
+    log('');
+    log(`  ${C.dim}The link can be used once; after that, it stops working.${C.reset}`);
+    log('');
 
   } finally {
     if (process.env.PAGES_SEO_KEEP_TMP) {

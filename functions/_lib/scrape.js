@@ -15,11 +15,40 @@ const COMMENT_RE  = /<!--[\s\S]*?-->/g;
 const TAG_RE      = /<[^>]+>/g;
 const WS_RE       = /\s+/g;
 
+// Decode the small set of HTML entities the scraper actually cares
+// about. Single-pass replace: every match is a complete entity and
+// we never produce a new entity that the next pattern could decode
+// again. The old version decoded &amp; → & first, which meant input
+// like "&amp;lt;" would round-trip to "<" — letting an attacker
+// smuggle an entity past a downstream entity-aware sanitiser.
+// CodeQL flagged that as "Double escaping or unescaping" (CWE-176).
+//
+// One unified regex matches any entity, and the replacer dispatches.
+// Numeric entities (decimal and hex) are decoded; named ones from
+// the small list are decoded; anything else passes through as-is.
+const ENTITY_MAP = {
+  '&amp;': '&', '&lt;': '<', '&gt;': '>',
+  '&quot;': '"', '&apos;': "'", '&#39;': "'",
+  '&nbsp;': ' ', '&hellip;': '…',
+  '&mdash;': '—', '&ndash;': '–',
+  '&lsquo;': '‘', '&rsquo;': '’',
+  '&ldquo;': '“', '&rdquo;': '”',
+};
+const ENTITY_RE = /&(?:amp|lt|gt|quot|apos|nbsp|hellip|mdash|ndash|lsquo|rsquo|ldquo|rdquo|#39|#x?[0-9a-fA-F]+);/g;
 function decode(s) {
-  return String(s || '')
-    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n, 10)));
+  return String(s || '').replace(ENTITY_RE, (m) => {
+    if (m in ENTITY_MAP) return ENTITY_MAP[m];
+    // Numeric entity: &#dec; or &#xhex;
+    if (m.startsWith('&#x') || m.startsWith('&#X')) {
+      const cp = parseInt(m.slice(3, -1), 16);
+      return Number.isFinite(cp) ? String.fromCodePoint(cp) : m;
+    }
+    if (m.startsWith('&#')) {
+      const cp = parseInt(m.slice(2, -1), 10);
+      return Number.isFinite(cp) ? String.fromCodePoint(cp) : m;
+    }
+    return m;
+  });
 }
 
 function extractMeta(html, name) {

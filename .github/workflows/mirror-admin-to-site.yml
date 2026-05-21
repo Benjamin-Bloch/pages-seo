@@ -41,6 +41,17 @@ on:
       - 'public/cover-editor.js'
       - 'public/cover-editor.css'
 
+# Lock down the default GITHUB_TOKEN. This workflow only needs to
+# READ the source repo's contents (the actions/checkout default).
+# Writes to the downstream repo use PAGES_SEO_SITE_TOKEN (a fine-
+# grained PAT scoped to pages-seo-site contents:write only), NOT the
+# workflow's GITHUB_TOKEN. Stripping every other scope here is
+# CodeQL's "workflow does not contain permissions" rule (CWE-1391):
+# without it, a compromised step could push to this repo, open
+# issues, edit pages, etc.
+permissions:
+  contents: read
+
 # Cancel an older run still in flight when a newer commit arrives —
 # we only ever want the latest state of these files reflected in the
 # downstream repo.
@@ -51,6 +62,13 @@ concurrency:
 jobs:
   mirror:
     runs-on: ubuntu-latest
+    # Job-level permissions narrow further: we don't need contents:
+    # write here (the downstream push uses a PAT, not the default
+    # token), and we never run any third-party action that needs
+    # any other scope. Setting permissions twice (workflow + job)
+    # is the belt-and-braces pattern CodeQL recommends.
+    permissions:
+      contents: read
     steps:
       - name: Refuse to run without a downstream PAT
         if: ${{ env.HAS_TOKEN != 'true' }}

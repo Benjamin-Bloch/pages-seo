@@ -51,8 +51,35 @@ body:
         - Cerebras
         - Other / multiple
   - type: textarea
+    id: screenshots
+    attributes:
+      label: 🖼️ Screenshots
+      description: |
+        Paste any screenshots that help reproduce or visualise the bug.
+        On macOS: ⌘⇧4 captures a region; ⌘⇧5 lets you record a clip.
+        On Windows: Win+Shift+S. On Linux: most desktops have a Screenshot tool.
+        Drag the image into this textarea and GitHub uploads it inline.
+        If the bug is visual (layout broken, the wrong colour, etc.) screenshots are usually faster than describing it.
+      placeholder: |
+        (Drag a screenshot here, or paste from clipboard.)
+  - type: textarea
     id: logs
     attributes:
       label: Logs / error output
-      description: Wrangler tail output, browser console, or D1 query results. Redact any tokens or keys.
+      description: |
+        Wrangler tail output, browser console, or D1 query results.
+        **Redact** any API tokens, passwords, or admin tokens before pasting.
       render: shell
+  - type: input
+    id: browser
+    attributes:
+      label: Browser & OS
+      description: e.g. "Chrome 137 on macOS 26", "Safari iOS 19", "Firefox 142 on Ubuntu".
+  - type: checkboxes
+    id: checked-docs
+    attributes:
+      label: Pre-flight checks
+      options:
+        - label: I checked [/docs](https://seo.benjaminb.xyz/docs) for a known fix
+        - label: I checked existing issues for a duplicate
+        - label: My logs don't include any tokens or passwords

@@ -9,8 +9,28 @@ export function newId() {
 }
 
 // JSON Response helper with no-store cache by default.
+//
+// Defensively scrubs any Error objects in the body before
+// serialising. JSON.stringify on a raw Error normally drops most
+// fields (Errors aren't enumerable) but `stack` and `cause` slip
+// through when callers do { error: e } or { detail: e } — and
+// JSON.stringify with a replacer can also surface them. The scrub
+// converts every Error to { message } so we never leak stack
+// traces, internal file paths, or wrapping causes to clients.
+// CodeQL flags this as CWE-209 (information exposure through error
+// message); the replacer below closes the gap.
 export function json(status, body, extraHeaders = {}) {
-  return new Response(JSON.stringify(body), {
+  const serialised = JSON.stringify(body, (_, v) => {
+    if (v instanceof Error) {
+      // Only keep the user-safe `message`. `stack`, `cause`, file
+      // paths, line numbers all dropped. If callers want the
+      // detail in the response they have to opt in by passing the
+      // string explicitly.
+      return { message: String(v.message || v).slice(0, 500) };
+    }
+    return v;
+  });
+  return new Response(serialised, {
     status,
     headers: {
       'content-type': 'application/json; charset=utf-8',
