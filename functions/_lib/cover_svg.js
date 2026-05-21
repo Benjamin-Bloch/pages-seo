@@ -82,8 +82,72 @@ function colour(v) {
   return String(v);
 }
 
+// Convert a /image/<key> URL to its R2 key. Mirrors upload.js's
+// imageUrlFor() in reverse: the path encodes each segment, so we
+// decode segment-by-segment to recover the literal '/' separators.
+function urlToR2Key(url) {
+  return String(url || '')
+    .replace(/^\/image\//, '')
+    .split('/')
+    .map(decodeURIComponent)
+    .join('/');
+}
+
+// Detect references that need inlining for <img>-loaded SVG to
+// render correctly. Anything starting with /image/ is a local R2
+// asset; everything else (http://, data:, etc.) passes through
+// unchanged.
+function needsInlining(href) {
+  return typeof href === 'string' && href.startsWith('/image/');
+}
+
+// Pull bytes from R2 + base64-encode into a data URL. Returns the
+// original href on any failure so the SVG is still well-formed.
+async function inlineFromR2(href, env) {
+  if (!env?.IMAGES) return href;
+  const key = urlToR2Key(href);
+  if (!key) return href;
+  try {
+    const obj = await env.IMAGES.get(key);
+    if (!obj) return href;
+    const buf = await obj.arrayBuffer();
+    // Chunked base64 — atob/btoa limits at ~65k arg length, so we
+    // batch through fromCharCode.apply to stay safe on large
+    // backgrounds.
+    const bytes = new Uint8Array(buf);
+    let s = '';
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) {
+      s += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+    }
+    const b64 = btoa(s);
+    const mime = obj.httpMetadata?.contentType || 'image/png';
+    return `data:${mime};base64,${b64}`;
+  } catch {
+    return href;
+  }
+}
+
+// Walk a spec and inline every R2-referenced asset URL (background
+// + each logo). Returns a Map<original_url, data_url> the layer
+// renderer consults via getInlined(href).
+async function buildInlineMap(spec, env) {
+  const out = new Map();
+  if (!env) return out;
+  const urls = new Set();
+  if (needsInlining(spec?.background?.url)) urls.add(spec.background.url);
+  for (const l of (spec?.layers || [])) {
+    if (l?.kind === 'logo' && needsInlining(l.url)) urls.add(l.url);
+  }
+  if (!urls.size) return out;
+  const arr = [...urls];
+  const resolved = await Promise.all(arr.map((u) => inlineFromR2(u, env)));
+  arr.forEach((u, i) => out.set(u, resolved[i]));
+  return out;
+}
+
 // Render one layer as an SVG fragment.
-function renderLayer(layer, ctx) {
+function renderLayer(layer, ctx, inlined) {
   const opacity = layer.opacity != null ? layer.opacity : 1;
   const rot = layer.rotation || 0;
   const cx = layer.x + layer.w / 2;
@@ -144,7 +208,15 @@ function renderLayer(layer, ctx) {
     // SVG <image> takes href + preserveAspectRatio. We use xMidYMid
     // meet so the logo scales to fit without distortion (same as the
     // canvas renderer's Math.min(w/iw, h/ih) cover-fit).
-    const href = layer.url;
+    //
+    // Critical: when the SVG itself is loaded via <img src=…> on a
+    // post page, browsers DO NOT fetch external resources from
+    // inside the SVG. R2-hosted assets (/image/…) appear blank.
+    // Resolve to the data URL we baked in via buildInlineMap()
+    // when one's available; otherwise pass through the original
+    // URL so the SVG at least renders when loaded as a DOM
+    // document.
+    const href = (inlined && inlined.get(layer.url)) || layer.url;
     return `<image href="${xml(href)}" x="${layer.x}" y="${layer.y}" width="${layer.w}" height="${layer.h}" preserveAspectRatio="xMidYMid meet"${opAttr}${transform}/>`;
   }
 
@@ -157,13 +229,25 @@ function renderLayer(layer, ctx) {
 // spec — the cover_template spec_json (parsed): { width, height,
 //        background, layers: [...], __official?, __version? }
 // ctx  — template context (see buildBrandContext in template.js)
+// env  — optional Cloudflare env binding. When provided, R2-hosted
+//        backgrounds + logos are fetched and base64-inlined into
+//        the SVG so the cover renders correctly when the SVG is
+//        loaded via <img src=…> (which browsers sandbox from
+//        fetching external resources).
 //
-// Returns the SVG string, ready to send with content-type:
-// image/svg+xml.
-export function renderCoverSvg(spec, ctx) {
+// Returns a Promise<string> of the SVG document, ready to send
+// with content-type: image/svg+xml.
+export async function renderCoverSvg(spec, ctx, env) {
   const W = spec?.width  || 1200;
   const H = spec?.height || 630;
   const layers = Array.isArray(spec?.layers) ? spec.layers : [];
+
+  // Pre-fetch every R2-hosted asset and base64 it. The result map
+  // (original URL → data URL) is consulted by the background +
+  // logo renderers. Tiny perf hit at render time but the response
+  // is edge-cached for an hour, so this only fires once per slug
+  // per colo per cache cycle.
+  const inlined = await buildInlineMap(spec, env);
 
   // Collect unique Google Fonts referenced by text layers.
   const families = new Set();
@@ -184,16 +268,20 @@ export function renderCoverSvg(spec, ctx) {
 
   // Background. Either an asset URL (covers the whole viewport) or a
   // solid colour from the first 'backdrop' box layer if present.
+  // Same inlining caveat as logos: when the SVG is rendered via
+  // <img src=…>, an external href won't fetch. We swap in the data
+  // URL from the inline map when available.
   let backgroundEl = '';
   if (spec?.background?.url) {
-    backgroundEl = `<image href="${xml(spec.background.url)}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="xMidYMid slice"/>`;
+    const bgHref = inlined.get(spec.background.url) || spec.background.url;
+    backgroundEl = `<image href="${xml(bgHref)}" x="0" y="0" width="${W}" height="${H}" preserveAspectRatio="xMidYMid slice"/>`;
   } else {
     // Fall back to a near-black backdrop so transparent text doesn't
     // render on a transparent canvas.
     backgroundEl = `<rect x="0" y="0" width="${W}" height="${H}" fill="#0a0c10"/>`;
   }
 
-  const layerEls = layers.map((l) => renderLayer(l, ctx)).filter(Boolean).join('\n  ');
+  const layerEls = layers.map((l) => renderLayer(l, ctx, inlined)).filter(Boolean).join('\n  ');
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">

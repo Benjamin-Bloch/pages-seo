@@ -90,7 +90,10 @@ export const onRequestGet = async ({ env, request, params }) => {
   fakePost.urlPath = kind === 'blog' ? `/blog/${slug}` : `/p/${slug}`;
   const ctx = buildBrandContext({ env, settings, post: fakePost, request, kind });
 
-  const svg = renderCoverSvg(spec, ctx);
+  // env passed so R2-hosted background/logo assets get base64-inlined
+  // (see cover_svg.js). Social card scrapers and any <img src=…>
+  // loader of this SVG won't fetch external references otherwise.
+  const svg = await renderCoverSvg(spec, ctx, env);
 
   return new Response(svg, {
     headers: {

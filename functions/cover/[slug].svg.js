@@ -82,7 +82,11 @@ export const onRequestGet = async ({ env, request, params }) => {
   fakePost.urlPath = kind === 'blog' ? `/blog/${slug}` : `/p/${slug}`;
   const ctx = buildBrandContext({ env, settings, post: fakePost, request, kind });
 
-  const svg = renderCoverSvg(spec, ctx);
+  // Pass env so the renderer can inline R2-hosted backgrounds + logos
+  // as base64 data URLs. Without that, browsers serving this SVG via
+  // <img src=…> render external <image> hrefs as blank — which is
+  // exactly the failure the user saw before this fix.
+  const svg = await renderCoverSvg(spec, ctx, env);
 
   return new Response(svg, {
     headers: {
