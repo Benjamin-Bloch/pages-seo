@@ -11,7 +11,10 @@
 import { esc } from '../_lib/util.js';
 import { loadSettings } from '../_lib/settings.js';
 
-const PAGE_SIZE = 30;
+// Page size for /blog and /blog/page/N. Matches the embed widget's
+// default so the SERP archive feels the same as the embed.
+// Sitemap.xml.js shares the constant via a re-import below.
+export const PAGE_SIZE = 10;
 
 export async function renderBlogIndex({ env, request, page = 1 }) {
   const host = new URL(request.url).hostname;
@@ -90,13 +93,20 @@ export async function renderBlogIndex({ env, request, page = 1 }) {
     const cls = i === page ? 'pager-num pager-current' : 'pager-num';
     return `<a class="${cls}" href="${href}"${aria}>${i}</a>`;
   }).join(' ');
+  // Pager: when there's more than one page we show the full nav.
+  // When there's only one we still emit a small summary ("4 posts")
+  // so the page never looks like the list is the whole story — it
+  // also gives Google a hint about the collection size.
   const pagerHTML = totalPages > 1 ? `
 <nav class="pager" aria-label="Blog pagination">
   ${prevHref ? `<a class="pager-prev" rel="prev" href="${prevHref}">← Newer</a>` : ''}
   <span class="pager-nums">${pagerLinks}</span>
   ${nextHref ? `<a class="pager-next" rel="next" href="${nextHref}">Older →</a>` : ''}
-  <span class="pager-pos">Page ${page} of ${totalPages}</span>
-</nav>` : '';
+  <span class="pager-pos">Page ${page} of ${totalPages} · ${total} post${total === 1 ? '' : 's'}</span>
+</nav>` : (total > 0 ? `
+<nav class="pager pager-single" aria-label="Blog pagination">
+  <span class="pager-pos">${total} post${total === 1 ? '' : 's'}</span>
+</nav>` : '');
 
   // Page-specific title hint: page 1 keeps the canonical "Blog ·
   // brand"; later pages append "page N" so the SERP listing
@@ -174,11 +184,152 @@ ${verifyMetas}
   <nav><a href="/blog" aria-current="page">Blog</a></nav>
 </header>
 <main class="blog-index">
-  <h1>Blog${page > 1 ? ` <span class="page-suffix">— page ${page}</span>` : ''}</h1>
-  <p class="lede">${esc(siteDesc)}</p>
-  ${posts.length ? `<ul>${items}</ul>` : '<p class="lede">First post lands soon.</p>'}
+  <header class="blog-index-head">
+    <div>
+      <h1>Blog${page > 1 ? ` <span class="page-suffix">— page ${page}</span>` : ''}</h1>
+      <p class="lede">${esc(siteDesc)}</p>
+    </div>
+    <!-- Search box. Filters the visible list via /api/widget?q=…
+         (same endpoint the embed widget uses), so result ordering
+         is consistent across surfaces. Falls back to the canonical
+         /blog?q= URL if JavaScript is disabled — Google's
+         SearchAction JSON-LD targets that URL too. -->
+    <form id="blog-search-form" role="search" action="/blog" method="GET" class="blog-search">
+      <input id="blog-search-input"
+             type="search" name="q"
+             placeholder="Search posts…"
+             autocomplete="off" spellcheck="false"
+             aria-label="Search posts"
+             value="" />
+      <button type="submit" class="blog-search-go" aria-label="Search">→</button>
+    </form>
+  </header>
+  ${posts.length ? `<ul id="blog-list">${items}</ul>` : '<ul id="blog-list" hidden></ul><p id="blog-noposts" class="lede">First post lands soon.</p>'}
+  <div id="blog-empty" class="blog-empty" hidden></div>
   ${pagerHTML}
 </main>
+
+<!-- Inline client-side search. Reads ?q= from the URL on load to
+     pre-fill the input (so /blog?q=foo works from a deep link or
+     SearchAction). Debounces 200ms; fetches /api/widget for matches
+     and re-renders the list inline without leaving the page.
+
+     Defence in depth: the renderer never uses innerHTML on the
+     server response. Cards are built via document.createElement and
+     textContent so post-supplied strings can't be HTML-injected
+     even if the API ever returned tainted data. -->
+<script>
+(function () {
+  var form  = document.getElementById('blog-search-form');
+  var input = document.getElementById('blog-search-input');
+  var list  = document.getElementById('blog-list');
+  var empty = document.getElementById('blog-empty');
+  var pager = document.querySelector('main.blog-index .pager');
+  var noposts = document.getElementById('blog-noposts');
+  if (!form || !input || !list) return;
+
+  // Restore q from URL on first paint.
+  try {
+    var q0 = new URL(location.href).searchParams.get('q') || '';
+    if (q0) { input.value = q0; doSearch(q0, false); }
+  } catch (e) {}
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    doSearch(input.value.trim(), true);
+  });
+
+  // Debounced live filter as the user types.
+  var t = null;
+  input.addEventListener('input', function () {
+    if (t) clearTimeout(t);
+    t = setTimeout(function () { doSearch(input.value.trim(), false); }, 200);
+  });
+
+  function setEmpty(msg) {
+    if (msg) { empty.hidden = false; empty.textContent = msg; }
+    else { empty.hidden = true; empty.textContent = ''; }
+  }
+
+  function clearList() {
+    while (list.firstChild) list.removeChild(list.firstChild);
+  }
+
+  function buildItem(p) {
+    var li = document.createElement('li');
+    if (p.image) {
+      var img = document.createElement('img');
+      img.src = p.image;
+      img.alt = p.title || '';
+      img.setAttribute('width',  '640');
+      img.setAttribute('height', '336');
+      img.loading  = 'lazy';
+      img.decoding = 'async';
+      li.appendChild(img);
+    }
+    var meta = document.createElement('div');
+    meta.className = 'blog-meta';
+    var date = document.createElement('div');
+    date.className = 'blog-date';
+    date.textContent = p.date || '';
+    meta.appendChild(date);
+    var h2 = document.createElement('h2');
+    var a  = document.createElement('a');
+    a.href = '/blog/' + encodeURIComponent(p.slug);
+    a.textContent = p.title || '';
+    h2.appendChild(a);
+    meta.appendChild(h2);
+    var pgr = document.createElement('p');
+    pgr.textContent = (p.excerpt || '').slice(0, 200);
+    meta.appendChild(pgr);
+    li.appendChild(meta);
+    return li;
+  }
+
+  function setUrlQ(q) {
+    try {
+      var u = new URL(location.href);
+      if (q) u.searchParams.set('q', q); else u.searchParams.delete('q');
+      history.replaceState({}, '', u.pathname + (u.search || '') + (u.hash || ''));
+    } catch (e) {}
+  }
+
+  function doSearch(q, hardSubmit) {
+    setUrlQ(q);
+    if (!q) {
+      if (hardSubmit) { location.href = '/blog'; return; }
+      fetchPage('', 1);
+      return;
+    }
+    fetchPage(q, 1);
+  }
+
+  function fetchPage(q, page) {
+    var url = '/api/widget?per_page=10&page=' + page + (q ? '&q=' + encodeURIComponent(q) : '');
+    fetch(url, { credentials: 'omit' })
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+      .then(function (d) {
+        clearList();
+        list.hidden = false;
+        if (noposts) noposts.hidden = true;
+        if (!d.posts || !d.posts.length) {
+          setEmpty(q ? 'No posts match "' + q + '".' : 'First post lands soon.');
+          if (pager) pager.style.display = 'none';
+          return;
+        }
+        setEmpty('');
+        for (var i = 0; i < d.posts.length; i++) {
+          list.appendChild(buildItem(d.posts[i]));
+        }
+        // Hide server-rendered pager while in search mode.
+        if (pager) pager.style.display = q ? 'none' : '';
+      })
+      .catch(function () {
+        setEmpty('Search failed. Try again, or browse the full list.');
+      });
+  }
+})();
+</script>
 <footer class="foot">
   <span>${esc(siteName)}</span> · <a href="/">Home</a> · <a href="/blog">Blog</a>
 </footer>

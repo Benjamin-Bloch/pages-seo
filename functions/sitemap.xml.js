@@ -11,6 +11,7 @@
 // of organic for blogs.
 
 import { esc } from './_lib/util.js';
+import { PAGE_SIZE } from './blog/index.js';
 
 const SITEMAP_NS = 'http://www.sitemaps.org/schemas/sitemap/0.9';
 const IMAGE_NS   = 'http://www.google.com/schemas/sitemap-image/1.1';
@@ -73,10 +74,12 @@ async function fetchEntries(env, host) {
   ).all().catch(() => ({ results: [] }));
 
   // Find out how many blog index pages exist (1 + total/PAGE_SIZE).
+  // PAGE_SIZE is sourced from blog/index.js so we never drift out of
+  // sync — sitemap pages have to match what /blog/page/N actually
+  // serves or crawlers hit empty/duplicate archives.
   const totalBlogsRow = await env.DB.prepare(
     `SELECT COUNT(*) AS n FROM blog_posts WHERE status='published'`
   ).first().catch(() => ({ n: 0 }));
-  const PAGE_SIZE = 30;
   const totalPages = Math.max(1, Math.ceil((totalBlogsRow?.n || 0) / PAGE_SIZE));
 
   const today = isoDay(0);
