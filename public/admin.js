@@ -2496,7 +2496,16 @@
     async function check() {
       const { status, body } = await api('/api/admin/update');
       if (status !== 200 || !body?.ok) {
-        $('#upd-summary').innerHTML = `<div class="status bad">Couldn't reach GitHub: ${esc(body?.detail || body?.error || status)}</div>`;
+        const detail = String(body?.detail || body?.error || status || 'unknown');
+        const isTransient = /github_(unreachable|latest_failed|compare_failed)|HTTP (403|429|5\d\d)/.test(detail);
+        const summary = $('#upd-summary');
+        while (summary.firstChild) summary.removeChild(summary.firstChild);
+        const div = document.createElement('div');
+        div.className = isTransient ? 'status warn' : 'status bad';
+        div.textContent = isTransient
+          ? "GitHub didn't answer this time — usually a transient rate-limit. Click Check for updates again in 30 seconds."
+          : "Couldn't reach the update endpoint: " + detail;
+        summary.appendChild(div);
         return;
       }
       render(body);

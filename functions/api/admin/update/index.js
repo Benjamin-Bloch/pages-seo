@@ -45,9 +45,9 @@ const BRANCH = 'main';
 // calls, so a seo.benjaminb.xyz outage never breaks /admin Updates.
 const CANONICAL_BASE = 'https://seo.benjaminb.xyz';
 
-// Authenticate the GitHub call when we can — Cloudflare edge IPs
-// share a 60 req/hr unauth pool that gets exhausted fast. OAuth
-// client credentials buy us 5000 req/hr per app.
+// Authenticate when GITHUB_TOKEN is bound. The unauth fallback uses
+// Cloudflare's shared edge-IP pool (60 req/hr) which can 502; the
+// admin UI handles those as transient.
 function ghHeaders(env) {
   const h = {
     'User-Agent': 'pages-seo-update',
@@ -55,9 +55,6 @@ function ghHeaders(env) {
   };
   if (env?.GITHUB_TOKEN) {
     h.Authorization = 'Bearer ' + String(env.GITHUB_TOKEN).trim();
-  } else if (env?.GITHUB_OAUTH_CLIENT_ID && env?.GITHUB_OAUTH_CLIENT_SECRET) {
-    const creds = btoa(`${env.GITHUB_OAUTH_CLIENT_ID}:${env.GITHUB_OAUTH_CLIENT_SECRET}`);
-    h.Authorization = 'Basic ' + creds;
   }
   return h;
 }
