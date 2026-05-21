@@ -1645,21 +1645,30 @@
       const base = 'https://seo.benjaminb.xyz/ai-setup';
       const repairBtn = $('#ai-help-repair');
       const updateBtn = $('#ai-help-update');
-      if (repairBtn) repairBtn.href = `${base}?mode=repair&${qs.toString()}`;
+      // Repair uses ?from=diagnose so /ai-setup runs the live scan
+      // and emits a prompt that names the specific failures. Update
+      // doesn't need a scan — the static prompt is correct.
+      if (repairBtn) repairBtn.href = `${base}?from=diagnose&${qs.toString()}`;
       if (updateBtn) updateBtn.href = `${base}?mode=update&${qs.toString()}`;
 
       const copyBtn = $('#ai-help-copy');
       const statusEl = $('#ai-help-status');
       copyBtn?.addEventListener('click', async () => {
-        statusEl.textContent = 'Fetching prompt…';
+        statusEl.textContent = 'Scanning your site…';
         try {
-          const url = 'https://seo.benjaminb.xyz/api/ai-prompt?mode=repair&' + qs.toString();
-          const r = await fetch(url, { cache: 'no-store' });
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          const text = await r.text();
+          let text = null;
+          if (site) {
+            const dr = await fetch('https://seo.benjaminb.xyz/api/ai-prompt/diagnose?' + qs.toString(), { cache: 'no-store' });
+            if (dr.ok) text = await dr.text();
+          }
+          if (!text) {
+            const r2 = await fetch('https://seo.benjaminb.xyz/api/ai-prompt?mode=repair&' + qs.toString(), { cache: 'no-store' });
+            if (!r2.ok) throw new Error('HTTP ' + r2.status);
+            text = await r2.text();
+          }
           await navigator.clipboard.writeText(text);
-          statusEl.textContent = `✓ Copied (${Math.round(text.length / 1024)}k chars) — paste into any AI`;
-          setTimeout(() => { statusEl.textContent = ''; }, 5000);
+          statusEl.textContent = `✓ Copied (${Math.round(text.length / 1024)}k chars, scan-tailored) — paste into any AI`;
+          setTimeout(() => { statusEl.textContent = ''; }, 6000);
         } catch (e) {
           statusEl.textContent = 'Copy failed — open the link instead.';
         }
