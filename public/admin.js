@@ -272,14 +272,69 @@
   }
 
   // ── tabs ────────────────────────────────────────────────────────
+  // Friendly labels for the sub-nav (data-children is just IDs).
+  const SUBTAB_LABELS = {
+    blog: 'Daily blog',
+    calendar: 'Calendar',
+    brand: 'Brand DNA',
+    prog: 'Programmatic',
+    links: 'Links',
+    seo: 'SEO',
+    embeds: 'Embeds',
+    status: 'Status',
+    updates: 'Updates',
+    usage: 'Usage',
+  };
+
+  // Walk the top-level tabs and find which one owns this page name.
+  // Returns { parentTab, children } or null if the page is a top-level
+  // tab on its own.
+  function findParentTab(name) {
+    const all = $$('.tab[data-children]');
+    for (const t of all) {
+      const kids = t.dataset.children.split(',').map((s) => s.trim());
+      if (kids.includes(name)) return { parentTab: t, children: kids };
+    }
+    // Page is a top-level tab without children (overview, covers, settings).
+    return null;
+  }
+
   function activateTab(name) {
+    // Resolve to the parent group if this page is a child.
+    const parent = findParentTab(name);
+    const parentTabName = parent ? parent.parentTab.dataset.tab : name;
+
+    // Highlight the parent in the top-level nav.
     $$('.tab').forEach((t) => {
-      const active = t.dataset.tab === name;
+      const active = t.dataset.tab === parentTabName;
       t.setAttribute('aria-current', active ? 'page' : 'false');
     });
+
+    // Show only the requested page section.
     $$('[data-page]').forEach((p) => {
       p.hidden = p.dataset.page !== name;
     });
+
+    // Render the sub-nav strip for the parent's children, OR hide if
+    // this is a flat tab without siblings.
+    const sub = document.getElementById('subtabs');
+    if (sub) {
+      clearChildren(sub);
+      if (parent && parent.children.length > 1) {
+        for (const kid of parent.children) {
+          const btn = document.createElement('button');
+          btn.className = 'subtab' + (kid === name ? ' is-active' : '');
+          btn.dataset.tab = kid;
+          btn.textContent = SUBTAB_LABELS[kid] || kid;
+          btn.addEventListener('click', () => activateTab(kid));
+          sub.appendChild(btn);
+        }
+        sub.hidden = false;
+      } else {
+        sub.hidden = true;
+      }
+    }
+
     if (name === 'overview') loadOverview();
     if (name === 'blog') { loadJobs(); loadPosts(); }
     if (name === 'prog') { loadQueue(); }
@@ -824,6 +879,11 @@
   async function loadSettings() {
     const { status, body } = await api('/api/admin/settings');
     if (status !== 200) return;
+    // Stash the settings on window for read-only convenience access
+    // by other modules (Status page's "repair this install" action
+    // pre-fills the project slug from window.__psSettings.install_cf_project).
+    // Anything that needs to MUTATE settings still goes via PUT.
+    window.__psSettings = body.settings || {};
     // Populate the provider <select> from /api/admin/providers.
     const providers = await api('/api/admin/providers');
     const sel = $('select[data-setting="default_ai_provider"]');
@@ -1403,6 +1463,27 @@
           ex.className = 'status-check-extras';
           ex.textContent = extraBits.join(' · ');
           wrap.appendChild(ex);
+        }
+        // Action button: when a check has a known fix path, expose
+        // it inline. Today only 'repair' has one — deep-links to
+        // the canonical /repair page with project pre-filled.
+        if (c.id === 'repair' && c.ok === false) {
+          const a = document.createElement('a');
+          a.className = 'status-check-action';
+          a.target = '_blank';
+          a.rel = 'noopener';
+          a.textContent = '→ Repair this install';
+          // Try to pre-fill project slug. The install flow writes
+          // settings.install_cf_project; failing that, we'll let
+          // the user type it on the repair page.
+          let project = '';
+          try {
+            // best-effort, sync inside the loop: pull from a recently
+            // loaded settings cache if available, else leave blank.
+            project = window.__psSettings?.install_cf_project || '';
+          } catch { /* */ }
+          a.href = 'https://seo.benjaminb.xyz/repair' + (project ? `?project=${encodeURIComponent(project)}` : '');
+          wrap.appendChild(a);
         }
         root.appendChild(wrap);
       }

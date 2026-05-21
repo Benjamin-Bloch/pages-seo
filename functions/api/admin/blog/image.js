@@ -46,8 +46,12 @@ export const onRequestPost = async ({ request, env }) => {
   let imageError = null;
   let imageProvider = null;
 
-  // Decide path: 'cover' (server-side template render) or 'ai'.
-  // Default is 'ai' if the setting is unset or empty.
+  // Decide path: 'cover' (server-renders /cover/<slug>.svg on
+  // demand) or 'ai' (generates a fresh PNG via the configured
+  // provider). Cover mode is the right answer when the user has
+  // designed a template — every post then gets a consistent
+  // branded hero with the title baked in, and the page renderer
+  // points the hero img/og:image at /cover/<slug>.svg.
   let mode = 'ai';
   try {
     const settings = await loadSettings(env);
@@ -55,63 +59,42 @@ export const onRequestPost = async ({ request, env }) => {
   } catch { /* fall back to ai */ }
 
   // ── cover path ───────────────────────────────────────────────────
-  // Look up the default template; if there isn't one, silently
-  // downgrade to the AI path (the user hasn't actually set up a
-  // template yet, so we shouldn't refuse to render).
+  // When the user has hero_image_mode=cover AND a default template
+  // exists, we skip image generation entirely. The page renderer
+  // routes the hero <img>, og:image, and JSON-LD Article.image to
+  // /cover/<slug>.svg, which renders live from the template + post
+  // variables. No per-post PNG to store; no AI credits burned.
+  //
+  // We don't write hero_image_key in this path — leaving it null
+  // is the signal that "this post uses the cover endpoint, not a
+  // stored asset." The Updates tab and admin calendar still show
+  // the post as image-complete because we set status='image_done'.
+  //
+  // If no default template exists we silently downgrade to AI so
+  // the job still finishes — users may set hero_image_mode=cover
+  // before they've designed a template, and we don't want to block
+  // the daily cron on that.
   let didRenderViaCover = false;
   if (mode === 'cover') {
     try {
       const tplRow = await env.DB.prepare(
-        'SELECT id, name, spec_json FROM cover_templates WHERE is_default = 1 LIMIT 1'
+        'SELECT id, name FROM cover_templates WHERE is_default = 1 LIMIT 1'
       ).first();
-      if (tplRow?.spec_json) {
-        const spec = JSON.parse(tplRow.spec_json);
-        // Call the server-side renderer. Today this is a stub that
-        // returns 501 — we treat that exactly like "cover mode not
-        // available" and fall through to AI. Once the satori
-        // integration ships in render-server.js, this path will
-        // start working without further changes here.
-        const u = new URL(request.url);
-        u.pathname = '/api/admin/cover/render-server';
-        const r = await fetch(u.toString(), {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            // Forward the admin auth so render-server's adminGate
-            // accepts us. Pass cookie + bearer if present; one of
-            // them will let the inner request through.
-            cookie: request.headers.get('cookie') || '',
-            authorization: request.headers.get('authorization') || '',
-          },
-          body: JSON.stringify({ spec, title: job.title, slug: job.slug, post_id: job.id }),
-        });
-        if (r.ok) {
-          const out = await r.json().catch(() => ({}));
-          if (out?.base64) {
-            // The renderer returns base64. Decode + put to R2 here
-            // so the audit trail matches the AI path's location.
-            const m = String(out.base64).match(/^data:image\/png;base64,(.+)$/i);
-            const raw = m ? m[1] : String(out.base64);
-            const bin = atob(raw.replace(/\s+/g, ''));
-            const bytes = new Uint8Array(bin.length);
-            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-            imageKey = `${job.slug}-${Date.now()}.png`;
-            if (!env.IMAGES) throw new Error('r2_binding_missing');
-            await env.IMAGES.put(imageKey, bytes, {
-              httpMetadata: { contentType: 'image/png', cacheControl: 'public, max-age=31536000, immutable' },
-            });
-            imageProvider = 'cover-template:' + (tplRow.name || tplRow.id);
-            didRenderViaCover = true;
-          }
-        }
-        // r.status === 501 → render-server isn't built yet, fall
-        // through. Any other error also falls through to AI rather
-        // than blocking the job.
+      if (tplRow?.id) {
+        // Don't render anything. Don't write to R2. The /cover/<slug>.svg
+        // endpoint does the rendering live per request, cached at the
+        // edge. hero_image_key stays null; the page renderer in
+        // page_render.js knows to use the cover endpoint instead of
+        // /image/<key> when settings.hero_image_mode === 'cover' AND
+        // settings._has_default_template (which is true here by
+        // construction).
+        imageProvider = 'cover-template:' + (tplRow.name || tplRow.id);
+        didRenderViaCover = true;
       }
+      // No template? Fall through to AI silently.
     } catch (e) {
-      // Record the fallback reason but keep going; the AI path
-      // below will populate hero_image_key for real.
-      imageError = 'cover_fallback: ' + String(e?.message || e).slice(0, 200);
+      // Lookup error — fall through to AI rather than crash the job.
+      imageError = 'cover_lookup_failed: ' + String(e?.message || e).slice(0, 200);
     }
   }
 

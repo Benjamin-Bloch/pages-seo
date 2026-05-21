@@ -1081,3 +1081,43 @@ em.optional{font-style:normal;color:var(--ink-faint);font-size:11px;letter-spaci
   display: inline-block;
   flex-shrink: 0;
 }
+
+/* Action link on a failing Status check — e.g. "Repair this install" */
+.status-check-action {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 5px;
+  font-size: 12px;
+  text-decoration: none;
+  transition: background .12s;
+}
+.status-check-action:hover { background: var(--accent-soft); }
+
+/* ── sub-nav strip below the topbar ─────────────────────────── */
+.subtabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px 16px;
+  background: var(--bg-soft);
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.subtab {
+  background: transparent;
+  border: 0;
+  color: var(--ink-dim);
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  white-space: nowrap;
+  transition: background .12s, color .12s;
+}
+.subtab:hover { background: var(--bg-card); color: var(--ink); }
+.subtab.is-active { background: var(--accent-soft); color: var(--accent); }

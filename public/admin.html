@@ -96,27 +96,27 @@
 <div id="dash" class="dash" hidden>
   <header class="topbar">
     <div class="brand">pages-seo · admin</div>
+    <!-- Top-level tabs. 13 sections were tab-cluttering the bar; they're
+         now grouped under 7 parents. The parent's data-children attr
+         lists the child page IDs in order — admin.js's activateTab()
+         maps a parent click to its first child and renders the sub-nav
+         strip below. -->
     <nav class="tabs">
       <button class="tab" data-tab="overview" aria-current="page">Overview</button>
-      <button class="tab" data-tab="blog">Daily blog</button>
-      <button class="tab" data-tab="prog">Programmatic</button>
-      <button class="tab" data-tab="seo">SEO</button>
-      <button class="tab" data-tab="brand">Brand DNA</button>
-      <button class="tab" data-tab="links">Links</button>
-      <button class="tab" data-tab="calendar">Calendar</button>
-      <button class="tab" data-tab="usage">Usage</button>
+      <button class="tab" data-tab="blog" data-children="blog,calendar">Blog</button>
+      <button class="tab" data-tab="brand" data-children="brand,prog,links">Brand</button>
       <button class="tab" data-tab="covers">Covers</button>
-      <button class="tab" data-tab="embeds">Embeds</button>
-      <button class="tab" data-tab="updates">
-        Updates
-        <span id="updates-badge" class="tab-badge" hidden></span>
-      </button>
-      <button class="tab" data-tab="status">
-        Status
+      <button class="tab" data-tab="seo" data-children="seo,embeds">Distribution</button>
+      <button class="tab" data-tab="status" data-children="status,updates,usage">
+        System
         <span id="status-badge" class="tab-badge" hidden></span>
+        <span id="updates-badge" class="tab-badge" hidden></span>
       </button>
       <button class="tab" data-tab="settings">Settings</button>
     </nav>
+    <!-- Sub-nav strip. Populated dynamically by admin.js when a tab
+         with data-children is active. Hidden otherwise. -->
+    <nav id="subtabs" class="subtabs" hidden></nav>
     <div class="topbar-tools">
       <!-- Version badge. Shows your installed version (short sha or
            release tag). When upstream is ahead, an orange dot appears
