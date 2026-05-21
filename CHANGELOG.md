@@ -7,6 +7,36 @@ version.
 
 The format is loosely Keep-a-Changelog, dates in ISO order.
 
+## 1.0.4 — 2026-05-21
+
+### Added
+- **Google Search Console auto-indexing.** On every blog publish and
+  programmatic-page generation, pages-seo now also re-submits your
+  sitemap to GSC and (optionally) pings each new URL via the
+  Indexing API.
+  - Configure via /admin → Settings → Search engines. Paste your
+    service-account JSON; the rest is auto-detected.
+  - Sitemap re-submit is on by default — ToS-compliant for any
+    content type. Indexing API is opt-in via a checkbox (faster
+    crawl pickup but technically against Google's ToS for non-job
+    posting content).
+  - Credentials live in the vault (AES-GCM, keyed off ADMIN_TOKEN)
+    — never written to the D1 settings table directly.
+  - "Test connection" button runs a live sitemap submission so you
+    can verify the service account has Owner permission in GSC
+    before the next cron run.
+- New endpoints:
+  - `GET /api/admin/google-search-console` — describe current config
+  - `POST /api/admin/google-search-console` — save JSON + options
+  - `DELETE /api/admin/google-search-console` — clear all
+  - `POST /api/admin/google-search-console/test` — live test
+
+### Changed
+- Blog publish + programmatic generate-next now fire BOTH IndexNow
+  (Bing/Yandex/Seznam) AND GSC (Google) auto-indexing when the
+  respective credentials are configured. Best-effort, non-blocking
+  — failures don't block the publish.
+
 ## 1.0.3 — 2026-05-21
 
 Hotfix for v1.0.2.

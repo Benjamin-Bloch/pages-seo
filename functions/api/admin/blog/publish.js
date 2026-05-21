@@ -3,6 +3,7 @@ import { json, newId, nowSec, audit } from '../../../_lib/util.js';
 import { adminGate } from '../../../_lib/auth.js';
 import { markTopicUsed } from '../../../_lib/topics.js';
 import { pingIndexNow } from '../../../_lib/indexnow.js';
+import { onPublish as gscOnPublish } from '../../../_lib/google_indexing.js';
 import { syncSitemapAliases } from '../../../_lib/links/aliases.js';
 
 export const onRequestPost = async ({ request, env, waitUntil }) => {
@@ -47,10 +48,16 @@ export const onRequestPost = async ({ request, env, waitUntil }) => {
   // Best-effort IndexNow ping. The host is derived from this request so
   // it works for both production and preview hostnames.
   const host = new URL(request.url).hostname;
+  const newUrls = [`https://${host}/blog`, `https://${host}/blog/${job.slug}`];
   waitUntil(
-    pingIndexNow(env, [`https://${host}/blog`, `https://${host}/blog/${job.slug}`], request)
+    pingIndexNow(env, newUrls, request)
       .catch(() => {})
   );
+  // Google Search Console: re-submit the sitemap (always when
+  // configured) and POST the new URL to the Indexing API when the
+  // user has explicitly toggled google_use_indexing_api. Skips
+  // silently if no GOOGLE_SA_JSON is in the vault.
+  waitUntil(gscOnPublish(env, newUrls).catch(() => {}));
   // Refresh the sitemap-kind alias rows so the next post's prompt can
   // reference this one by slug. Best-effort; no need to block publish.
   waitUntil(syncSitemapAliases(env).catch(() => {}));

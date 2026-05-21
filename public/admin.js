@@ -954,6 +954,98 @@
     applyHeroImageMode(body.settings?.hero_image_mode || 'ai');
     // Refresh the pricing snapshot whenever the Settings tab opens.
     loadPricingSnapshot();
+    // Populate the GSC card with current state. The SA JSON itself is
+    // never returned (vault-stored, write-only); we only show whether
+    // it's configured and which client_email it's bound to.
+    loadGsc().catch(() => {});
+  }
+
+  // Save the GSC card. sa_json is only sent if the textarea has
+  // content — empty + Save means "don't touch the stored JSON".
+  async function saveGsc() {
+    const status = $('#gsc-status');
+    const ta     = $('#gsc-sa-json');
+    const propEl = $('#gsc-property');
+    const apiEl  = $('#gsc-use-indexing-api');
+    setText(status, 'saving…');
+    const payload = {};
+    if (ta && ta.value.trim()) payload.sa_json = ta.value.trim();
+    if (propEl) payload.property = propEl.value.trim();
+    if (apiEl)  payload.use_indexing_api = apiEl.checked;
+    const r = await api('/api/admin/google-search-console', { method: 'POST', body: JSON.stringify(payload) });
+    if (r.status !== 200) {
+      status.className = 'status bad';
+      status.textContent = r.body?.detail || r.body?.error || `failed (${r.status})`;
+      return;
+    }
+    if (ta) ta.value = ''; // clear textarea so it doesn't sit around
+    status.className = 'status good';
+    status.textContent = '✓ Saved.';
+    setTimeout(() => { status.textContent = ''; status.className = 'status'; }, 4000);
+    loadGsc();
+  }
+
+  // Live test against Google. Submits the sitemap + (if toggled) pings
+  // the homepage URL via the Indexing API.
+  async function testGsc() {
+    const status = $('#gsc-status');
+    const btn = $('#gsc-test');
+    btn.disabled = true;
+    setText(status, 'testing…');
+    const r = await api('/api/admin/google-search-console/test', { method: 'POST' });
+    btn.disabled = false;
+    if (r.status !== 200) {
+      status.className = 'status bad';
+      status.textContent = r.body?.detail || r.body?.error || `failed (${r.status})`;
+      return;
+    }
+    const sm = r.body?.result?.sitemap;
+    if (sm?.ok) {
+      status.className = 'status good';
+      status.textContent = `✓ Sitemap submitted to ${sm.property}.`;
+    } else {
+      status.className = 'status bad';
+      status.textContent = `Sitemap failed: ${sm?.detail || sm?.error || 'unknown'}`;
+    }
+  }
+
+  async function clearGsc() {
+    if (!confirm('Clear Google Search Console credentials? Auto-indexing on publish will stop.')) return;
+    const status = $('#gsc-status');
+    setText(status, 'clearing…');
+    const r = await api('/api/admin/google-search-console', { method: 'DELETE' });
+    if (r.status !== 200) {
+      status.className = 'status bad';
+      status.textContent = r.body?.detail || 'failed';
+      return;
+    }
+    status.className = 'status';
+    status.textContent = 'Cleared.';
+    loadGsc();
+  }
+
+  // Google Search Console card — load current config status.
+  async function loadGsc() {
+    const r = await api('/api/admin/google-search-console');
+    if (r.status !== 200) return;
+    const b = r.body || {};
+    const status = $('#gsc-sa-status');
+    const propEl = $('#gsc-property');
+    const apiEl  = $('#gsc-use-indexing-api');
+    const ta     = $('#gsc-sa-json');
+    if (ta) ta.value = ''; // never pre-fill — keeps it write-only
+    if (b.configured) {
+      const props = b.property ? ` · property ${b.property}` : '';
+      if (status) {
+        status.textContent = `✓ Configured — ${b.client_email}${props}`;
+        status.className = 'dim good';
+      }
+    } else if (status) {
+      status.textContent = 'Not configured. Paste a service-account JSON above to enable.';
+      status.className = 'dim';
+    }
+    if (propEl) propEl.value = b.explicit_property || '';
+    if (apiEl)  apiEl.checked = !!b.use_indexing_api;
   }
 
   async function saveSettings() {
@@ -1865,6 +1957,12 @@
     // settings tab
     const saveBtn = $('#settings-save');
     if (saveBtn) saveBtn.addEventListener('click', saveSettings);
+    // Google Search Console card. Wired once on mount; the inputs
+    // themselves live inside the Settings card and only show when
+    // the user hits that tab.
+    $('#gsc-save')?.addEventListener('click', saveGsc);
+    $('#gsc-test')?.addEventListener('click', testGsc);
+    $('#gsc-clear')?.addEventListener('click', clearGsc);
     const pricingRefresh = $('#pricing-refresh');
     if (pricingRefresh) pricingRefresh.addEventListener('click', refreshPricing);
 

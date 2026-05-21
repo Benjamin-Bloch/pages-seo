@@ -95,6 +95,28 @@ const FALLBACK = {
   google_site_verification: () => '',
   bing_site_verification:   () => '',
 
+  // Google Search Console auto-indexing. Sitemap re-submit is
+  // the safe ToS-compliant default — fires on every publish and
+  // tells GSC to re-crawl /sitemap.xml. The Indexing API path
+  // (toggle: '1') POSTs each URL directly for faster pickup, but
+  // Google officially only supports it for JobPosting and
+  // BroadcastEvent schema; using it for blogs typically works but
+  // violates ToS.
+  //
+  //   google_sc_property      — the property string in GSC (e.g.
+  //                              'sc-domain:example.com' for
+  //                              domain-property installs, or
+  //                              'https://example.com/' for URL-prefix).
+  //                              Auto-derived from SITE_URL if empty.
+  //   google_use_indexing_api — '1' to also POST per-URL to the
+  //                              Indexing API. Default '' (off).
+  //
+  // The service-account JSON lives in the vault under
+  // 'GOOGLE_SA_JSON' (set via /api/admin/settings — never in D1
+  // settings table directly).
+  google_sc_property:        () => '',
+  google_use_indexing_api:   () => '',
+
   // Brand identity for cover templates + JSON-LD. The cover renderer
   // exposes these as {brand.tagline}, {brand.logo_url}, {brand.
   // primary_color}, {brand.accent_color} so the same template can

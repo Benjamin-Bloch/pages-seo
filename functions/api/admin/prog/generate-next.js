@@ -7,6 +7,7 @@ import { json, newId, nowSec, slugify, audit } from '../../../_lib/util.js';
 import { adminGate } from '../../../_lib/auth.js';
 import { generateContent, generateImage } from '../../../_lib/ai.js';
 import { pingIndexNow } from '../../../_lib/indexnow.js';
+import { onPublish as gscOnPublish } from '../../../_lib/google_indexing.js';
 import { sanitiseMarkdownLinks } from '../../../_lib/links/sanitise.js';
 import { buildAliasMap } from '../../../_lib/links/aliases.js';
 import { loadSettings } from '../../../_lib/settings.js';
@@ -176,9 +177,11 @@ export const onRequestPost = async ({ request, env, waitUntil }) => {
   // dupes don't need (or want) a crawl.
   const host = new URL(request.url).hostname;
   if (publishStatus === 'published') {
-    waitUntil(
-      pingIndexNow(env, [`https://${host}/p/${slug}`], request).catch(() => {})
-    );
+    const newUrls = [`https://${host}/p/${slug}`];
+    waitUntil(pingIndexNow(env, newUrls, request).catch(() => {}));
+    // Google Search Console: sitemap re-submit + optional Indexing
+    // API ping. Skips silently when no GOOGLE_SA_JSON is in vault.
+    waitUntil(gscOnPublish(env, newUrls).catch(() => {}));
   }
   audit(env, 'admin', 'prog_generate', pageId, { keyword: next.keyword, slug, status: publishStatus, dupReason });
   return json(200, {

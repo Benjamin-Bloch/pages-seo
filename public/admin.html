@@ -867,6 +867,57 @@
         </label>
       </div>
       <div class="card">
+        <div class="card-eyebrow">Search engines</div>
+        <h2>Auto-index new posts on Google + Bing</h2>
+        <p class="muted">
+          IndexNow (Bing, Yandex, Seznam) pings automatically on every publish — no setup needed.
+          For Google, paste a Search Console service-account JSON below and we'll re-submit your
+          sitemap on every publish. Optional: enable the Indexing API for faster pickup.
+        </p>
+
+        <details class="gsc-howto">
+          <summary>How to get a service-account JSON (3 minutes)</summary>
+          <ol class="gsc-steps">
+            <li>Open <a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noopener">Google Cloud → Create project</a>. Name it anything (e.g. "pages-seo-indexing").</li>
+            <li>In that project, open <a href="https://console.cloud.google.com/apis/library/searchconsole.googleapis.com" target="_blank" rel="noopener">Search Console API</a> and click <b>Enable</b>. Also enable the <a href="https://console.cloud.google.com/apis/library/indexing.googleapis.com" target="_blank" rel="noopener">Indexing API</a> if you want per-URL pings.</li>
+            <li>Go to <a href="https://console.cloud.google.com/iam-admin/serviceaccounts" target="_blank" rel="noopener">Service accounts → Create service account</a>. Skip the role + user steps.</li>
+            <li>Click the account → <b>Keys</b> tab → <b>Add Key → JSON</b>. Save the file.</li>
+            <li>In <a href="https://search.google.com/search-console/users" target="_blank" rel="noopener">Search Console → Users and permissions</a>, click <b>Add user</b>. Paste the service account email (it ends in <code>iam.gserviceaccount.com</code>). Set permission to <b>Owner</b>.</li>
+            <li>Open the JSON file in a text editor, copy the entire contents, paste below.</li>
+          </ol>
+        </details>
+
+        <label class="settings-field" style="margin-top:14px">
+          <span>Service-account JSON</span>
+          <textarea id="gsc-sa-json" rows="6" placeholder='{"type":"service_account","project_id":"...","client_email":"...iam.gserviceaccount.com","private_key":"-----BEGIN PRIVATE KEY-----\n..."}'></textarea>
+          <small id="gsc-sa-status" class="dim">Not configured.</small>
+        </label>
+
+        <label class="settings-field">
+          <span>Property identifier <em>(optional — auto-derived from site URL)</em></span>
+          <input id="gsc-property" type="text" placeholder="https://example.com/ — or — sc-domain:example.com" />
+          <small class="dim">
+            URL-prefix property → <code>https://example.com/</code> (with trailing slash).
+            Domain property → <code>sc-domain:example.com</code> (no http).
+          </small>
+        </label>
+
+        <label class="settings-field settings-field-check">
+          <input id="gsc-use-indexing-api" type="checkbox" />
+          <span>
+            Also use the Indexing API (faster crawl, but technically against Google's ToS for non-job-posting content).
+          </span>
+        </label>
+
+        <div class="row form-row" style="margin-top:8px;flex-wrap:wrap;gap:8px">
+          <button id="gsc-save" class="btn btn-primary" type="button">Save Google credentials</button>
+          <button id="gsc-test" class="btn" type="button">Test connection</button>
+          <button id="gsc-clear" class="btn btn-ghost btn-sm" type="button">Clear</button>
+          <span id="gsc-status" class="status" aria-live="polite"></span>
+        </div>
+      </div>
+
+      <div class="card">
         <div class="card-eyebrow">AI provider keys</div>
         <h2>API key status</h2>
         <p>Paste a key below to store it encrypted in the database (AES-GCM, keyed off your admin token). Or, for the strongest guarantee, run the CLI command and store it as a Pages secret instead — those win over vault values.</p>
