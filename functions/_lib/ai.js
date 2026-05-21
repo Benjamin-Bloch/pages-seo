@@ -190,12 +190,21 @@ function expandBrandFields(brand, extraCtx = {}) {
   };
 }
 
-function buildArticlePrompt(angle, brand) {
+function buildArticlePrompt(angle, brand, opts = {}) {
   brand = expandBrandFields(brand, { title: angle });
   const brandName = brand?.name || 'this site';
   const brandUrl = brand?.url || '/';
   const cta = brand?.cta || 'Sign up to get started.';
   const aliases = aliasBlock(brand?.aliases);
+  // Length targets — read from settings via the caller. Defaults
+  // assume the operator wants a definitive, long-form guide.
+  const minWords = opts.minWords || 2500;
+  const maxWords = opts.maxWords || 4000;
+  // Scale H2 count and FAQ depth to article length. ~500 words/H2
+  // is the sweet spot for keeping each section concrete; for very
+  // long pieces we ask for 6-10 H2s and a deeper FAQ section.
+  const h2Count = maxWords >= 3000 ? '6-10' : maxWords >= 1800 ? '5-7' : '4-6';
+  const faqQs   = maxWords >= 3000 ? '5-8'  : '3-5';
   return [
     `# Brief`,
     `You are a senior content writer for ${brandName} (${brandUrl}).`,
@@ -215,13 +224,19 @@ function buildArticlePrompt(angle, brand) {
     '- Meta description: 140-160 chars, contains the primary query, gives the reader a concrete reason to click.',
     '',
     `# Structure`,
-    '- 900-1300 words total.',
+    `- ${minWords}-${maxWords} words total. This is a definitive guide — write to the upper end of the range. Shorter is a failure mode.`,
     '- Open with a hook paragraph that names the primary query and gives the reader ONE specific takeaway (not a setup like "let\'s explore...").',
-    '- 4-6 H2 sub-headings. Each H2 introduces a single concrete idea, not a generic theme.',
-    '- Short paragraphs (2-4 sentences). Mix in 1-2 bullet lists where it makes sense — never just for filler.',
-    '- One FAQ-style H2 near the end with 3-4 specific reader questions and direct answers.',
+    `- ${h2Count} H2 sub-headings. Each H2 introduces a single concrete idea, not a generic theme. Develop each H2 with 300-600 words of substance — examples, specifics, comparisons, numbers.`,
+    '- Where useful, add H3 sub-headings under an H2 to organise sub-points.',
+    '- Short paragraphs (2-4 sentences). Mix in bullet lists, numbered steps, and short tables where they help — never as filler.',
+    `- One FAQ-style H2 near the end with ${faqQs} specific reader questions and direct answers (2-4 sentences each).`,
+    '- Optionally include one "Key takeaways" bullet list near the top OR a short summary box at the end — never both.',
     '- Close with one short paragraph (3-4 sentences) that links to "' + brandUrl + '" and naturally includes the call-to-action: "' + cta + '"',
     '- Markdown body. No code fences around the whole document.',
+    '',
+    `# Length enforcement`,
+    `- The body_markdown MUST be at least ${minWords} words. Count your own words before returning the JSON. If you finish below ${minWords}, expand the weakest H2 with a concrete example, a numbered list, or a comparison before stopping.`,
+    `- Aim for ${Math.round((minWords + maxWords) / 2)} words. Going slightly over is fine; going under is not.`,
     '',
     BANNED_PHRASES_BLOCK,
     '',
@@ -371,7 +386,12 @@ const SYSTEM_JSON_ONLY = 'You return strict JSON only. No prose outside the JSON
 
 // ── Workers AI ────────────────────────────────────────────────────────
 
-const WORKERS_AI_TEXT_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
+// Qwen3 30B A3B FP8 is an MoE model that writes noticeably better
+// long-form prose than Llama 3.3 70B fp8-fast on the same hardware.
+// fp8 quant keeps it cheap; the MoE routing means it only activates
+// ~3B params per token, so latency is similar to a 7B dense model.
+// Override with env.WORKERS_AI_TEXT_MODEL if the user prefers Llama.
+const WORKERS_AI_TEXT_MODEL = '@cf/qwen/qwen3-30b-a3b-fp8';
 const WORKERS_AI_IMAGE_MODEL = '@cf/black-forest-labs/flux-1-schnell';
 
 // Each provider helper returns { parsed, usage } where usage is
@@ -388,7 +408,10 @@ async function workersAIText(env, prompt) {
       { role: 'system', content: SYSTEM_JSON_ONLY },
       { role: 'user', content: prompt },
     ],
-    max_tokens: 4096,
+    // 8192 lets the model write a full 2500-4000-word definitive guide
+    // without getting truncated mid-section. 4096 was clipping at ~3000
+    // words including the JSON wrapper.
+    max_tokens: 8192,
   });
   // Workers AI may return either a string in `response` or, when the
   // model emits structured output, an already-parsed object. Cover both.
@@ -461,6 +484,9 @@ async function chatCompletion({ provider, url, apiKey, model, prompt, useJsonFor
       { role: 'user', content: prompt },
     ],
     temperature: 0.7,
+    // 8192 lets these providers produce a 2500-4000-word article + JSON
+    // wrapper without truncation. Most OpenAI-compatible APIs accept this.
+    max_tokens: 8192,
   };
   if (useJsonFormat) body.response_format = { type: 'json_object' };
   const r = await fetch(url, {
@@ -600,7 +626,10 @@ async function anthropicText(env, prompt) {
     },
     body: JSON.stringify({
       model,
-      max_tokens: 4096,
+      // 8192 fits a 2500-4000-word article + JSON wrapper without
+      // truncation. Anthropic's max for Opus is 32k+; 8k is the
+      // sweet spot for cost/latency on long-form articles.
+      max_tokens: 8192,
       system: SYSTEM_JSON_ONLY,
       messages: [{ role: 'user', content: prompt }],
     }),
@@ -816,9 +845,16 @@ import { loadSettings } from './settings.js';
 export async function generateContent(env, { kind, seed, provider, brand, source = 'admin' }) {
   const overlayed = await withVault(env);
   const settings = await loadSettings(env);
+  // Pull length targets from settings so operators can tune via the
+  // admin Settings tab without redeploying. Defaults bias toward
+  // long-form (2500-4000 words) — Workers AI's Qwen MoE handles it
+  // without truncation, and longer posts rank better for the kind
+  // of long-tail queries pages-seo targets.
+  const minWords = Math.max(300, parseInt(settings.article_min_words, 10) || 2500);
+  const maxWords = Math.max(minWords + 100, parseInt(settings.article_max_words, 10) || 4000);
   const prompt = kind === 'programmatic'
     ? buildProgrammaticPrompt(seed, brand)
-    : buildArticlePrompt(seed, brand);
+    : buildArticlePrompt(seed, brand, { minWords, maxWords });
 
   const order = orderProviders(TEXT_PROVIDERS, overlayed, provider);
   if (!order.length) throw new Error('no_text_providers_configured');

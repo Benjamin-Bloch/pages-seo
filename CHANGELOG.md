@@ -7,6 +7,31 @@ version.
 
 The format is loosely Keep-a-Changelog, dates in ISO order.
 
+## 1.0.2 — 2026-05-21
+
+Content-quality release. Targets the "Workers AI generates short generic blogs" complaint.
+
+### Changed
+- **Workers AI default text model upgraded** from `@cf/meta/llama-3.3-70b-instruct-fp8-fast`
+  to `@cf/qwen/qwen3-30b-a3b-fp8`. Qwen3 is an MoE model that only
+  activates ~3B params per token (latency similar to a 7B dense model)
+  but produces noticeably better long-form prose. Set
+  `env.WORKERS_AI_TEXT_MODEL` to override.
+- **Default article length bumped** from 900–1300 words → **2500–4000 words**.
+  Long-form ranks better for long-tail queries and has more share value.
+  Operators who prefer shorter posts can edit `article_min_words`
+  and `article_max_words` in /admin → Settings.
+- **`max_tokens` raised** from 4096 → 8192 across all providers
+  (Workers AI, Anthropic, OpenAI-compat chat completions). 4096 was
+  truncating the longer articles mid-section.
+- **Prompt threads length targets** properly now. Previous prompts
+  hardcoded "900-1300 words" regardless of settings; new prompts
+  read from `article_min_words`/`article_max_words` and scale H2
+  count + FAQ depth to match (≥3000 words → 6-10 H2s, 5-8 FAQ Qs).
+- **Explicit length enforcement** in the prompt — the model is told to
+  count its own words before returning JSON and to expand the weakest
+  H2 if it finishes short.
+
 ## 1.0.1 — 2026-05-21
 
 Patch release. Fixes Update flow regressions surfaced while smoke-testing 1.0.0.

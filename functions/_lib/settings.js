@@ -14,8 +14,12 @@ const FALLBACK = {
   site_signup_url:  (env) => env.SITE_SIGNUP_URL || '/signup',
   site_pricing_url: (env) => env.SITE_PRICING_URL || '/pricing',
   site_contact_url: (env) => env.SITE_CONTACT_URL || '/contact',
-  article_min_words:   () => '900',
-  article_max_words:   () => '1300',
+  // Length targets for the daily blog generator. Bumped from 900-1300
+  // in v1.0.2 to bias toward definitive long-form pieces, which rank
+  // better for long-tail queries and have more share value. Operators
+  // who want short posts can edit these in /admin → Settings.
+  article_min_words:   () => '2500',
+  article_max_words:   () => '4000',
   prog_min_words:      () => '700',
   prog_max_words:      () => '1000',
   default_ai_provider: () => '',
