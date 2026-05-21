@@ -17,6 +17,74 @@
   function appendLog(el, text) { if (!el) return; el.hidden = false; el.textContent += '\n' + String(text); el.scrollTop = el.scrollHeight; }
   function clearChildren(el) { if (el) el.replaceChildren(); }
 
+  // ── toast system ───────────────────────────────────────────────
+  // Replaces blocking alert() / confirm() with a queue of non-modal
+  // toasts in the bottom-right. `toast(msg, kind, opts)` always
+  // resolves immediately; the toast disappears on its own or when
+  // the user dismisses it. We deliberately keep this dead simple
+  // (no library, no animation library) so it stays out of the way.
+  //
+  //   kind: 'info' | 'good' | 'warn' | 'bad'  (default 'info')
+  //   opts.duration  ms before auto-dismiss (default 5000, 0 = sticky)
+  //   opts.action    { label, onClick } adds a button inside the toast
+  //   opts.errorCode if present, appends a "see docs →" link to
+  //                  /docs#err-<code> so users hit the explanation
+  //                  without leaving context.
+  //
+  // The 6 alert() sites in admin.js + 14 in cover-editor.js will be
+  // migrated to this gradually. Both surfaces use the same DOM root
+  // so toasts stack naturally regardless of which module fired them.
+  function ensureToastRoot() {
+    let root = document.getElementById('toast-root');
+    if (root) return root;
+    root = document.createElement('div');
+    root.id = 'toast-root';
+    root.setAttribute('aria-live', 'polite');
+    document.body.appendChild(root);
+    return root;
+  }
+  function toast(msg, kind = 'info', opts = {}) {
+    const root = ensureToastRoot();
+    const card = document.createElement('div');
+    card.className = 'toast toast-' + kind;
+    const text = document.createElement('div');
+    text.className = 'toast-text';
+    text.textContent = String(msg ?? '');
+    card.appendChild(text);
+    if (opts.errorCode) {
+      const a = document.createElement('a');
+      a.className = 'toast-link';
+      a.href = 'https://seo.benjaminb.xyz/docs#err-' + opts.errorCode;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.textContent = 'docs →';
+      card.appendChild(a);
+    }
+    if (opts.action) {
+      const btn = document.createElement('button');
+      btn.className = 'toast-action';
+      btn.textContent = opts.action.label;
+      btn.onclick = () => { try { opts.action.onClick?.(); } finally { dismiss(); } };
+      card.appendChild(btn);
+    }
+    const close = document.createElement('button');
+    close.className = 'toast-close';
+    close.setAttribute('aria-label', 'Dismiss');
+    close.textContent = '×';
+    card.appendChild(close);
+    root.appendChild(card);
+    const timer = (opts.duration === 0) ? null : setTimeout(dismiss, opts.duration || 5000);
+    function dismiss() {
+      if (timer) clearTimeout(timer);
+      card.classList.add('toast-out');
+      setTimeout(() => card.remove(), 200);
+    }
+    close.onclick = dismiss;
+    return { dismiss };
+  }
+  // Expose globally so cover-editor.js (separate script) can use it.
+  window.psToast = toast;
+
   async function api(path, opts = {}) {
     const headers = { 'content-type': 'application/json', ...(opts.headers || {}) };
     // `credentials: 'same-origin'` is the default, but we set it
@@ -914,7 +982,7 @@
       loadJobs(); loadPosts();
     } catch (e) {
       btn.disabled = false; btn.textContent = 'Resume';
-      alert('Resume failed: ' + e.message);
+      toast('Resume failed: ' + e.message, 'bad');
     }
   }
 
@@ -1600,7 +1668,7 @@
         btn.textContent = '✓ ' + msg.slice(0, 50);
         setTimeout(() => { btn.textContent = orig; }, 3000);
       } else {
-        alert(res.body?.error || 'Sync failed');
+        toast(res.body?.error || 'Sync failed', 'bad', { errorCode: res.body?.error });
       }
       load();
     }
@@ -2421,7 +2489,7 @@
         });
       }
       if (res.status !== 200) {
-        alert(res.body?.detail || res.body?.error || 'Save failed');
+        toast(res.body?.detail || res.body?.error || 'Save failed', 'bad', { errorCode: res.body?.error });
         return;
       }
       closeModal();
@@ -2433,7 +2501,7 @@
       if (!confirm('Delete this article slot?')) return;
       const res = await api('/api/admin/calendar?id=' + encodeURIComponent(editingId), { method: 'DELETE' });
       if (res.status !== 200) {
-        alert(res.body?.detail || res.body?.error || 'Delete failed');
+        toast(res.body?.detail || res.body?.error || 'Delete failed', 'bad', { errorCode: res.body?.error });
         return;
       }
       closeModal();
@@ -2453,11 +2521,13 @@
       btn.disabled = false; btn.textContent = orig;
       if (res.status !== 200) {
         if (res.body?.error === 'no_brand_dna') {
-          alert('Save your Brand DNA first — the planner uses it to pick topics.');
+          toast('Save your Brand DNA first — the planner uses it to pick topics.', 'warn', {
+            action: { label: 'Open Brand', onClick: () => activateTab('brand') },
+          });
           activateTab('brand');
           return;
         }
-        alert(res.body?.detail || res.body?.error || 'Planning failed');
+        toast(res.body?.detail || res.body?.error || 'Planning failed', 'bad', { errorCode: res.body?.error });
         return;
       }
       load();

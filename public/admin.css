@@ -997,3 +997,59 @@ em.optional{font-style:normal;color:var(--ink-faint);font-size:11px;letter-spaci
 .audit-table th { color: var(--ink-faint); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; padding: 6px 8px; border-bottom: 1px solid var(--line); }
 .audit-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .audit-table tr.audit-fail td { color: var(--bad); }
+
+/* ── toasts ─────────────────────────────────────────────────── */
+#toast-root {
+  position: fixed; bottom: 20px; right: 20px;
+  z-index: 10000;
+  display: flex; flex-direction: column; gap: 8px;
+  max-width: min(420px, calc(100vw - 40px));
+  pointer-events: none;
+}
+.toast {
+  background: var(--bg-card);
+  border: 1px solid var(--line-2);
+  border-left: 3px solid var(--ink-faint);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--ink);
+  box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  gap: 8px;
+  align-items: center;
+  pointer-events: auto;
+  animation: toast-in .18s ease-out;
+}
+.toast-text { line-height: 1.4; word-break: break-word; min-width: 0; }
+.toast-link, .toast-action {
+  background: transparent;
+  border: 1px solid var(--line-2);
+  color: var(--accent);
+  padding: 3px 8px;
+  border-radius: 5px;
+  font: inherit; font-size: 12px;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.toast-link:hover, .toast-action:hover { background: var(--accent-soft); border-color: var(--accent); }
+.toast-close {
+  background: transparent; border: 0; color: var(--ink-faint);
+  font: inherit; font-size: 18px; line-height: 1;
+  padding: 0 4px; cursor: pointer;
+}
+.toast-close:hover { color: var(--ink); }
+.toast-good { border-left-color: var(--good); }
+.toast-warn { border-left-color: var(--warn); }
+.toast-bad  { border-left-color: var(--bad); }
+.toast.toast-out { animation: toast-out .18s ease-in forwards; }
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes toast-out {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(8px); }
+}

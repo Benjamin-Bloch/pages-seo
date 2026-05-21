@@ -49,6 +49,17 @@
   // ── DOM helpers ──────────────────────────────────────────────────
   const $ = (sel, root) => (root || document).querySelector(sel);
   const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
+  // Toast helper. Defers to window.psToast (defined in admin.js)
+  // when present; falls back to alert() so the editor still works
+  // when loaded outside the admin shell (e.g. a future standalone
+  // page). The signature matches psToast verbatim.
+  function notify(msg, kind = 'info', opts = {}) {
+    if (typeof window !== 'undefined' && typeof window.psToast === 'function') {
+      return window.psToast(msg, kind, opts);
+    }
+    alert(String(msg));
+  }
+
   function el(tag, attrs, ...children) {
     const e = document.createElement(tag);
     if (attrs) {
@@ -2003,7 +2014,7 @@
             if (fresh) loadTemplateSpec(fresh);
             if (activeRail === 'templates') renderRailPanel('templates');
           } else {
-            alert('Install failed: ' + (r.body?.error || r.status));
+            notify('Install failed: ' + (r.body?.error || r.status), 'bad', { errorCode: r.body?.error });
           }
         },
       }, '✨ Install premium template'));
@@ -2079,19 +2090,19 @@
     async function importTemplateFile(file) {
       // 30MB cap on disk read, mirrors the server's MAX_TOTAL_BYTES.
       if (file.size > 60 * 1024 * 1024) {
-        alert('That .template file is too large (over 60MB). Templates with embedded backgrounds can be a few MB but rarely above 60.');
+        notify('That .template file is too large (over 60MB).', 'warn');
         return;
       }
       const text = await file.text().catch(() => null);
-      if (!text) { alert('Could not read the file.'); return; }
+      if (!text) { notify('Could not read the file.', 'bad'); return; }
       let payload;
       try { payload = JSON.parse(text); }
       catch (e) {
-        alert('That doesn\'t look like a .template file (invalid JSON): ' + String(e?.message || e).slice(0, 80));
+        notify('That doesn\'t look like a .template file (invalid JSON).', 'bad');
         return;
       }
       if (payload?.format !== 'pages-seo-cover-template') {
-        alert('Wrong file format. Expected a pages-seo cover template export; got "' + (payload?.format || 'unknown') + '".');
+        notify('Wrong file format — expected a pages-seo cover template export.', 'bad', { errorCode: 'wrong_format' });
         return;
       }
       const setDefault = confirm(
@@ -2109,8 +2120,7 @@
         body: JSON.stringify({ ...payload, set_default: !!setDefault }),
       });
       if (!r.body?.ok) {
-        alert('Import failed: ' + (r.body?.error || r.status) +
-              (r.body?.detail ? '\n' + r.body.detail : ''));
+        notify(r.body?.detail || ('Import failed: ' + (r.body?.error || r.status)), 'bad', { errorCode: r.body?.error });
         return;
       }
       await loadTemplates();
@@ -2119,7 +2129,7 @@
       if (activeRail === 'templates') renderRailPanel('templates');
       const summary = `Imported "${r.body.name}". ${r.body.assets_imported} assets restored` +
                       (r.body.assets_missing ? `, ${r.body.assets_missing} missing.` : '.');
-      alert(summary);
+      notify(summary, 'good');
     }
 
     // ── Layers panel (rail) ──────────────────────────────────────
@@ -2520,9 +2530,9 @@
       });
       if (r.body?.ok) {
         await loadTemplates();
-        alert('Saved.');
+        notify('Template saved.', 'good');
       } else {
-        alert('Save failed: ' + (r.body?.error || r.status));
+        notify('Save failed: ' + (r.body?.error || r.status), 'bad', { errorCode: r.body?.error });
       }
     }
     // Render the current template at native canvas resolution into a
@@ -2550,20 +2560,20 @@
 
     async function openApplyDialog() {
       const postId = ($('#ce-header-post', root)?.value || $('#ce-preview-post', root)?.value || '');
-      if (!postId) { alert('Pick a post in the header dropdown first.'); return; }
+      if (!postId) { notify('Pick a post in the header dropdown first.', 'warn'); return; }
       const post = state.posts.find((p) => p.id === postId);
       if (!post) return;
       const dataUrl = await renderPostToBase64(post);
       redraw();
-      if (!dataUrl) { alert('Render failed.'); return; }
+      if (!dataUrl) { notify('Render failed.', 'bad'); return; }
       const r = await api('/api/admin/cover/apply', {
         method: 'POST',
         body: JSON.stringify({ target: 'post', id: postId, base64: dataUrl }),
       });
       if (r.body?.ok) {
-        alert(`Applied to “${post.title.slice(0, 60)}…”.`);
+        notify(`Applied to “${post.title.slice(0, 60)}…”.`, 'good');
       } else {
-        alert('Apply failed: ' + (r.body?.error || r.status));
+        notify('Apply failed: ' + (r.body?.error || r.status), 'bad', { errorCode: r.body?.error });
       }
     }
 
@@ -2573,7 +2583,7 @@
     // the user knows what's happening.
     async function openApplyAllDialog() {
       const posts = state.posts || [];
-      if (!posts.length) { alert('No published posts to apply to.'); return; }
+      if (!posts.length) { notify('No published posts to apply to.', 'warn'); return; }
       const ok = confirm(
         `Apply this template to all ${posts.length} published posts? ` +
         `This re-renders every cover and replaces it. Future posts will ` +
