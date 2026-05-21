@@ -153,6 +153,7 @@
     if (name === 'covers') { Cover.init(); }
     if (name === 'embeds') { loadEmbeds(); }
     if (name === 'updates') { Updates.init(); }
+    if (name === 'status')   { Status.init(); }
     if (name === 'settings') { loadSettings(); loadProviderGrid(); }
   }
 
@@ -1181,6 +1182,190 @@
         api,
         glue: { onDirty: () => { /* hook point */ } },
       });
+    }
+    return { init };
+  })();
+
+
+  // ── Status tab ─────────────────────────────────────────────────
+  // Three cards: health checks (D1, R2, AI, content, failures,
+  // budget, providers, repair-secrets), provider liveness probes,
+  // and a paginated audit-log viewer.
+  const Status = (() => {
+    let mounted = false;
+
+    async function loadChecks() {
+      const root = $('#status-checks');
+      const summary = $('#status-summary');
+      const btn = $('#status-refresh');
+      if (btn) { btn.disabled = true; btn.textContent = 'Checking…'; }
+      summary.textContent = '';
+      clearChildren(root);
+
+      const { status: code, body } = await api('/api/admin/status');
+      if (btn) { btn.disabled = false; btn.textContent = 'Run checks'; }
+      if (code !== 200 || !body?.ok) {
+        summary.textContent = 'Could not run checks: ' + (body?.error || code);
+        summary.className = 'status bad';
+        return;
+      }
+      const failed = (body.checks || []).filter((c) => c.ok === false).length;
+      summary.textContent = failed
+        ? `${failed} check${failed === 1 ? '' : 's'} failing`
+        : 'All checks green';
+      summary.className = 'status ' + (failed ? 'bad' : 'good');
+
+      // Surface a tab-level badge when any check is failing so the
+      // operator notices even when they're on another tab.
+      const badge = document.getElementById('status-badge');
+      if (badge) {
+        if (failed) {
+          badge.hidden = false;
+          badge.textContent = String(failed);
+        } else {
+          badge.hidden = true;
+        }
+      }
+
+      for (const c of body.checks) {
+        const wrap = document.createElement('div');
+        wrap.className = 'status-check ' + (c.ok === false ? 'bad' : 'good');
+        const top = document.createElement('div');
+        top.className = 'status-check-top';
+        const icon = document.createElement('span');
+        icon.className = 'status-check-icon';
+        icon.textContent = c.ok === false ? '✗' : '✓';
+        const label = document.createElement('span');
+        label.className = 'status-check-label';
+        label.textContent = c.label;
+        top.append(icon, label);
+        wrap.appendChild(top);
+
+        if (c.detail) {
+          const detail = document.createElement('div');
+          detail.className = 'status-check-detail';
+          detail.textContent = c.detail;
+          wrap.appendChild(detail);
+        }
+
+        // Render extra structured fields the endpoint exposes.
+        const extras = ['count', 'blogs', 'progs', 'pct', 'spent_usd', 'cap_usd', 'blogs_age_days'];
+        const extraBits = [];
+        for (const k of extras) {
+          if (c[k] != null) extraBits.push(`${k}: ${c[k]}`);
+        }
+        if (c.providers?.length) {
+          extraBits.push('providers: ' + c.providers.map((p) => `${p.key}${p.configured ? '✓' : ' ✗'}`).join(', '));
+        }
+        if (c.missing?.length) {
+          extraBits.push('missing: ' + c.missing.join(', '));
+        }
+        if (extraBits.length) {
+          const ex = document.createElement('div');
+          ex.className = 'status-check-extras';
+          ex.textContent = extraBits.join(' · ');
+          wrap.appendChild(ex);
+        }
+        root.appendChild(wrap);
+      }
+    }
+
+    async function testProviders() {
+      const ul = $('#providers-results');
+      const btn = $('#providers-test');
+      if (btn) { btn.disabled = true; btn.textContent = 'Testing…'; }
+      clearChildren(ul);
+
+      const { status: code, body } = await api('/api/admin/providers/test', { method: 'POST', body: '{}' });
+      if (btn) { btn.disabled = false; btn.textContent = 'Test all providers'; }
+      if (code !== 200 || !body?.ok) {
+        const li = document.createElement('li');
+        li.className = 'provider-result bad';
+        li.textContent = 'Test request failed: ' + (body?.error || code);
+        ul.appendChild(li);
+        return;
+      }
+      for (const r of (body.results || [])) {
+        const li = document.createElement('li');
+        li.className = 'provider-result ' + (r.ok ? 'good' : 'bad');
+        const name = document.createElement('strong'); name.textContent = r.name;
+        const status = document.createElement('span');
+        status.className = 'provider-status';
+        status.textContent = r.ok
+          ? `✓ ${r.ms != null ? r.ms + 'ms' : 'ok'}`
+          : `✗ ${r.error || 'failed'}`;
+        const detail = document.createElement('span');
+        detail.className = 'provider-detail';
+        detail.textContent = r.detail || r.sample || '';
+        li.append(name, status, detail);
+        ul.appendChild(li);
+      }
+    }
+
+    async function loadAudit() {
+      const tbody = $('#audit-rows');
+      const filter = $('#audit-filter')?.value || '';
+      clearChildren(tbody);
+
+      const qs = new URLSearchParams({ limit: '50' });
+      if (filter === 'fail') qs.set('only_failures', '1');
+      else if (filter) qs.set('action', filter);
+
+      const { status: code, body } = await api('/api/admin/audit?' + qs.toString());
+      if (code !== 200 || !body?.ok) {
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 4; td.textContent = 'Failed to load audit log: ' + (body?.error || code);
+        td.style.color = 'var(--bad)';
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+        return;
+      }
+      if (!body.entries?.length) {
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 4; td.textContent = 'No entries match this filter yet.';
+        td.style.color = 'var(--ink-faint)';
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+        return;
+      }
+      for (const e of body.entries) {
+        const tr = document.createElement('tr');
+        const isFail = /fail|error/i.test(e.action);
+        if (isFail) tr.classList.add('audit-fail');
+        const when = new Date(e.created_at * 1000).toLocaleString('en-GB', {
+          year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit',
+        });
+        const c1 = document.createElement('td'); c1.textContent = when; c1.style.color = 'var(--ink-faint)';
+        const c2 = document.createElement('td'); c2.textContent = e.actor || '—';
+        const c3 = document.createElement('td'); c3.textContent = e.action;
+        c3.style.fontFamily = 'var(--mono, monospace)';
+        const c4 = document.createElement('td');
+        c4.style.fontSize = '12px'; c4.style.color = 'var(--ink-dim)';
+        // details may be parsed object or raw string; render either.
+        if (e.details && typeof e.details === 'object') {
+          c4.textContent = Object.entries(e.details)
+            .map(([k, v]) => `${k}: ${typeof v === 'string' ? v : JSON.stringify(v)}`)
+            .join(' · ').slice(0, 200);
+        } else if (e.details) {
+          c4.textContent = String(e.details).slice(0, 200);
+        }
+        tr.append(c1, c2, c3, c4);
+        tbody.appendChild(tr);
+      }
+    }
+
+    function init() {
+      if (!mounted) {
+        mounted = true;
+        $('#status-refresh')?.addEventListener('click', loadChecks);
+        $('#providers-test')?.addEventListener('click', testProviders);
+        $('#audit-refresh')?.addEventListener('click', loadAudit);
+        $('#audit-filter')?.addEventListener('change', loadAudit);
+      }
+      loadChecks();
+      loadAudit();
     }
     return { init };
   })();

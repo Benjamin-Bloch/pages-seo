@@ -111,6 +111,10 @@
         Updates
         <span id="updates-badge" class="tab-badge" hidden></span>
       </button>
+      <button class="tab" data-tab="status">
+        Status
+        <span id="status-badge" class="tab-badge" hidden></span>
+      </button>
       <button class="tab" data-tab="settings">Settings</button>
     </nav>
     <div class="topbar-tools">
@@ -599,6 +603,71 @@
         <p class="muted">In-app update is only available for installs done via the browser flow. You installed this site via the terminal, so updates run the same way:</p>
         <pre class="log" style="margin:8px 0">curl -fsSL https://seo.benjaminb.xyz/install/run.sh | bash</pre>
         <p class="muted">It detects an existing install with the same project slug and only re-deploys the code — your D1, R2, and admin user are preserved.</p>
+      </div>
+    </section>
+
+    <!-- ============ STATUS ============ -->
+    <section data-page="status" class="page" hidden>
+      <div class="card">
+        <div class="card-eyebrow">Health</div>
+        <h2>System status</h2>
+        <p class="muted">
+          What's wired up correctly and what isn't. Run this any time you
+          suspect something is broken — it's a one-shot check against D1,
+          R2, Workers AI, the audit log, your spend cap, and the
+          self-repair secrets.
+          See <a href="https://seo.benjaminb.xyz/docs#errors" target="_blank">the docs</a> for what each error means.
+        </p>
+        <div class="row form-row" style="margin-top:8px">
+          <button id="status-refresh" class="btn btn-primary">Run checks</button>
+          <span id="status-summary" class="muted"></span>
+        </div>
+        <div id="status-checks" class="status-checks" style="margin-top:16px"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-eyebrow">AI providers</div>
+        <h2>Test each provider</h2>
+        <p class="muted">
+          Sends a 20-token "pong" prompt to every configured provider and reports the round-trip time
+          + a sample of the response. Workers AI is always there; other providers appear when you've
+          added a key in Settings.
+        </p>
+        <div class="row form-row">
+          <button id="providers-test" class="btn">Test all providers</button>
+        </div>
+        <ul id="providers-results" class="providers-results" style="margin-top:12px"></ul>
+      </div>
+
+      <div class="card">
+        <div class="card-eyebrow">Recent activity</div>
+        <h2>Audit log</h2>
+        <p class="muted">
+          Last 50 actions taken on this install — admin saves, cron runs, generation
+          failures, cover uploads. Use the filter to find specific kinds of events.
+        </p>
+        <div class="row form-row">
+          <select id="audit-filter" class="input">
+            <option value="">All actions</option>
+            <option value="fail">Only failures</option>
+            <option value="cover">Covers</option>
+            <option value="blog">Blog generation</option>
+            <option value="prog">Programmatic</option>
+            <option value="settings">Settings</option>
+            <option value="cover_template_export">Template exports</option>
+            <option value="cover_template_import">Template imports</option>
+          </select>
+          <button id="audit-refresh" class="btn">Refresh</button>
+        </div>
+        <table class="audit-table" style="margin-top:12px;width:100%;font-size:13px">
+          <thead><tr>
+            <th style="text-align:left">When</th>
+            <th style="text-align:left">Actor</th>
+            <th style="text-align:left">Action</th>
+            <th style="text-align:left">Details</th>
+          </tr></thead>
+          <tbody id="audit-rows"></tbody>
+        </table>
       </div>
     </section>
 

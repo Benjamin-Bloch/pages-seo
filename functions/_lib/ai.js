@@ -881,3 +881,45 @@ export async function generateImage(env, { prompt, provider, source = 'admin' })
 // content-gen paths (e.g. the brand-DNA generator's bespoke provider
 // dispatcher).
 export async function vaultedEnv(env) { return withVault(env); }
+
+// Lightweight liveness probe for a single text provider. Sends a
+// minimum-cost prompt and reports {ok, ms, sample?, error?}. Used
+// by /api/admin/providers/test so the operator can verify keys
+// without waiting for the next blog job to fail.
+//
+// Caller passes `name`; we resolve to the provider config from the
+// TEXT_PROVIDERS table. If name isn't configured we return ok:false
+// with an explanatory error rather than throwing.
+export async function pingTextProvider(env, name) {
+  const overlayed = await withVault(env);
+  const p = TEXT_PROVIDERS.find((x) => x.name === name);
+  if (!p) return { ok: false, error: 'unknown_provider', detail: `no provider named ${name}` };
+  if (!p.available(overlayed)) return { ok: false, error: 'not_configured', detail: `${name} has no key or binding` };
+  const started = Date.now();
+  try {
+    // 'ping' as the prompt — every provider responds with something,
+    // typically "Pong" or similar. We don't validate the content;
+    // success = the call returned at all.
+    const out = await p.call({
+      env: overlayed,
+      // Keep the prompt minimal so the ping doesn't accidentally
+      // chew through tokens. Some providers floor at a few tokens
+      // anyway, but we set max_tokens=20 to be safe.
+      prompt: 'Reply with the single word: pong.',
+      max_tokens: 20,
+    });
+    const ms = Date.now() - started;
+    const sample = typeof out === 'string'
+      ? out.slice(0, 200)
+      : (out?.text || out?.content || JSON.stringify(out)).slice(0, 200);
+    return { ok: true, ms, sample };
+  } catch (e) {
+    const ms = Date.now() - started;
+    return {
+      ok: false,
+      ms,
+      error: 'call_failed',
+      detail: String(e?.message || e).slice(0, 240),
+    };
+  }
+}
