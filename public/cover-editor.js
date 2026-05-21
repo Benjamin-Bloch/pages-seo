@@ -2342,16 +2342,113 @@
         fr.readAsDataURL(file);
       });
     }
+
+    // Compress an image file to WebP via the browser's canvas API
+    // before we send it. Backgrounds get capped at 1600×1600 (more
+    // than enough for the OG default 1200×630 plus retina), logos
+    // at 600×600. Output WebP at quality 0.82 is roughly 10-15× smaller
+    // than an uncompressed PNG at the same dimensions. SVG inputs
+    // pass through untouched — they're already lean and rasterising
+    // them would lose scalability.
+    //
+    // Falls back to the original file if anything throws (canvas
+    // unavailable, browser doesn't support webp encode, OOM on
+    // huge inputs). Honest about the limit: this is best-effort
+    // client-side compression; the user can still drop a 50MB PNG
+    // through the legacy path if their browser refuses canvas.
+    async function compressForUpload(file, kind) {
+      // SVG: don't touch.
+      if (/svg/i.test(file.type)) return { blob: file, mime: file.type, ext: 'svg' };
+
+      const maxDim = kind === 'background' ? 1600 : 600;
+      // Bail on very small files — compressing 30KB → 28KB isn't
+      // worth a canvas round trip.
+      if (file.size < 80 * 1024 && /webp|jpe?g/i.test(file.type)) {
+        return { blob: file, mime: file.type, ext: file.type.includes('jpeg') ? 'jpg' : 'webp' };
+      }
+
+      try {
+        // Use createImageBitmap to decode off the main thread when
+        // possible. Falls back to <img> + load event otherwise.
+        let bitmap;
+        if (typeof createImageBitmap === 'function') {
+          bitmap = await createImageBitmap(file);
+        } else {
+          const url = URL.createObjectURL(file);
+          const img = new Image();
+          await new Promise((res, rej) => {
+            img.onload = () => res();
+            img.onerror = rej;
+            img.src = url;
+          });
+          bitmap = img;
+          // Leak the URL on next tick (not strictly necessary; GC will
+          // collect, but explicit is cleaner on long-lived editors).
+          setTimeout(() => URL.revokeObjectURL(url), 5_000);
+        }
+
+        let w = bitmap.width, h = bitmap.height;
+        const ratio = Math.min(maxDim / w, maxDim / h, 1);
+        w = Math.round(w * ratio);
+        h = Math.round(h * ratio);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(bitmap, 0, 0, w, h);
+        if (typeof bitmap.close === 'function') bitmap.close();
+
+        const blob = await new Promise((resolve, reject) => {
+          canvas.toBlob(
+            (b) => b ? resolve(b) : reject(new Error('toBlob_null')),
+            'image/webp',
+            0.82,
+          );
+        });
+        // Sanity check: WebP might be bigger than the original
+        // (already-optimised PNGs do this). Use whichever is smaller.
+        if (blob.size >= file.size * 0.95) {
+          return { blob: file, mime: file.type, ext: file.type.includes('jpeg') ? 'jpg' : file.type.includes('png') ? 'png' : 'bin' };
+        }
+        return { blob, mime: 'image/webp', ext: 'webp' };
+      } catch {
+        return { blob: file, mime: file.type, ext: file.type.includes('jpeg') ? 'jpg' : file.type.includes('png') ? 'png' : 'bin' };
+      }
+    }
+
     async function uploadAsset(kind, file) {
-      const b64 = await fileToBase64(file);
+      // Compress first. Common case: a 2.4MB PNG hero-photo → ~180KB
+      // WebP. Worst case (already a small WebP): we no-op and ship
+      // the original. notify() surfaces the saving so the user knows
+      // their click did something.
+      const originalSize = file.size;
+      const { blob, mime, ext } = await compressForUpload(file, kind);
+      if (blob.size < originalSize * 0.9) {
+        const saved = Math.round((1 - blob.size / originalSize) * 100);
+        notify(`Compressed ${kind} from ${fmtBytes(originalSize)} to ${fmtBytes(blob.size)} (saved ${saved}%).`, 'good', { duration: 3500 });
+      }
+
+      // The server's upload endpoint expects { base64, content_type, filename }.
+      // base64-encode the (possibly compressed) blob.
+      const buf = await blob.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      let s = ''; const chunk = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        s += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+      }
+      const b64 = btoa(s);
+
+      // Filename: keep the user's name but swap the extension to
+      // match the compressed format. helps audit logs read clearly.
+      const baseName = (file.name || (kind + '.bin')).replace(/\.[^.]+$/, '');
+      const filename = `${baseName}.${ext}`;
+
       const r = await api('/api/admin/cover/upload', {
         method: 'POST',
-        // Server expects `content_type`, not `mime` — keep the key
-        // name in sync with functions/api/admin/cover/upload.js.
         body: JSON.stringify({
           kind,
-          filename: file.name || (kind + '.png'),
-          content_type: file.type || 'image/png',
+          filename,
+          content_type: mime,
           base64: b64,
         }),
       });
@@ -2710,6 +2807,12 @@
       n = parseFloat(n);
       if (isNaN(n)) n = lo;
       return Math.min(hi, Math.max(lo, n));
+    }
+    function fmtBytes(n) {
+      if (!Number.isFinite(n)) return '?';
+      if (n < 1024) return n + ' B';
+      if (n < 1024 * 1024) return Math.round(n / 1024) + ' KB';
+      return (n / (1024 * 1024)).toFixed(1) + ' MB';
     }
 
     // ── public-ish: load + apply default template from server ──

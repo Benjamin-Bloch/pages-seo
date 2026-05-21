@@ -147,7 +147,21 @@ export function renderContentPage({ env, request, post, kind, related = [], sett
       ? `/image/${esc(post.hero_image_key)}`
       : `/og/${esc(post.slug || 'home')}.svg`;
   const heroAlt = esc(post.hero_image_alt || post.title);
-  const heroImg = `<img class="hero" src="${heroSrc}" alt="${heroAlt}" width="${HERO_W}" height="${HERO_H}" decoding="async" fetchpriority="high" />`;
+  // Wrap the hero img in a shimmer-skeleton container. Three layers:
+  //   - .hero-wrap is the sized box (1200×630 aspect ratio).
+  //   - ::before draws an animated shimmer (linear-gradient sliding
+  //     across) so the user perceives motion even when nothing's
+  //     actually loaded.
+  //   - <img class="hero"> fades in via opacity 0→1 once its
+  //     `load` event fires. The onload handler is inline so there's
+  //     no JS dependency.
+  // When the image is already in cache (cache hit, fast connection),
+  // onload fires before paint and the skeleton never shows visibly —
+  // no perceived flicker either way.
+  const heroImg = `
+<div class="hero-wrap" style="aspect-ratio:${HERO_W}/${HERO_H}">
+  <img class="hero" src="${heroSrc}" alt="${heroAlt}" width="${HERO_W}" height="${HERO_H}" decoding="async" fetchpriority="high" onload="this.classList.add('is-loaded')" onerror="this.classList.add('is-loaded')" />
+</div>`;
 
   const bodyHTML = renderMarkdown(post.body_markdown);
 
