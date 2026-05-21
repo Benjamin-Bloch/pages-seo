@@ -57,10 +57,15 @@ export const onRequestPost = async ({ env, request }) => {
   if (!token) return json(400, { error: 'token_required', detail: 'Paste a Cloudflare API token with Pages:Edit scope.' });
 
   const s = await loadSettings(env);
-  if (s.install_method !== 'browser') {
+  // 'browser' installs come from /install (Git-linked Pages projects).
+  // 'maintainer' installs (e.g. seo.benjaminb.xyz itself) are also
+  // Git-linked — both share the same "trigger a redeploy" code path.
+  // 'cli' installs use Direct Upload and have no Pages REST hook to
+  // pull, so the operator re-runs the install one-liner instead.
+  if (s.install_method !== 'browser' && s.install_method !== 'maintainer') {
     return json(409, {
       error: 'not_supported_for_install_method',
-      detail: 'In-app update is only available for installs done via the browser flow (Git-linked). For CLI installs, re-run the terminal installer command.',
+      detail: 'In-app update is only available for installs done via the browser or maintainer flow (Git-linked). For CLI installs, re-run the terminal installer command.',
     });
   }
   const accountId = String(s.install_cf_account || '').trim();

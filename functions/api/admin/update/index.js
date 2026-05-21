@@ -218,9 +218,12 @@ export const onRequestGet = async ({ env, request }) => {
     author:  c.author?.login || c.commit?.author?.name || 'unknown',
   }));
 
-  const canApply = installMethod === 'browser';
+  // Git-linked installs (browser + maintainer) can trigger a redeploy
+  // via the Cloudflare API. CLI installs are Direct Upload and have
+  // no equivalent — the operator re-runs the install one-liner.
+  const canApply = installMethod === 'browser' || installMethod === 'maintainer';
   const canApplyReason = canApply
-    ? 'browser_install'
+    ? installMethod + '_install'
     : (installMethod === 'cli' ? 'cli_install' : 'unknown_method');
 
   return json(200, {
