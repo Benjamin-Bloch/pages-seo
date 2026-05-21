@@ -45,11 +45,21 @@ const BRANCH = 'main';
 // calls, so a seo.benjaminb.xyz outage never breaks /admin Updates.
 const CANONICAL_BASE = 'https://seo.benjaminb.xyz';
 
-function ghHeaders() {
-  return {
+// Authenticate the GitHub call when we can — Cloudflare edge IPs
+// share a 60 req/hr unauth pool that gets exhausted fast. OAuth
+// client credentials buy us 5000 req/hr per app.
+function ghHeaders(env) {
+  const h = {
     'User-Agent': 'pages-seo-update',
     Accept: 'application/vnd.github+json',
   };
+  if (env?.GITHUB_TOKEN) {
+    h.Authorization = 'Bearer ' + String(env.GITHUB_TOKEN).trim();
+  } else if (env?.GITHUB_OAUTH_CLIENT_ID && env?.GITHUB_OAUTH_CLIENT_SECRET) {
+    const creds = btoa(`${env.GITHUB_OAUTH_CLIENT_ID}:${env.GITHUB_OAUTH_CLIENT_SECRET}`);
+    h.Authorization = 'Basic ' + creds;
+  }
+  return h;
 }
 
 // Canonical-first commit lookup. Falls back to direct GitHub if the
@@ -81,12 +91,12 @@ async function fetchLatestViaCanonical() {
   }
 }
 
-async function fetchLatest() {
+async function fetchLatest(env) {
   const viaCanonical = await fetchLatestViaCanonical();
   if (viaCanonical) return viaCanonical;
   const r = await fetch(
     `https://api.github.com/repos/${UPSTREAM_OWNER}/${UPSTREAM_REPO}/commits/${BRANCH}`,
-    { headers: ghHeaders() },
+    { headers: ghHeaders(env) },
   );
   if (!r.ok) throw new Error('github_latest_' + r.status);
   return r.json();
@@ -122,7 +132,7 @@ async function fetchCompareViaCanonical(base) {
   }
 }
 
-async function fetchCompare(base, head) {
+async function fetchCompare(base, head, env) {
   // Canonical first, GitHub direct as fallback.
   const viaCanonical = await fetchCompareViaCanonical(base);
   if (viaCanonical) return viaCanonical;
@@ -130,7 +140,7 @@ async function fetchCompare(base, head) {
   // Capped at 250 commits — way more than any sane update window.
   const r = await fetch(
     `https://api.github.com/repos/${UPSTREAM_OWNER}/${UPSTREAM_REPO}/compare/${base}...${head}`,
-    { headers: ghHeaders() },
+    { headers: ghHeaders(env) },
   );
   if (!r.ok) throw new Error('github_compare_' + r.status);
   return r.json();
@@ -146,7 +156,7 @@ export const onRequestGet = async ({ env, request }) => {
   const installMethod = String(s.install_method || '').trim();
 
   let latest;
-  try { latest = await fetchLatest(); }
+  try { latest = await fetchLatest(env); }
   catch (e) { return json(502, { ok: false, error: 'github_unreachable', detail: String(e?.message || e) }); }
 
   const latestSha = latest.sha;
@@ -199,7 +209,7 @@ export const onRequestGet = async ({ env, request }) => {
 
   // Compare installed → upstream HEAD.
   let cmp;
-  try { cmp = await fetchCompare(installedSha, latestSha); }
+  try { cmp = await fetchCompare(installedSha, latestSha, env); }
   catch (e) { return json(502, { ok: false, error: 'github_compare_failed', detail: String(e?.message || e) }); }
 
   const commits = (cmp.commits || []).map((c) => ({
