@@ -271,6 +271,17 @@
     showGate({ note: 'Signed out.' });
   }
 
+  // Theme toggle: swap data-theme on <html>, persist choice.
+  // The initial value is applied early in admin.html so there's no
+  // flash-of-wrong-theme on first paint; this just handles the click.
+  function toggleTheme() {
+    const html = document.documentElement;
+    const next = html.dataset.theme === 'light' ? 'dark' : 'light';
+    if (next === 'light') html.dataset.theme = 'light';
+    else delete html.dataset.theme;
+    try { localStorage.setItem('ps_admin_theme', next); } catch { /* private mode */ }
+  }
+
   // ── tabs ────────────────────────────────────────────────────────
   // Friendly labels for the sub-nav (data-children is just IDs).
   const SUBTAB_LABELS = {
@@ -1360,17 +1371,125 @@
     status.textContent = `OK · ${body.urls?.length || 0} URLs (${body.source})`;
   }
 
+  // Widget embed snippet UI. Three flavours (JS / iframe / link)
+  // with live preview + Copy-to-clipboard. The "Customise" fields
+  // edit the snippet in real time, and the preview re-mounts so
+  // operators can see exactly what they'll ship.
   function renderWidgetSnippet() {
     const host = location.host;
-    const snippet =
-`<div id="my-blog"></div>
-<script src="https://${host}/widget.js"
-  data-target="#my-blog"
-  data-count="5"
-  data-title="Latest from our blog"
-  defer><\/script>`;
-    $('#widget-snippet').textContent = snippet;
-    $('#sitemap-link').href = '/sitemap.xml';
+    const origin = 'https://' + host;
+    const snippetEl  = $('#widget-snippet');
+    const previewEl  = $('#widget-preview-host');
+    const copyBtn    = $('#widget-copy');
+    const tabs       = $$('.widget-tab');
+    const optId      = $('#widget-opt-id');
+    const optTitle   = $('#widget-opt-title');
+    const optCount   = $('#widget-opt-count');
+    const optTheme   = $('#widget-opt-theme');
+    const sitemap    = $('#sitemap-link');
+    if (sitemap) sitemap.href = '/sitemap.xml';
+    if (!snippetEl || !previewEl || !copyBtn) return;
+
+    let flavour = 'js';
+
+    function build() {
+      const id    = (optId?.value || 'ps-blog').trim().replace(/[^a-z0-9-]/gi, '') || 'ps-blog';
+      const title = (optTitle?.value || '').trim();
+      const count = Math.min(50, Math.max(1, parseInt(optCount?.value, 10) || 5));
+      const theme = (optTheme?.value || 'auto');
+      const titleAttr = title ? `\n  data-title="${title.replace(/"/g, '&quot;')}"` : '';
+      const themeAttr = theme !== 'auto' ? `\n  data-theme="${theme}"` : '';
+
+      let s = '';
+      if (flavour === 'js') {
+        s = `<div id="${id}"></div>\n` +
+            `<script src="${origin}/widget.js"\n` +
+            `  data-target="#${id}"\n` +
+            `  data-count="${count}"${titleAttr}${themeAttr}\n` +
+            `  defer><\/script>`;
+      } else if (flavour === 'iframe') {
+        const qs = new URLSearchParams();
+        qs.set('count', count);
+        if (title) qs.set('title', title);
+        if (theme !== 'auto') qs.set('theme', theme);
+        s = `<iframe\n` +
+            `  src="${origin}/embed?${qs.toString()}"\n` +
+            `  style="width:100%;border:0;min-height:480px"\n` +
+            `  loading="lazy"\n` +
+            `  title="${(title || 'Blog').replace(/"/g, '&quot;')}"\n` +
+            `></iframe>`;
+      } else {
+        s = `${origin}/blog`;
+      }
+      snippetEl.textContent = s;
+
+      // Live preview — re-mount on every change so operators see
+      // the current shape. For 'link' we just show the URL.
+      while (previewEl.firstChild) previewEl.removeChild(previewEl.firstChild);
+      if (flavour === 'link') {
+        const a = document.createElement('a');
+        a.href = origin + '/blog'; a.target = '_blank'; a.rel = 'noopener';
+        a.textContent = origin + '/blog';
+        previewEl.appendChild(a);
+      } else {
+        const host = document.createElement('div');
+        host.id = id;
+        previewEl.appendChild(host);
+        // Always render the preview via the JS widget (same DOM,
+        // less iframe overhead). Drop the existing widget.js if
+        // the user is on the iframe flavour — preview still uses
+        // the JS path for parity.
+        const old = document.getElementById('ps-widget-preview-script');
+        if (old) old.remove();
+        const sc = document.createElement('script');
+        sc.id = 'ps-widget-preview-script';
+        sc.src = origin + '/widget.js?cb=' + Date.now();
+        sc.defer = true;
+        sc.dataset.target = '#' + id;
+        sc.dataset.count  = String(count);
+        if (title) sc.dataset.title = title;
+        if (theme !== 'auto') sc.dataset.theme = theme;
+        previewEl.appendChild(sc);
+      }
+    }
+
+    // Tab switching.
+    tabs.forEach((t) => {
+      t.addEventListener('click', () => {
+        tabs.forEach((x) => x.classList.toggle('is-active', x === t));
+        flavour = t.dataset.flavour;
+        build();
+      });
+    });
+
+    // Live update on customise inputs.
+    [optId, optTitle, optCount, optTheme].forEach((el) => {
+      el?.addEventListener('input', build);
+      el?.addEventListener('change', build);
+    });
+
+    // Copy to clipboard.
+    copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(snippetEl.textContent);
+        copyBtn.classList.add('is-copied');
+        copyBtn.textContent = '✓ Copied';
+        setTimeout(() => {
+          copyBtn.classList.remove('is-copied');
+          copyBtn.textContent = 'Copy';
+        }, 2000);
+      } catch {
+        // Clipboard denied — fall back to selecting the text
+        const range = document.createRange();
+        range.selectNode(snippetEl);
+        window.getSelection().removeAllRanges();
+        window.getSelection().addRange(range);
+        copyBtn.textContent = 'Press ⌘C';
+        setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2500);
+      }
+    });
+
+    build();
   }
 
   // ── tiny helpers ────────────────────────────────────────────────
@@ -1689,6 +1808,9 @@
     $('#dash').hidden = false;
     $$('.tab').forEach((t) => t.addEventListener('click', () => activateTab(t.dataset.tab)));
     $('#lock').addEventListener('click', doLogout);
+    // Theme toggle. Applied early in <head> via the IIFE in
+    // admin.html; this binding just handles click → swap → persist.
+    $('#theme-toggle')?.addEventListener('click', toggleTheme);
     // Populate the version badge in the top bar. Runs on every
     // mount so a re-login after an update shows the fresh version.
     // Failures are silent — the badge stays hidden and the admin

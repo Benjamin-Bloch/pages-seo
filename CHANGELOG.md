@@ -9,7 +9,19 @@ The format is loosely Keep-a-Changelog, dates in ISO order.
 
 ## 1.0.2 — 2026-05-21
 
-Content-quality release. Targets the "Workers AI generates short generic blogs" complaint.
+Content-quality + admin-UX release.
+
+### Added
+- **Light/dark mode** in /admin. Topbar toggle (☀ / ☾), persisted in
+  localStorage. Applied before first paint so there's no
+  flash-of-wrong-theme. Same accent + status colours in both modes.
+- **Widget copy-paste, three flavours.** /admin → Distribution → SEO
+  now has a proper embed-snippet card with:
+  - tabs for JavaScript, iframe, and link-only flavours
+  - inline Copy button with ⌘C fallback when clipboard is denied
+  - "Customise" options panel (container id, heading, post count,
+    light/dark/auto theme)
+  - live preview that re-mounts on every change
 
 ### Changed
 - **Workers AI default text model upgraded** from `@cf/meta/llama-3.3-70b-instruct-fp8-fast`

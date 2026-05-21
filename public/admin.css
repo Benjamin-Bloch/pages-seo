@@ -21,6 +21,135 @@
   --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+/* Light theme — opt-in via data-theme="light" on <html>. Triggered
+   by the topbar theme toggle and persisted in localStorage. Keeps
+   the same accent (Workers AI cyan) and the same status colours
+   so muscle memory transfers between modes. */
+:root[data-theme="light"]{
+  --bg: #f7f5ee;
+  --bg-soft: #efece2;
+  --bg-card: #ffffff;
+  --ink: #0a0c10;
+  --ink-dim: #4b525e;
+  --ink-faint: #8a93a3;
+  --accent: #0a6e62;
+  --accent-soft: rgba(10,110,98,0.10);
+  --line: rgba(10,12,16,0.10);
+  --line-2: rgba(10,12,16,0.18);
+  --good: #137a3a;
+  --warn: #8a5a00;
+  --bad: #b3203d;
+}
+@media (prefers-reduced-motion: no-preference) {
+  html { transition: background-color .15s, color .15s; }
+}
+
+/* Topbar theme toggle — show the icon for the mode the click will
+   switch INTO. Default is dark, so show ☀ (switch to light). */
+.theme-toggle { padding: 6px 10px; font-size: 16px; line-height: 1; }
+.theme-toggle .theme-icon-dark { display: none; }
+.theme-toggle .theme-icon-light { display: inline; }
+:root[data-theme="light"] .theme-toggle .theme-icon-light { display: none; }
+:root[data-theme="light"] .theme-toggle .theme-icon-dark { display: inline; }
+
+/* Embed-widget card on Distribution → SEO. Three flavours of snippet
+   (JS, iframe, link), a live preview, and a Copy button right on the
+   snippet so users don't have to triple-click. */
+.widget-tabs {
+  display: inline-flex; gap: 2px; padding: 3px;
+  background: var(--bg-soft); border: 1px solid var(--line);
+  border-radius: 8px; margin: 12px 0 10px;
+}
+.widget-tab {
+  background: transparent; border: 0; padding: 6px 12px;
+  font: inherit; font-size: 12px; color: var(--ink-dim);
+  border-radius: 6px; cursor: pointer;
+}
+.widget-tab:hover { color: var(--ink); }
+.widget-tab.is-active {
+  background: var(--bg-card); color: var(--ink);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+}
+.widget-snippet-wrap { position: relative; }
+.widget-snippet {
+  margin: 0; padding: 14px 80px 14px 14px;
+  background: var(--bg-soft); border: 1px solid var(--line);
+  border-radius: 8px; font-family: var(--mono); font-size: 12.5px;
+  line-height: 1.6; color: var(--ink); white-space: pre-wrap;
+  word-break: break-word;
+  min-height: 60px;
+}
+.widget-copy {
+  position: absolute; top: 8px; right: 8px;
+  padding: 5px 12px; font-size: 11px;
+}
+.widget-copy.is-copied { background: var(--good); color: var(--bg); border-color: var(--good); }
+
+.widget-options { margin: 14px 0 10px; }
+.widget-options summary {
+  cursor: pointer; font-size: 13px; color: var(--ink-dim);
+  user-select: none;
+  list-style: none;
+}
+.widget-options summary::-webkit-details-marker { display: none; }
+.widget-options summary::before {
+  content: "▸"; display: inline-block; margin-right: 6px;
+  transition: transform .15s;
+  font-size: 0.85em;
+}
+.widget-options[open] summary::before { transform: rotate(90deg); }
+.widget-options-grid {
+  margin-top: 10px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+}
+.widget-options-grid label {
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 12px; color: var(--ink-dim);
+}
+.widget-options-grid input,
+.widget-options-grid select {
+  padding: 7px 10px;
+  background: var(--bg-soft); border: 1px solid var(--line-2);
+  border-radius: 6px; color: var(--ink); font: inherit; font-size: 13px;
+}
+@media (max-width: 600px) {
+  .widget-options-grid { grid-template-columns: 1fr; }
+  .widget-snippet { font-size: 11.5px; padding-right: 14px; }
+  .widget-copy { position: static; margin-top: 8px; width: 100%; }
+}
+
+.widget-preview {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  overflow: hidden;
+}
+.widget-preview-bar {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 12px;
+  background: var(--bg-soft);
+  border-bottom: 1px solid var(--line);
+}
+.widget-preview-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--ink-faint); opacity: 0.5;
+}
+.widget-preview-label {
+  margin-left: auto; font-size: 11px;
+  font-family: var(--mono); color: var(--ink-faint);
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+#widget-preview-host {
+  padding: 16px;
+  min-height: 80px;
+  /* Preview always reads as a "white site" so users see what
+     visitors of their public site would see, regardless of admin
+     theme. Embedded widget.js writes its own styling inside. */
+  background: #fff;
+  color: #111;
+}
+
 *,*::before,*::after{box-sizing:border-box}
 html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.5;-webkit-font-smoothing:antialiased}
 a{color:var(--accent);text-decoration:none}

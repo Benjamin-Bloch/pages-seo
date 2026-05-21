@@ -10,6 +10,16 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" />
 <link rel="stylesheet" href="/admin.css" />
 <link rel="stylesheet" href="/cover-editor.css" />
+<script>
+  // Apply persisted theme before first paint so the admin doesn't
+  // flash dark-then-light on reload. Default is dark (no attr).
+  (function () {
+    try {
+      var t = localStorage.getItem('ps_admin_theme');
+      if (t === 'light') document.documentElement.dataset.theme = 'light';
+    } catch (e) { /* private mode / disabled storage */ }
+  })();
+</script>
 </head>
 <body>
 
@@ -128,6 +138,12 @@
               title="Installed version" data-jump-to="updates">
         <span class="version-dot" hidden></span>
         <span class="version-label">…</span>
+      </button>
+      <button id="theme-toggle" class="btn btn-ghost btn-sm theme-toggle" type="button"
+              title="Toggle light/dark mode" aria-label="Toggle light/dark mode">
+        <!-- Icon swapped via CSS on [data-theme="light"] root. -->
+        <span class="theme-icon theme-icon-dark" aria-hidden="true">☾</span>
+        <span class="theme-icon theme-icon-light" aria-hidden="true">☀</span>
       </button>
       <button id="open-wizard" class="btn btn-ghost btn-sm" title="Re-run the onboarding wizard">Setup wizard</button>
       <button id="lock" class="btn btn-ghost btn-sm">Sign out</button>
@@ -283,11 +299,53 @@
         <h2>Live sitemap</h2>
         <p><a id="sitemap-link" href="/sitemap.xml" target="_blank">/sitemap.xml ↗</a></p>
       </div>
-      <div class="card">
+      <div class="card widget-card">
         <div class="card-eyebrow">Embed widget</div>
-        <h2>Drop the latest posts on any site</h2>
-        <p>One-line script. Cross-origin enabled.</p>
-        <pre id="widget-snippet" class="log"></pre>
+        <h2>Drop your blog on any site</h2>
+        <p class="muted">Paste one of these snippets anywhere — Webflow, Shopify, WordPress, a plain HTML page. The widget renders your most recent published posts inline. Cross-origin enabled.</p>
+
+        <div class="widget-tabs" role="tablist">
+          <button class="widget-tab is-active" type="button" data-flavour="js">JavaScript</button>
+          <button class="widget-tab" type="button" data-flavour="iframe">iframe</button>
+          <button class="widget-tab" type="button" data-flavour="link">Link only</button>
+        </div>
+
+        <div class="widget-snippet-wrap">
+          <pre id="widget-snippet" class="widget-snippet"></pre>
+          <button id="widget-copy" class="btn btn-sm widget-copy" type="button">Copy</button>
+        </div>
+
+        <details class="widget-options">
+          <summary>Customise</summary>
+          <div class="widget-options-grid">
+            <label>Container id
+              <input id="widget-opt-id" type="text" value="ps-blog" />
+            </label>
+            <label>Heading
+              <input id="widget-opt-title" type="text" placeholder="Latest from our blog" />
+            </label>
+            <label>Posts to show
+              <input id="widget-opt-count" type="number" min="1" max="50" value="5" />
+            </label>
+            <label>Theme
+              <select id="widget-opt-theme">
+                <option value="auto">Match site (auto)</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+            </label>
+          </div>
+        </details>
+
+        <div class="widget-preview" aria-label="Live preview of the widget">
+          <div class="widget-preview-bar">
+            <span class="widget-preview-dot"></span>
+            <span class="widget-preview-dot"></span>
+            <span class="widget-preview-dot"></span>
+            <span class="widget-preview-label">Preview</span>
+          </div>
+          <div id="widget-preview-host"></div>
+        </div>
       </div>
     </section>
 
