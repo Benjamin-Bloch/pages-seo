@@ -86,6 +86,13 @@ a:hover{text-decoration:underline}
 .card > p{margin:0 0 16px;color:var(--ink-dim);font-size:14px}
 .card-stat{font-size:36px;font-weight:600;color:var(--ink);letter-spacing:-0.02em}
 .card-sub{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);margin-top:4px}
+/* "Stuck? Hand off to an AI" card — slightly tinted so it reads as an
+   escape hatch rather than a primary control. */
+.ai-help-card{
+  background:linear-gradient(135deg, rgba(122,255,240,0.04), rgba(212,175,98,0.04));
+  border-color:rgba(122,255,240,0.32);
+}
+.ai-help-card .card-eyebrow{color:#0a6e62}
 
 .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .status{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--ink-faint)}

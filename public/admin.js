@@ -1621,8 +1621,49 @@
         $('#providers-test')?.addEventListener('click', testProviders);
         $('#audit-refresh')?.addEventListener('click', loadAudit);
         $('#audit-filter')?.addEventListener('change', loadAudit);
+        wireAiHelp();
       }
       initialLoad();
+    }
+
+    // Personalise the "Set up with AI" card with the user's own
+    // slug + site URL so the LLM gets concrete URLs to reference
+    // instead of placeholders. Also wires a "Copy prompt" button
+    // that fetches the prompt directly (avoids a tab roundtrip
+    // when the user just wants the text on their clipboard).
+    function wireAiHelp() {
+      const settings = window.__psSettings || {};
+      const slug = settings.install_cf_project || settings.site_slug || '';
+      const site = (settings.site_url || location.origin).replace(/\/$/, '');
+      const admin = site + '/admin';
+      const version = (window.__psVersion?.short || '').slice(0, 12);
+      const qs = new URLSearchParams();
+      if (slug)    qs.set('slug', slug);
+      if (site)    qs.set('site', site);
+      if (admin)   qs.set('admin', admin);
+      if (version) qs.set('version', version);
+      const base = 'https://seo.benjaminb.xyz/ai-setup';
+      const repairBtn = $('#ai-help-repair');
+      const updateBtn = $('#ai-help-update');
+      if (repairBtn) repairBtn.href = `${base}?mode=repair&${qs.toString()}`;
+      if (updateBtn) updateBtn.href = `${base}?mode=update&${qs.toString()}`;
+
+      const copyBtn = $('#ai-help-copy');
+      const statusEl = $('#ai-help-status');
+      copyBtn?.addEventListener('click', async () => {
+        statusEl.textContent = 'Fetching prompt…';
+        try {
+          const url = 'https://seo.benjaminb.xyz/api/ai-prompt?mode=repair&' + qs.toString();
+          const r = await fetch(url, { cache: 'no-store' });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          const text = await r.text();
+          await navigator.clipboard.writeText(text);
+          statusEl.textContent = `✓ Copied (${Math.round(text.length / 1024)}k chars) — paste into any AI`;
+          setTimeout(() => { statusEl.textContent = ''; }, 5000);
+        } catch (e) {
+          statusEl.textContent = 'Copy failed — open the link instead.';
+        }
+      });
     }
     return { init };
   })();

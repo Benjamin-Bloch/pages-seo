@@ -619,6 +619,26 @@
 
     <!-- ============ STATUS ============ -->
     <section data-page="status" class="page" hidden>
+      <div class="card ai-help-card">
+        <div class="card-eyebrow">Stuck?</div>
+        <h2>Hand off to an AI</h2>
+        <p class="muted">
+          One click generates a self-contained prompt with <em>your</em> site
+          URLs and admin link baked in. Paste it into ChatGPT, Claude or
+          Gemini and it'll diagnose any issue end-to-end.
+        </p>
+        <div class="row form-row" style="margin-top:8px;flex-wrap:wrap;gap:8px">
+          <a id="ai-help-repair" class="btn btn-primary" href="https://seo.benjaminb.xyz/ai-setup?mode=repair" target="_blank" rel="noopener">
+            ✦ Get an AI to fix it
+          </a>
+          <a id="ai-help-update" class="btn" href="https://seo.benjaminb.xyz/ai-setup?mode=update" target="_blank" rel="noopener">
+            Update guide
+          </a>
+          <button id="ai-help-copy" class="btn" type="button">Copy prompt</button>
+          <span id="ai-help-status" class="muted" aria-live="polite"></span>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-eyebrow">Health</div>
         <h2>System status</h2>
