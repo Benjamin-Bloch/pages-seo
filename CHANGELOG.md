@@ -7,6 +7,29 @@ version.
 
 The format is loosely Keep-a-Changelog, dates in ISO order.
 
+## 1.0.1 — 2026-05-21
+
+Patch release. Fixes Update flow regressions surfaced while smoke-testing 1.0.0.
+
+### Fixed
+- `/api/admin/update/apply` was POSTing an empty JSON body to Cloudflare's
+  Pages deployments endpoint, which returned 400 *"A 'manifest' field was
+  expected in the request body"*. The endpoint actually wants a
+  `multipart/form-data` body with a `branch` field for Git-linked projects
+  (the manifest path is for Direct Upload only). Now sends the right shape.
+- `install_method='maintainer'` installs (i.e. `seo.benjaminb.xyz` itself)
+  couldn't trigger an in-app update — `can_apply` was hard-gated on
+  `'browser'`. Both `'browser'` and `'maintainer'` produce Git-linked
+  Pages projects, so both now share the redeploy hook.
+- Admin Updates tab shows transient GitHub 502/403/429 as a yellow
+  "try again in 30s" warning instead of a red broken-system error.
+  (Cloudflare edge IPs share the 60 req/hr unauth GitHub pool;
+  occasional 502s are expected on busy edges.)
+- `/api/version`, `/api/changes`, `/api/admin/update` no longer attempt
+  the deprecated OAuth-client-credentials Basic-auth path. Only
+  `env.GITHUB_TOKEN` is honoured (deployments without one fall back to
+  Cloudflare's shared unauth pool).
+
 ## 1.0.0 — 2026-05-21
 
 First stable release. Everything below has shipped and is considered the

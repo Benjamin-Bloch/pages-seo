@@ -74,11 +74,17 @@ export const onRequestPost = async ({ env, request }) => {
     return json(409, { error: 'missing_install_metadata', detail: 'Account id or project slug not recorded at install time. Use the CLI updater instead.' });
   }
 
-  // Trigger the rebuild. Cloudflare returns 200 + the new deployment
-  // object on success.
+  // Trigger the rebuild. For Git-linked Pages projects the
+  // /deployments endpoint expects a multipart/form-data POST with
+  // the branch field — an empty JSON body returns 400 "A 'manifest'
+  // field was expected in the request body" (the manifest path is
+  // for Direct Upload deploys, which we're not doing here).
+  const branch = String(s.production_branch || 'main').trim() || 'main';
+  const form = new FormData();
+  form.append('branch', branch);
   const r = await fetch(
     `${CF_API}/accounts/${accountId}/pages/projects/${project}/deployments`,
-    { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' } },
+    { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: form },
   );
   let respBody = null;
   try { respBody = await r.json(); } catch { /* */ }
