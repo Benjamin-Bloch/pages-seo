@@ -94,7 +94,11 @@ export const onRequestGet = async ({ env, request, params }) => {
       // Browser cache 1 day, edge 1 hour. Templates are rarely-changing
       // but the source of truth is D1; an hour at the edge is enough
       // freshness for OG scrapers and slow enough to coast.
-      'cache-control': 'public, max-age=86400, s-maxage=3600',
+      // 5 min browser, 15 min edge. Short enough that template
+      // edits propagate quickly (a stale ?v= cache key catches
+      // the rest), long enough to amortise the R2-inline cost
+      // across a normal day's traffic.
+      'cache-control': 'public, max-age=300, s-maxage=900',
     },
   });
 };

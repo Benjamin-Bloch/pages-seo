@@ -98,7 +98,12 @@ export const onRequestGet = async ({ env, request, params }) => {
   return new Response(svg, {
     headers: {
       'content-type': 'image/svg+xml; charset=utf-8',
-      'cache-control': 'public, max-age=604800, s-maxage=3600',
+      // OG card lookups go through social-share scrapers that cache
+       // aggressively on their own end (Twitter, Slack, FB all
+       // cache for hours-to-days regardless of our headers), so a
+       // short server-side cache is fine — the practical refresh
+       // rate is dominated by the scrapers' own caches.
+      'cache-control': 'public, max-age=300, s-maxage=900',
     },
   });
 };

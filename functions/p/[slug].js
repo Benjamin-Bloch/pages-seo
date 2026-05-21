@@ -22,10 +22,14 @@ export const onRequestGet = async ({ env, request, params }) => {
   if (settings?.hero_image_mode === 'cover') {
     try {
       const t = await env.DB.prepare(
-        'SELECT 1 FROM cover_templates WHERE is_default = 1 LIMIT 1'
+        'SELECT updated_at FROM cover_templates WHERE is_default = 1 LIMIT 1'
       ).first();
       settings._has_default_template = !!t;
-    } catch { settings._has_default_template = false; }
+      settings._default_template_v = t?.updated_at || 0;
+    } catch {
+      settings._has_default_template = false;
+      settings._default_template_v = 0;
+    }
   }
   return new Response(renderContentPage({ env, request, post, kind: 'programmatic', settings }), {
     headers: {

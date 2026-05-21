@@ -40,9 +40,14 @@ function jsonLD({ site, post, host, kind, settings }) {
   // Same three-way precedence as the on-page <img> hero so the
   // structured-data image, the og:image, and the visible hero are
   // all the same URL.
+  // Cache-bust the cover URL with the template's updated_at so any
+  // template edit forces edge + browser revalidation. Without this,
+  // /cover/<slug>.svg can serve stale renders for up to the
+  // s-maxage TTL (15 min today) after a template change.
   const useCover = (settings?.hero_image_mode === 'cover') && settings?._has_default_template;
+  const coverV = settings?._default_template_v ? `?v=${settings._default_template_v}` : '';
   const heroAbs = useCover
-    ? `${baseUrl}/cover/${encodeURIComponent(post.slug || 'home')}.svg`
+    ? `${baseUrl}/cover/${encodeURIComponent(post.slug || 'home')}.svg${coverV}`
     : post.hero_image_key
       ? `${baseUrl}/image/${post.hero_image_key}`
       : `${baseUrl}/og/${encodeURIComponent(post.slug || 'home')}.svg`;
@@ -137,7 +142,7 @@ export function renderContentPage({ env, request, post, kind, related = [], sett
   // drops measurably.
   const useCoverEndpoint = (settings?.hero_image_mode === 'cover') && settings?._has_default_template;
   const heroSrc = useCoverEndpoint
-    ? `/cover/${esc(post.slug || 'home')}.svg`
+    ? `/cover/${esc(post.slug || 'home')}.svg${settings?._default_template_v ? '?v=' + settings._default_template_v : ''}`
     : post.hero_image_key
       ? `/image/${esc(post.hero_image_key)}`
       : `/og/${esc(post.slug || 'home')}.svg`;

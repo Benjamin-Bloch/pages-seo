@@ -38,13 +38,22 @@ export const onRequestGet = async ({ env, request, params }) => {
   // server-rendered from the template + post variables, no per-post
   // PNG stored). One query per request — D1 indexes is_default, so
   // it's effectively free.
+  //
+  // We also pull updated_at so page_render can append it as a
+  // ?v=<ts> query on the cover URL. That changes the edge cache
+  // key every time the template is edited, so admins don't see
+  // stale covers after a template update.
   if (settings?.hero_image_mode === 'cover') {
     try {
       const t = await env.DB.prepare(
-        'SELECT 1 FROM cover_templates WHERE is_default = 1 LIMIT 1'
+        'SELECT updated_at FROM cover_templates WHERE is_default = 1 LIMIT 1'
       ).first();
       settings._has_default_template = !!t;
-    } catch { settings._has_default_template = false; }
+      settings._default_template_v = t?.updated_at || 0;
+    } catch {
+      settings._has_default_template = false;
+      settings._default_template_v = 0;
+    }
   }
 
   return new Response(renderContentPage({ env, request, post, kind: 'blog', related, settings }), {
