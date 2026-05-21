@@ -299,7 +299,21 @@
     return null;
   }
 
+  // Track the currently-active page so we can short-circuit
+  // redundant activateTab calls. Without this, clicking the same
+  // tab twice (or a dispatcher that fires multiple times — e.g. a
+  // child sub-nav click during a parent re-render) would re-run
+  // all the per-tab loaders, which in some tabs (Status, Calendar)
+  // do real network work. A loop of even moderate frequency
+  // looks like an "infinite refresh" to the user.
+  let _activeTab = null;
   function activateTab(name) {
+    if (!name) return;
+    // No-op when already on this page. Lets handlers be wired
+    // permissively without worrying about double-fires.
+    if (name === _activeTab) return;
+    _activeTab = name;
+
     // Resolve to the parent group if this page is a child.
     const parent = findParentTab(name);
     const parentTabName = parent ? parent.parentTab.dataset.tab : name;
@@ -316,22 +330,33 @@
     });
 
     // Render the sub-nav strip for the parent's children, OR hide if
-    // this is a flat tab without siblings.
+    // this is a flat tab without siblings. We re-render every time
+    // (cheap; max 4 buttons) but only touch the DOM if the parent
+    // changed since last call — keeps the visual flicker down when
+    // jumping between siblings.
     const sub = document.getElementById('subtabs');
     if (sub) {
-      clearChildren(sub);
-      if (parent && parent.children.length > 1) {
-        for (const kid of parent.children) {
-          const btn = document.createElement('button');
-          btn.className = 'subtab' + (kid === name ? ' is-active' : '');
-          btn.dataset.tab = kid;
-          btn.textContent = SUBTAB_LABELS[kid] || kid;
-          btn.addEventListener('click', () => activateTab(kid));
-          sub.appendChild(btn);
+      const newParentId = parent ? parent.parentTab.dataset.tab : '';
+      if (sub.dataset.parent !== newParentId) {
+        clearChildren(sub);
+        if (parent && parent.children.length > 1) {
+          for (const kid of parent.children) {
+            const btn = document.createElement('button');
+            btn.className = 'subtab';
+            btn.dataset.tab = kid;
+            btn.textContent = SUBTAB_LABELS[kid] || kid;
+            btn.addEventListener('click', () => activateTab(kid));
+            sub.appendChild(btn);
+          }
+          sub.hidden = false;
+        } else {
+          sub.hidden = true;
         }
-        sub.hidden = false;
-      } else {
-        sub.hidden = true;
+        sub.dataset.parent = newParentId;
+      }
+      // Update the is-active class without rebuilding the buttons.
+      for (const btn of sub.querySelectorAll('.subtab')) {
+        btn.classList.toggle('is-active', btn.dataset.tab === name);
       }
     }
 
@@ -1575,6 +1600,20 @@
       }
     }
 
+    // In-flight guard: if a previous loadChecks/loadAudit is still
+    // in flight when init() is called again (e.g. user re-clicks
+    // the System tab while the first run is mid-fetch), don't
+    // start a second one. Concurrent overlapping calls were a
+    // candidate source of the "infinite refresh" feel users
+    // reported when bouncing between tabs.
+    let inFlight = false;
+    async function initialLoad() {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        await Promise.all([loadChecks(), loadAudit()]);
+      } finally { inFlight = false; }
+    }
     function init() {
       if (!mounted) {
         mounted = true;
@@ -1583,8 +1622,7 @@
         $('#audit-refresh')?.addEventListener('click', loadAudit);
         $('#audit-filter')?.addEventListener('change', loadAudit);
       }
-      loadChecks();
-      loadAudit();
+      initialLoad();
     }
     return { init };
   })();
