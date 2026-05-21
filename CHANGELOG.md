@@ -7,6 +7,21 @@ version.
 
 The format is loosely Keep-a-Changelog, dates in ISO order.
 
+## 1.0.3 — 2026-05-21
+
+Hotfix for v1.0.2.
+
+### Fixed
+- **Infinite-refresh bug** when visiting `/admin → Distribution → SEO`
+  multiple times. The new widget-snippet UI in v1.0.2 was binding
+  click/input listeners every time the SEO tab was activated, and
+  the live preview was cache-busting `widget.js` on every keystroke.
+  After a few tab switches every keystroke triggered N stacked
+  `build()` calls each fetching a fresh widget.js — the browser
+  surfaced this as constant network activity / "page is refreshing".
+  Listeners are now bound once via a `_widgetWired` guard; the
+  preview script loads from the normal cached URL.
+
 ## 1.0.2 — 2026-05-21
 
 Content-quality + admin-UX release.

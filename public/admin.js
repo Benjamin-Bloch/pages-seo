@@ -1375,22 +1375,31 @@
   // with live preview + Copy-to-clipboard. The "Customise" fields
   // edit the snippet in real time, and the preview re-mounts so
   // operators can see exactly what they'll ship.
+  //
+  // Wired ONCE on first activation of the SEO tab. Subsequent tab
+  // visits just call build() to refresh the snippet (e.g. if the
+  // hostname changed). Without this guard, each tab switch added
+  // another set of input/click listeners — every keystroke would
+  // re-inject a fresh widget.js <script>, which the browser
+  // surfaced as "page is refreshing constantly".
+  let _widgetWired = false;
+  let _widgetFlavour = 'js';
+
   function renderWidgetSnippet() {
-    const host = location.host;
-    const origin = 'https://' + host;
+    const sitemap = $('#sitemap-link');
+    if (sitemap) sitemap.href = '/sitemap.xml';
+
     const snippetEl  = $('#widget-snippet');
     const previewEl  = $('#widget-preview-host');
     const copyBtn    = $('#widget-copy');
+    if (!snippetEl || !previewEl || !copyBtn) return;
+
+    const origin = 'https://' + location.host;
     const tabs       = $$('.widget-tab');
     const optId      = $('#widget-opt-id');
     const optTitle   = $('#widget-opt-title');
     const optCount   = $('#widget-opt-count');
     const optTheme   = $('#widget-opt-theme');
-    const sitemap    = $('#sitemap-link');
-    if (sitemap) sitemap.href = '/sitemap.xml';
-    if (!snippetEl || !previewEl || !copyBtn) return;
-
-    let flavour = 'js';
 
     function build() {
       const id    = (optId?.value || 'ps-blog').trim().replace(/[^a-z0-9-]/gi, '') || 'ps-blog';
@@ -1401,13 +1410,13 @@
       const themeAttr = theme !== 'auto' ? `\n  data-theme="${theme}"` : '';
 
       let s = '';
-      if (flavour === 'js') {
+      if (_widgetFlavour === 'js') {
         s = `<div id="${id}"></div>\n` +
             `<script src="${origin}/widget.js"\n` +
             `  data-target="#${id}"\n` +
             `  data-count="${count}"${titleAttr}${themeAttr}\n` +
             `  defer><\/script>`;
-      } else if (flavour === 'iframe') {
+      } else if (_widgetFlavour === 'iframe') {
         const qs = new URLSearchParams();
         qs.set('count', count);
         if (title) qs.set('title', title);
@@ -1426,7 +1435,7 @@
       // Live preview — re-mount on every change so operators see
       // the current shape. For 'link' we just show the URL.
       while (previewEl.firstChild) previewEl.removeChild(previewEl.firstChild);
-      if (flavour === 'link') {
+      if (_widgetFlavour === 'link') {
         const a = document.createElement('a');
         a.href = origin + '/blog'; a.target = '_blank'; a.rel = 'noopener';
         a.textContent = origin + '/blog';
@@ -1437,13 +1446,18 @@
         previewEl.appendChild(host);
         // Always render the preview via the JS widget (same DOM,
         // less iframe overhead). Drop the existing widget.js if
-        // the user is on the iframe flavour — preview still uses
-        // the JS path for parity.
+        // we already mounted one (re-running build()) — appending
+        // a fresh <script> each time would stack listeners and was
+        // the cause of the "infinite refresh" bug in v1.0.2.
         const old = document.getElementById('ps-widget-preview-script');
         if (old) old.remove();
         const sc = document.createElement('script');
         sc.id = 'ps-widget-preview-script';
-        sc.src = origin + '/widget.js?cb=' + Date.now();
+        // No cache-bust query — the widget.js is the same file every
+        // build, and the cache-buster forced a fresh fetch on every
+        // keystroke. With the listener-binding fix below the build()
+        // is rate-controlled anyway, so a normal cached load is fine.
+        sc.src = origin + '/widget.js';
         sc.defer = true;
         sc.dataset.target = '#' + id;
         sc.dataset.count  = String(count);
@@ -1453,41 +1467,49 @@
       }
     }
 
-    // Tab switching.
-    tabs.forEach((t) => {
-      t.addEventListener('click', () => {
-        tabs.forEach((x) => x.classList.toggle('is-active', x === t));
-        flavour = t.dataset.flavour;
-        build();
+    // Bind listeners ONCE. activateTab('seo') re-runs this function
+    // every time the user switches to the SEO tab; without this
+    // guard each visit would stack another set of input/click
+    // listeners on the same elements. Within a few tab switches
+    // every keystroke was triggering 5-10 build() calls, each of
+    // which fetched a fresh widget.js (cache-busted), which the
+    // browser surfaced as constant network/refresh activity.
+    if (!_widgetWired) {
+      _widgetWired = true;
+
+      tabs.forEach((t) => {
+        t.addEventListener('click', () => {
+          tabs.forEach((x) => x.classList.toggle('is-active', x === t));
+          _widgetFlavour = t.dataset.flavour;
+          build();
+        });
       });
-    });
 
-    // Live update on customise inputs.
-    [optId, optTitle, optCount, optTheme].forEach((el) => {
-      el?.addEventListener('input', build);
-      el?.addEventListener('change', build);
-    });
+      [optId, optTitle, optCount, optTheme].forEach((el) => {
+        el?.addEventListener('input', build);
+        el?.addEventListener('change', build);
+      });
 
-    // Copy to clipboard.
-    copyBtn.addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(snippetEl.textContent);
-        copyBtn.classList.add('is-copied');
-        copyBtn.textContent = '✓ Copied';
-        setTimeout(() => {
-          copyBtn.classList.remove('is-copied');
-          copyBtn.textContent = 'Copy';
-        }, 2000);
-      } catch {
-        // Clipboard denied — fall back to selecting the text
-        const range = document.createRange();
-        range.selectNode(snippetEl);
-        window.getSelection().removeAllRanges();
-        window.getSelection().addRange(range);
-        copyBtn.textContent = 'Press ⌘C';
-        setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2500);
-      }
-    });
+      copyBtn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(snippetEl.textContent);
+          copyBtn.classList.add('is-copied');
+          copyBtn.textContent = '✓ Copied';
+          setTimeout(() => {
+            copyBtn.classList.remove('is-copied');
+            copyBtn.textContent = 'Copy';
+          }, 2000);
+        } catch {
+          // Clipboard denied — fall back to selecting the text
+          const range = document.createRange();
+          range.selectNode(snippetEl);
+          window.getSelection().removeAllRanges();
+          window.getSelection().addRange(range);
+          copyBtn.textContent = 'Press ⌘C';
+          setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2500);
+        }
+      });
+    }
 
     build();
   }
