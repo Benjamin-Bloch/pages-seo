@@ -933,21 +933,21 @@ export async function pingTextProvider(env, name) {
   if (!p.available(overlayed)) return { ok: false, error: 'not_configured', detail: `${name} has no key or binding` };
   const started = Date.now();
   try {
-    // 'ping' as the prompt — every provider responds with something,
-    // typically "Pong" or similar. We don't validate the content;
-    // success = the call returned at all.
-    const out = await p.call({
-      env: overlayed,
-      // Keep the prompt minimal so the ping doesn't accidentally
-      // chew through tokens. Some providers floor at a few tokens
-      // anyway, but we set max_tokens=20 to be safe.
-      prompt: 'Reply with the single word: pong.',
-      max_tokens: 20,
-    });
+    // Provider handlers all share the signature (env, prompt) — same
+    // shape generateContent uses at the real call site (line ~865).
+    // Earlier this ping passed an object `{env, prompt, max_tokens}`
+    // which made every handler read `env.AI` from the OBJECT, not
+    // the real env — so the test button reported "binding missing"
+    // even when Workers AI was wired correctly.
+    const prompt = 'Return a JSON object: {"pong": true}. No other text.';
+    const out = await p.call(overlayed, prompt);
     const ms = Date.now() - started;
-    const sample = typeof out === 'string'
-      ? out.slice(0, 200)
-      : (out?.text || out?.content || JSON.stringify(out)).slice(0, 200);
+    // Handlers return either a parsed JSON object or { parsed, usage }
+    // depending on which provider. Normalise to a short sample string.
+    const obj = out?.parsed ?? out;
+    const sample = typeof obj === 'string'
+      ? obj.slice(0, 200)
+      : JSON.stringify(obj).slice(0, 200);
     return { ok: true, ms, sample };
   } catch (e) {
     const ms = Date.now() - started;
