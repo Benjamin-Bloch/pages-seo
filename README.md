@@ -36,11 +36,22 @@ Plug in a URL (or a keyword list), point a cron at it, and `pages-seo` quietly p
 
 ## 🚀 Install in one command
 
+Run the installer straight from the demo site — pick whichever runtime you already have:
+
 ```bash
-npx pages-seo-install
+# Bash / Zsh
+curl -fsSL https://seo.benjaminb.xyz/install/run.sh | bash
+
+# Python
+curl -fsSL https://seo.benjaminb.xyz/install/run.py | python3
+
+# Node
+curl -fsSL https://seo.benjaminb.xyz/install/run.js | node
 ```
 
-That's it. The installer will:
+Prefer a browser flow with no terminal? Open **[seo.benjaminb.xyz/install](https://seo.benjaminb.xyz/install)** and sign in with GitHub.
+
+Either way, the installer will:
 
 1. Check that `wrangler` is installed (offers to install it for you).
 2. Run `wrangler login` if needed — opens your browser, no API token to copy.
@@ -50,10 +61,10 @@ That's it. The installer will:
 6. Set `SITE_NAME` and `SITE_URL` as Pages environment variables.
 7. Open your new site's `/admin` with the credentials baked into the URL hash, so the first-run setup card auto-creates your account.
 
-Total wall-clock time: about 2 minutes. The CLI is idempotent — re-run with the same slug if anything fails and it'll pick up from where it stopped. See [`cli/README.md`](./cli/README.md) for details.
+Total wall-clock time: about 2 minutes. The installer is idempotent — re-run with the same slug if anything fails and it'll pick up from where it stopped. See [`cli/README.md`](./cli/README.md) for details.
 
 > [!TIP]
-> If you'd rather not run npx, the legacy `bash setup.sh` flow still works from a clone (provisions via Wrangler the same way) — see the section below.
+> The legacy `bash setup.sh` flow also works from a clone (provisions via Wrangler the same way) — see the section below.
 
 ### Alternatives
 

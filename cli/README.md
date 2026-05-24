@@ -4,8 +4,12 @@ One-command CLI installer for [pages-seo](https://github.com/Benjamin-Bloch/page
 
 ## Usage
 
+Run the installer straight from the live site (no npm publish needed) — pick the runtime you have:
+
 ```bash
-npx pages-seo-install
+curl -fsSL https://seo.benjaminb.xyz/install/run.sh | bash    # Bash / Zsh
+curl -fsSL https://seo.benjaminb.xyz/install/run.py | python3 # Python
+curl -fsSL https://seo.benjaminb.xyz/install/run.js | node    # Node
 ```
 
 That's it. The script will:
