@@ -90,16 +90,6 @@ After you save brand DNA, the admin **Content Calendar** auto-plans the next fou
 
 You can drag-add, remove, swap, or rename any slot. The cron picks up "scheduled" slots in date order; manual "Run now" promotes a slot regardless of date.
 
-## 🖼️ Screenshots
-
-<div align="center">
-
-| Landing | Blog post | Admin · Content Calendar |
-|---|---|---|
-| [![landing](https://seo.benjaminb.xyz/og.png)](https://seo.benjaminb.xyz) | [![post](https://seo.benjaminb.xyz/og.png)](https://seo.benjaminb.xyz/blog) | [![admin](https://seo.benjaminb.xyz/og.png)](https://seo.benjaminb.xyz/admin) |
-
-</div>
-
 ## 🗓️ Day-to-day
 
 | Action | Where |
