@@ -210,7 +210,26 @@ img { max-width: 100%; height: auto; display: block; }
 .prose p { margin: 0 0 18px; }
 .prose ul, .prose ol { margin: 0 0 20px; padding-left: 26px; }
 .prose li { margin-bottom: 8px; }
+/* Nested lists: tighter top/bottom so sub-items hug their parent. */
+.prose li > ul, .prose li > ol { margin: 8px 0 4px; }
 .prose strong { color: var(--ink); font-weight: 600; }
+.prose em { font-style: italic; }
+.prose del { color: var(--muted); text-decoration: line-through; }
+/* Blockquotes — editorial left rule + serif, distinct from agent callouts. */
+.prose blockquote {
+  margin: 28px 0; padding: 4px 0 4px 22px;
+  border-left: 3px solid var(--line-strong);
+  color: var(--ink-2);
+  font-family: var(--font-serif); font-size: 1.15rem; line-height: 1.5;
+}
+.prose blockquote p { margin: 0 0 10px; }
+.prose blockquote p:last-child { margin-bottom: 0; }
+/* Inline content images in posts. */
+.prose img {
+  max-width: 100%; height: auto; display: block;
+  border-radius: 10px; border: 1px solid var(--line);
+  margin: 24px auto;
+}
 .prose a { color: var(--link); text-decoration: underline; text-underline-offset: 3px; }
 .prose code {
   font-family: var(--font-mono); font-size: 0.88em;
