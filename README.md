@@ -239,6 +239,18 @@ Google's stance (as of late 2025) is that AI content is fine if it's useful. Thi
 [GitHub Issues](https://github.com/Benjamin-Bloch/pages-seo/issues) — bug template and feature template included.
 </details>
 
+## ⭐ Star history
+
+<a href="https://star-history.com/#Benjamin-Bloch/pages-seo&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Benjamin-Bloch/pages-seo&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Benjamin-Bloch/pages-seo&type=Date" />
+    <img alt="Star history for Benjamin-Bloch/pages-seo" src="https://api.star-history.com/svg?repos=Benjamin-Bloch/pages-seo&type=Date" />
+  </picture>
+</a>
+
+If you find `pages-seo` useful, a star helps it surface to others who'd benefit. There's no analytics on this repo — the only signal I have that this matters to anyone is the count above this line.
+
 ## 🤝 Contributing
 
 PRs welcome. See [CONTRIBUTING.md](./.github/CONTRIBUTING.md) for the short version. The codebase is small and entirely framework-free JavaScript — no React, no build step, no transpiler.
