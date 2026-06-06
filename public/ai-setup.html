@@ -1,0 +1,710 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Set up pages-seo with AI · pages-seo</title>
+<meta name="description" content="Tool-specific prompts for installing, updating, or repairing pages-seo with Claude Code, ChatGPT Codex, Copilot Chat, or any chat AI." />
+<link rel="canonical" href="https://seo.benjaminb.xyz/ai-setup" />
+<link rel="stylesheet" href="/marketing.css" />
+<style>
+  .ai-page {
+    max-width: 760px; margin: 3rem auto; padding: 0 1.5rem 5rem;
+  }
+  .ai-head { text-align: center; margin-bottom: 2.5rem; }
+  .ai-head h1 { font-size: 2rem; margin: 0 0 0.5rem; }
+  .ai-head p  { color: #666; line-height: 1.6; margin: 0; font-size: 1rem; }
+  .mode-tabs {
+    display: flex; gap: 4px;
+    padding: 4px;
+    background: var(--bg-2, #f3f1ec);
+    border-radius: 10px;
+    margin: 0 0 1.5rem;
+    width: max-content;
+  }
+  .mode-tab {
+    background: transparent;
+    border: 0;
+    padding: 8px 16px;
+    font: inherit; font-size: 0.92rem;
+    color: var(--ink-dim, #666);
+    border-radius: 7px;
+    cursor: pointer;
+  }
+  .mode-tab.is-active {
+    background: var(--bg, #fff);
+    color: var(--ink, #111);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    font-weight: 600;
+  }
+  .prompt-card {
+    background: var(--bg, #fff);
+    border: 1px solid var(--line, rgba(0,0,0,0.1));
+    border-radius: 14px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 24px rgba(0,0,0,0.06);
+  }
+  .prompt-card h2 {
+    font-size: 1.1rem; margin: 0 0 0.5rem; font-weight: 600;
+  }
+  .prompt-card p.lede { margin: 0 0 1rem; color: var(--ink-dim, #666); line-height: 1.55; }
+  .copy-row {
+    display: flex; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap;
+  }
+  .copy-row button, .copy-row a {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font: inherit; font-size: 0.9rem; font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background .12s, border-color .12s, color .12s;
+  }
+  .copy-btn {
+    background: var(--ink, #111);
+    color: var(--bg, #fff);
+    border: 0;
+  }
+  .copy-btn:hover { background: #333; }
+  .copy-btn.is-copied { background: #2ecc71; }
+  .ai-link {
+    background: var(--bg-2, #f3f1ec);
+    color: var(--ink, #111);
+    border: 1px solid var(--line, rgba(0,0,0,0.1));
+  }
+  .ai-link:hover { background: #e8e5dd; border-color: #999; }
+  .ai-link .logo {
+    width: 16px; height: 16px; display: inline-block;
+    vertical-align: -3px;
+  }
+  pre.prompt-text {
+    background: var(--bg-2, #f3f1ec);
+    border: 1px solid var(--line, rgba(0,0,0,0.1));
+    border-radius: 8px;
+    padding: 1rem 1.2rem;
+    font-family: ui-monospace, "JetBrains Mono", Menlo, monospace;
+    font-size: 0.78rem;
+    line-height: 1.55;
+    max-height: 320px;
+    overflow: auto;
+    white-space: pre-wrap;
+    color: var(--ink, #111);
+    margin: 0;
+  }
+  .ai-steps {
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--line, rgba(0,0,0,0.1));
+  }
+  .ai-steps h2 { font-size: 1rem; margin: 0 0 1rem; font-weight: 600; }
+  .ai-steps ol { padding-left: 1.2rem; line-height: 1.7; color: var(--ink-dim, #555); }
+  .ai-steps strong { color: var(--ink, #111); }
+  .alt-links {
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--line, rgba(0,0,0,0.1));
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--ink-dim, #666);
+  }
+  .alt-links a { color: var(--ink, #111); margin: 0 0.5rem; }
+
+  /* "Personalized for …" indicator */
+  .personal-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin-top: 1rem; padding: 6px 12px;
+    background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.32);
+    border-radius: 999px; font-size: 0.82rem; color: #166534;
+  }
+  .personal-badge code {
+    background: rgba(34,197,94,0.14); padding: 1px 6px;
+    border-radius: 4px; font-size: 0.92em;
+  }
+  .personal-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #16a34a;
+    box-shadow: 0 0 0 0 rgba(22,163,74,0.6);
+    animation: personal-pulse 2s infinite;
+  }
+  @keyframes personal-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(22,163,74,0.55); }
+    70% { box-shadow: 0 0 0 8px rgba(22,163,74,0); }
+    100% { box-shadow: 0 0 0 0 rgba(22,163,74,0); }
+  }
+  @media (prefers-reduced-motion: reduce) { .personal-dot { animation: none; } }
+
+  /* Live diagnose panel — shown above the prompt when the user
+     arrived via "Get an AI to fix it" in their admin. */
+  .diagnose-panel {
+    background: #fff;
+    border: 1px solid var(--line, rgba(0,0,0,0.1));
+    border-radius: 14px;
+    padding: 1.25rem 1.5rem;
+    margin: 0 0 1.25rem;
+    box-shadow: 0 2px 24px rgba(0,0,0,0.04);
+  }
+  .diagnose-loading {
+    display: flex; align-items: center; gap: 10px;
+    color: var(--ink-dim, #555); font-size: 0.95rem;
+  }
+  .diagnose-spinner {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid rgba(0,0,0,0.15);
+    border-top-color: var(--ink, #111);
+    animation: diagnose-spin .8s linear infinite;
+  }
+  @keyframes diagnose-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    .diagnose-spinner { animation: none; }
+  }
+  .diagnose-head {
+    font-size: 0.98rem;
+    margin: 0 0 0.85rem;
+    color: var(--ink, #111);
+  }
+  .diagnose-list {
+    margin: 0; padding: 0; list-style: none;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .diagnose-list li {
+    padding: 10px 12px;
+    background: var(--bg-2, #f8f7f3);
+    border: 1px solid var(--line, rgba(0,0,0,0.08));
+    border-radius: 8px;
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+  .diagnose-list li.diagnose-good {
+    background: rgba(34,197,94,0.06);
+    border-color: rgba(34,197,94,0.28);
+    color: #166534;
+  }
+  .diagnose-sev { display: inline-block; margin-right: 6px; }
+  .diagnose-detail { color: var(--ink-dim, #555); font-size: 0.85rem; }
+  .diagnose-foot {
+    margin-top: 0.85rem;
+    font-size: 0.82rem;
+    color: var(--ink-dim, #666);
+  }
+
+  /* Pre-flight checklist card */
+  .checklist-card {
+    background: rgba(122,255,240,0.05);
+    border: 1px solid rgba(122,255,240,0.32);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    margin: 0 0 1.25rem;
+  }
+  .checklist-card h3 {
+    margin: 0 0 0.5rem; font-size: 0.85rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--ink-dim, #555);
+  }
+  .checklist-card ul {
+    margin: 0; padding-left: 1.2rem; list-style: "✓ ";
+    font-size: 0.92rem; line-height: 1.7; color: var(--ink, #111);
+  }
+  .checklist-card ul li[hidden] { display: none; }
+  .checklist-card a { color: var(--ink, #111); border-bottom: 1px dotted #999; }
+  .checklist-card code {
+    background: rgba(0,0,0,0.06); padding: 1px 6px;
+    border-radius: 4px; font-size: 0.85em;
+  }
+
+  /* Prompt preview: hidden by default to keep the page calm */
+  .prompt-toggle {
+    margin-top: 1rem;
+    border-top: 1px solid var(--line, rgba(0,0,0,0.08));
+    padding-top: 1rem;
+  }
+  .prompt-toggle summary {
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--ink-dim, #666);
+    user-select: none;
+    list-style: none;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .prompt-toggle summary::-webkit-details-marker { display: none; }
+  .prompt-toggle summary::before {
+    content: "▸"; font-size: 0.8em;
+    transition: transform .15s;
+    display: inline-block;
+  }
+  .prompt-toggle[open] summary::before { transform: rotate(90deg); }
+  .prompt-toggle summary:hover { color: var(--ink, #111); }
+  .prompt-toggle pre.prompt-text { margin-top: 0.75rem; }
+
+  /* Tool picker — grid of tool cards above the mode tabs */
+  .tool-picker {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 10px;
+    margin: 0 0 1.5rem;
+  }
+  .tool-card {
+    background: var(--bg, #fff);
+    border: 1px solid var(--line, rgba(0,0,0,0.12));
+    border-radius: 10px;
+    padding: 12px 14px;
+    cursor: pointer;
+    text-align: left;
+    font: inherit;
+    transition: border-color .12s, box-shadow .12s, background .12s;
+  }
+  .tool-card:hover { border-color: #999; }
+  .tool-card.is-active {
+    border-color: var(--ink, #111);
+    background: var(--ink, #111);
+    color: var(--bg, #fff);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+  }
+  .tool-card .tool-name { display: block; font-weight: 600; font-size: 0.92rem; margin-bottom: 2px; }
+  .tool-card .tool-blurb { display: block; font-size: 0.76rem; color: var(--ink-dim, #777); line-height: 1.4; }
+  .tool-card.is-active .tool-blurb { color: rgba(255,255,255,0.78); }
+
+  .picker-label {
+    font-size: 0.78rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--ink-dim, #777);
+    margin: 0 0 0.5rem;
+  }
+
+  /* Mobile tightening */
+  @media (max-width: 600px) {
+    .ai-page { margin: 1.25rem auto; padding: 0 1rem 3rem; }
+    .ai-head { margin-bottom: 1.5rem; }
+    .ai-head h1 { font-size: 1.5rem; }
+    .ai-head p { font-size: 0.92rem; }
+    .mode-tabs { width: 100%; }
+    .mode-tab { flex: 1; padding: 10px 8px; font-size: 0.85rem; }
+    .prompt-card { padding: 1.1rem; }
+    .copy-row { gap: 6px; }
+    .copy-row button, .copy-row a {
+      width: 100%; justify-content: center; padding: 11px 12px;
+    }
+    pre.prompt-text { font-size: 0.72rem; max-height: 240px; }
+    .checklist-card { padding: 0.85rem 1rem; }
+  }
+</style>
+</head>
+<body>
+<header class="nav">
+  <a class="brand" href="/">pages-seo</a>
+  <nav>
+    <a href="/install">Install</a>
+    <a href="/repair">Repair</a>
+    <a href="/update">Update</a>
+    <a href="/docs">Docs</a>
+  </nav>
+</header>
+<main class="ai-page">
+  <header class="ai-head">
+    <h1>Set up with AI</h1>
+    <p>Pick your AI tool and what you want to do. We'll generate a prompt tailored to that tool's actual capabilities — paste it in and follow along.</p>
+    <div id="personal-badge" class="personal-badge" hidden>
+      <span class="personal-dot"></span>
+      <span>Personalized for <code id="personal-target">your site</code></span>
+    </div>
+  </header>
+
+  <p class="picker-label">1. Pick your AI tool</p>
+  <div class="tool-picker" role="radiogroup" aria-label="AI tool">
+    <button class="tool-card is-active" data-tool="chat" role="radio" aria-checked="true">
+      <span class="tool-name">Chat AI</span>
+      <span class="tool-blurb">ChatGPT, Claude, Gemini — pure web chat. Walks you through every click.</span>
+    </button>
+    <button class="tool-card" data-tool="claude-code" role="radio" aria-checked="false">
+      <span class="tool-name">Claude Code</span>
+      <span class="tool-blurb">CLI agent on your machine. Runs <code>wrangler</code>, can do the whole install itself.</span>
+    </button>
+    <button class="tool-card" data-tool="codex" role="radio" aria-checked="false">
+      <span class="tool-name">ChatGPT Codex</span>
+      <span class="tool-blurb">Cloud sandbox with the repo cloned. Prepares a branch for you to deploy.</span>
+    </button>
+    <button class="tool-card" data-tool="copilot" role="radio" aria-checked="false">
+      <span class="tool-name">Copilot Chat</span>
+      <span class="tool-blurb">In-IDE agent. Step-by-step terminal commands you run yourself.</span>
+    </button>
+  </div>
+
+  <p class="picker-label">2. Pick what you want to do</p>
+  <div class="mode-tabs" role="tablist">
+    <button class="mode-tab is-active" data-mode="install" role="tab">Install</button>
+    <button class="mode-tab" data-mode="update" role="tab">Update</button>
+    <button class="mode-tab" data-mode="repair" role="tab">Repair</button>
+  </div>
+
+  <div class="checklist-card">
+    <h3>Before you start, have ready:</h3>
+    <ul id="checklist">
+      <li data-mode="install update repair"><strong>A Cloudflare account</strong> (free — <a href="https://dash.cloudflare.com/sign-up" target="_blank" rel="noopener">sign up</a>)</li>
+      <li data-mode="install update"><strong>A GitHub account</strong> (free — <a href="https://github.com/signup" target="_blank" rel="noopener">sign up</a>)</li>
+      <li data-mode="install update repair"><strong>~5 minutes</strong> of uninterrupted time</li>
+      <li data-mode="repair"><strong>The URL of your broken pages-seo site</strong> (e.g. <code>my-site.pages.dev</code>)</li>
+      <li data-mode="update"><strong>The URL of your installed pages-seo site</strong></li>
+    </ul>
+  </div>
+
+  <div class="prompt-card">
+    <h2 id="mode-title">Install prompt</h2>
+    <p class="lede" id="mode-lede">A self-contained prompt that tells the AI everything it needs to walk you through installing pages-seo from scratch.</p>
+
+    <div class="copy-row">
+      <button id="copy-btn" class="copy-btn" type="button">
+        <span id="copy-label">Copy prompt</span>
+      </button>
+      <a id="open-link" class="ai-link" href="#" target="_blank" rel="noopener">
+        Copy &amp; open <span id="open-link-target">ChatGPT</span> →
+      </a>
+    </div>
+
+    <details class="prompt-toggle">
+      <summary>Preview the prompt (<span id="prompt-size">…</span>)</summary>
+      <pre class="prompt-text" id="prompt-text">Loading prompt…</pre>
+    </details>
+  </div>
+
+  <div class="ai-steps">
+    <h2>How to use it</h2>
+    <ol>
+      <li><strong>Pick a mode</strong> above (Install if you're new, Update to refresh an existing site, Repair if something's broken).</li>
+      <li><strong>Click "Copy prompt"</strong> — the full prompt copies to your clipboard.</li>
+      <li><strong>Open ChatGPT / Claude / Gemini</strong> (any of the three works equally well; pick the one you already have an account for).</li>
+      <li><strong>Paste and send.</strong> The AI will read the prompt and start asking you questions or giving instructions one step at a time.</li>
+      <li><strong>Follow along.</strong> Tell the AI when you've finished each step, and if anything errors out paste the error back to the AI — it knows the common failure modes and how to fix them.</li>
+    </ol>
+  </div>
+
+  <div class="alt-links">
+    Prefer to do it yourself?
+    <a href="/install">/install</a>·
+    <a href="/repair">/repair</a>·
+    <a href="/update">/update</a>·
+    <a href="/docs">/docs</a>
+  </div>
+</main>
+<footer class="foot">
+  <span>pages-seo</span> · <a href="/">Home</a> · <a href="/docs">Docs</a>
+</footer>
+
+<script>
+(function () {
+  const tabs = document.querySelectorAll('.mode-tab');
+  const promptEl = document.getElementById('prompt-text');
+  const copyBtn  = document.getElementById('copy-btn');
+  const copyLbl  = document.getElementById('copy-label');
+  const titleEl  = document.getElementById('mode-title');
+  const ledeEl   = document.getElementById('mode-lede');
+
+  const MODES = {
+    install: { title: 'Install',  verb: 'install',  noun: 'install pages-seo from scratch' },
+    update:  { title: 'Update',   verb: 'update',   noun: 'update an existing install to the latest version' },
+    repair:  { title: 'Repair',   verb: 'fix',      noun: 'diagnose and fix a broken install' },
+  };
+
+  // Per-tool metadata: name, blurb suffix, "open in" URL + label.
+  // Chat sets ?q= prefill (ChatGPT only). Other tools just open
+  // their site; the user pastes the prompt into the agent.
+  const TOOLS = {
+    'chat': {
+      name: 'Chat AI',
+      ledeSuffix: 'Paste into ChatGPT, Claude, or Gemini. The AI walks you through every step.',
+      openUrl:   () => `https://chatgpt.com/?q=${encodeURIComponent('I have copied a pages-seo setup prompt to my clipboard. Wait for me to paste it, then follow it step by step.')}`,
+      openLabel: 'ChatGPT',
+    },
+    'claude-code': {
+      name: 'Claude Code',
+      ledeSuffix: 'Paste into Claude Code on your machine. The agent can run wrangler and do the whole thing itself.',
+      openUrl:   () => 'https://claude.com/product/claude-code',
+      openLabel: 'Claude Code docs',
+    },
+    'codex': {
+      name: 'ChatGPT Codex',
+      ledeSuffix: 'Paste into a Codex sandbox after pointing it at the pages-seo repo (or your fork).',
+      openUrl:   () => 'https://chatgpt.com/codex',
+      openLabel: 'Codex',
+    },
+    'copilot': {
+      name: 'Copilot Chat',
+      ledeSuffix: 'Paste into Copilot Chat in your IDE. It gives you one terminal command at a time.',
+      openUrl:   () => 'https://github.com/features/copilot',
+      openLabel: 'Copilot',
+    },
+  };
+
+  let currentMode = 'install';
+  let currentTool = 'chat';
+  // Cache keyed by `${tool}:${mode}` so switching tabs is instant
+  // but each tool/mode pair still hits the API once.
+  let promptCache = {};
+
+  const sizeEl = document.getElementById('prompt-size');
+  const fmtSize = (n) => n < 1024 ? n + ' chars' : (n / 1024).toFixed(1) + 'k chars';
+
+  // Pull personalisation params off the URL once: if the user
+  // arrived from their admin's "Set up with AI" link they bring
+  // ?slug=&site=&admin=&gh=&version= which we forward to the API.
+  // ?from=diagnose flips the API call to /api/ai-prompt/diagnose
+  // which runs a live black-box scan + returns a targeted prompt.
+  const urlParams = new URLSearchParams(location.search);
+  const ctxKeys = ['slug', 'site', 'admin', 'gh', 'acct', 'version'];
+  const ctxQS = ctxKeys
+    .map((k) => urlParams.get(k) ? `${k}=${encodeURIComponent(urlParams.get(k))}` : '')
+    .filter(Boolean)
+    .join('&');
+  const isDiagnose = urlParams.get('from') === 'diagnose' && !!urlParams.get('site');
+
+  // Show the "personalized for …" badge when the user landed here
+  // with at least a slug or site URL on the query string.
+  const personalTarget = urlParams.get('site') || urlParams.get('admin') || urlParams.get('slug');
+  if (personalTarget) {
+    const badge = document.getElementById('personal-badge');
+    const target = document.getElementById('personal-target');
+    target.textContent = personalTarget.replace(/^https?:\/\//, '');
+    badge.hidden = false;
+  }
+
+  function cacheKey(tool, mode) { return tool + ':' + mode; }
+
+  async function loadPrompt(tool, mode) {
+    updateChecklist(mode);
+    refreshHeadings(tool, mode);
+
+    const key = cacheKey(tool, mode);
+    if (promptCache[key]) {
+      promptEl.textContent = promptCache[key];
+      sizeEl.textContent = fmtSize(promptCache[key].length);
+      return;
+    }
+    promptEl.textContent = 'Loading prompt…';
+    sizeEl.textContent = '…';
+    // Diagnose is only meaningful for the conversational "chat" tool
+    // — agent tools get raw diagnostic curl commands inline.
+    const useDiagnose = isDiagnose && mode === 'repair' && tool === 'chat';
+    try {
+      if (useDiagnose) {
+        renderDiagnoseStatus('Scanning your site…');
+        const dr = await fetch('/api/ai-prompt/diagnose?format=json&' + ctxQS, { cache: 'no-store' });
+        if (!dr.ok) throw new Error('diagnose HTTP ' + dr.status);
+        const data = await dr.json();
+        renderDiagnoseStatus(null, data);
+        promptCache[key] = data.prompt;
+        promptEl.textContent = data.prompt;
+        sizeEl.textContent = fmtSize(data.prompt.length);
+        return;
+      }
+      const qs = 'tool=' + encodeURIComponent(tool)
+               + '&mode=' + encodeURIComponent(mode)
+               + (ctxQS ? '&' + ctxQS : '');
+      const r = await fetch('/api/ai-prompt?' + qs);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const text = await r.text();
+      promptCache[key] = text;
+      promptEl.textContent = text;
+      sizeEl.textContent = fmtSize(text.length);
+    } catch (e) {
+      promptEl.textContent = useDiagnose
+        ? 'Couldn\'t scan the site. Falling back to a generic repair prompt.'
+        : 'Couldn\'t load the prompt. Visit /api/ai-prompt?tool=' + tool + '&mode=' + mode + ' directly and copy from there.';
+      sizeEl.textContent = 'error';
+      if (useDiagnose) {
+        try {
+          const r2 = await fetch('/api/ai-prompt?tool=' + tool + '&mode=repair&' + ctxQS);
+          if (r2.ok) {
+            const text2 = await r2.text();
+            promptCache[key] = text2;
+            promptEl.textContent = text2;
+            sizeEl.textContent = fmtSize(text2.length);
+          }
+        } catch { /* nothing more we can do client-side */ }
+      }
+    }
+  }
+
+  // Rebuild the heading + lede + "open in" button for the current
+  // (tool, mode) pair.
+  function refreshHeadings(tool, mode) {
+    const t = TOOLS[tool], m = MODES[mode];
+    titleEl.textContent = `${m.title} prompt for ${t.name}`;
+    ledeEl.textContent  = `${capFirst(m.noun)}. ${t.ledeSuffix}`;
+
+    const openLink   = document.getElementById('open-link');
+    const openTarget = document.getElementById('open-link-target');
+    openLink.href = t.openUrl();
+    openTarget.textContent = t.openLabel;
+  }
+
+  function capFirst(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+  // Render the diagnose summary panel above the prompt card. Uses
+  // DOM methods (not innerHTML) so untrusted server fields can't
+  // inject markup even if the diagnose endpoint were ever compromised.
+  function renderDiagnoseStatus(loadingText, data) {
+    let panel = document.getElementById('diagnose-panel');
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.id = 'diagnose-panel';
+      panel.className = 'diagnose-panel';
+      const card = document.querySelector('.prompt-card');
+      card.parentNode.insertBefore(panel, card);
+    }
+    while (panel.firstChild) panel.removeChild(panel.firstChild);
+    if (loadingText) {
+      const wrap = document.createElement('div');
+      wrap.className = 'diagnose-loading';
+      const sp = document.createElement('span');
+      sp.className = 'diagnose-spinner';
+      wrap.appendChild(sp);
+      wrap.appendChild(document.createTextNode(loadingText));
+      panel.appendChild(wrap);
+      return;
+    }
+    if (!data) return;
+    const { summary, findings } = data;
+    const sevEmoji = { critical: '🔴', warning: '🟡', info: '🔵', ok: '🟢' };
+    const bad = findings.filter((f) => f.severity !== 'ok');
+
+    const head = document.createElement('div');
+    head.className = 'diagnose-head';
+    const headStrong = document.createElement('b');
+    headStrong.textContent = 'Scan complete. ';
+    head.appendChild(headStrong);
+    head.appendChild(document.createTextNode(
+      summary.critical
+        ? `Found ${summary.critical} critical issue${summary.critical === 1 ? '' : 's'}.`
+        : summary.warning
+          ? `Found ${summary.warning} warning${summary.warning === 1 ? '' : 's'}.`
+          : 'No issues detected — site is healthy.'
+    ));
+    panel.appendChild(head);
+
+    const ul = document.createElement('ul');
+    ul.className = 'diagnose-list';
+    if (bad.length === 0) {
+      const li = document.createElement('li');
+      li.className = 'diagnose-good';
+      li.textContent = 'All checks passed. The prompt below will help you optimise rather than fix.';
+      ul.appendChild(li);
+    } else {
+      for (const f of bad.slice(0, 8)) {
+        const li = document.createElement('li');
+        const sev = document.createElement('span');
+        sev.className = 'diagnose-sev';
+        sev.textContent = sevEmoji[f.severity] || '·';
+        li.appendChild(sev);
+        li.appendChild(document.createTextNode(' '));
+        const title = document.createElement('b');
+        title.textContent = String(f.title || '');
+        li.appendChild(title);
+        li.appendChild(document.createElement('br'));
+        const detail = document.createElement('span');
+        detail.className = 'diagnose-detail';
+        detail.textContent = String(f.detail || '');
+        li.appendChild(detail);
+        ul.appendChild(li);
+      }
+    }
+    panel.appendChild(ul);
+
+    const foot = document.createElement('div');
+    foot.className = 'diagnose-foot';
+    foot.textContent = 'The prompt below has been tailored to these findings — copy it and paste into any AI.';
+    panel.appendChild(foot);
+  }
+
+  function updateChecklist(mode) {
+    document.querySelectorAll('#checklist li').forEach((li) => {
+      const modes = (li.dataset.mode || '').split(/\s+/);
+      li.hidden = !modes.includes(mode);
+    });
+  }
+
+  async function copyPromptToClipboard() {
+    const text = promptCache[currentMode] || promptEl.textContent;
+    if (!text || text.startsWith('Loading')) return false;
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  const toolCards = document.querySelectorAll('.tool-card');
+
+  for (const tab of tabs) {
+    tab.addEventListener('click', () => {
+      tabs.forEach((t) => t.classList.toggle('is-active', t === tab));
+      currentMode = tab.dataset.mode;
+      loadPrompt(currentTool, currentMode);
+    });
+  }
+
+  for (const card of toolCards) {
+    card.addEventListener('click', () => {
+      toolCards.forEach((c) => {
+        const active = c === card;
+        c.classList.toggle('is-active', active);
+        c.setAttribute('aria-checked', active ? 'true' : 'false');
+      });
+      currentTool = card.dataset.tool;
+      loadPrompt(currentTool, currentMode);
+    });
+  }
+
+  copyBtn.addEventListener('click', async () => {
+    const ok = await copyPromptToClipboard();
+    if (ok) {
+      copyLbl.textContent = '✓ Copied — paste into the AI';
+      copyBtn.classList.add('is-copied');
+      setTimeout(() => {
+        copyLbl.textContent = 'Copy prompt';
+        copyBtn.classList.remove('is-copied');
+      }, 2500);
+    } else {
+      // Fallback: select the prompt text so the user can ⌘C manually
+      // (clipboard API fails on non-HTTPS or denied permission).
+      const detailsParent = promptEl.closest('details');
+      if (detailsParent && !detailsParent.open) detailsParent.open = true;
+      const range = document.createRange();
+      range.selectNode(promptEl);
+      const sel = window.getSelection();
+      sel.removeAllRanges(); sel.addRange(range);
+      copyLbl.textContent = 'Selected — press ⌘C to copy';
+    }
+  });
+
+  // "Copy & open <tool>": copy the prompt to clipboard, then open
+  // the tool's site in a new tab. We re-fetch the href on click so
+  // it always reflects the current tool selection.
+  document.getElementById('open-link').addEventListener('click', async () => {
+    const ok = await copyPromptToClipboard();
+    if (ok) {
+      copyLbl.textContent = '✓ Copied — now paste in the new tab';
+      copyBtn.classList.add('is-copied');
+      setTimeout(() => {
+        copyLbl.textContent = 'Copy prompt';
+        copyBtn.classList.remove('is-copied');
+      }, 3500);
+    }
+  });
+
+  // Honour ?tool=…&mode=… in the URL. ?from=diagnose forces repair
+  // mode + chat tool (the only combo the diagnose endpoint serves).
+  const urlTool = isDiagnose ? 'chat' : urlParams.get('tool');
+  const urlMode = isDiagnose ? 'repair' : urlParams.get('mode');
+  if (urlTool && TOOLS[urlTool]) {
+    const card = document.querySelector('.tool-card[data-tool="' + urlTool + '"]');
+    if (card) card.click();
+  }
+  if (urlMode && MODES[urlMode]) {
+    const tab = document.querySelector('.mode-tab[data-mode="' + urlMode + '"]');
+    if (tab) tab.click();
+  } else if (!urlTool) {
+    loadPrompt(currentTool, currentMode);
+  }
+})();
+</script>
+</body>
+</html>
