@@ -111,6 +111,40 @@
     color: #F38020 !important;
   }
 
+  /* Heads-up callout under the chooser */
+  .install-note {
+    margin: 18px 0 0;
+    padding: 14px 18px;
+    background: var(--bg-soft);
+    border: 1px solid var(--line);
+    border-left: 3px solid #F38020;
+    border-radius: 8px;
+    font-size: 13.5px;
+    color: var(--ink-dim);
+  }
+  .install-note summary {
+    cursor: pointer;
+    list-style: none;
+    font-weight: 500;
+    color: var(--ink);
+    user-select: none;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .install-note summary::-webkit-details-marker { display: none; }
+  .install-note summary::before {
+    content: "▸"; font-size: 0.85em; color: var(--ink-faint);
+    transition: transform .15s;
+    display: inline-block;
+  }
+  .install-note[open] summary::before { transform: rotate(90deg); }
+  .install-note p { margin: 10px 0; line-height: 1.55; }
+  .install-note ol { margin: 8px 0; padding-left: 18px; line-height: 1.6; }
+  .install-note li { margin-bottom: 4px; }
+  .install-note a { color: var(--ink); border-bottom: 1px dotted var(--ink-faint); }
+  .install-note a:hover { border-bottom-color: var(--ink); }
+  .install-note code { background: var(--bg-2); padding: 1px 5px; border-radius: 4px; font-size: 0.88em; }
+  .install-note strong { color: var(--ink); font-weight: 600; }
+
   /* Terminal pickers + copy block */
   .term-tabs { display: flex; gap: 4px; margin: 4px 0 0; padding: 4px; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 10px; }
   .term-tab {
@@ -231,7 +265,7 @@
         <a class="chooser-card chooser-card-featured" href="https://deploy.workers.cloudflare.com/?url=https://github.com/Benjamin-Bloch/pages-seo" rel="noopener">
           <span class="chooser-pill chooser-pill-cf">1-click</span>
           <h3>Deploy to Cloudflare</h3>
-          <p>Cloudflare forks the repo, provisions D1 + R2, and deploys — all in the browser. No commands, no tokens.</p>
+          <p>Cloudflare forks the repo, provisions D1 + R2, and deploys — all in the browser. <strong>May need a one-time API token</strong> if Cloudflare's auto-generated one lacks Pages:Edit scope.</p>
           <span class="chooser-meta">Fastest · ~90 sec</span>
         </a>
         <button class="chooser-card" type="button" data-pick="site">
@@ -247,6 +281,23 @@
           <span class="chooser-meta">For devs · ~2 min</span>
         </button>
       </div>
+
+      <!-- Heads-up callout for the Deploy-to-Cloudflare auth quirk.
+           The auto-generated API token Cloudflare creates for Workers
+           Builds sometimes lacks Pages:Edit, which fails the first
+           deploy with "Authentication error [code: 10000]". We can't
+           fix this in the repo — it's a Cloudflare-side limit. So we
+           warn up front. -->
+      <details class="install-note">
+        <summary>If the 1-click deploy fails with “Authentication error [code: 10000]” — fix in 60 sec</summary>
+        <p>Cloudflare’s auto-generated API token for new Pages projects sometimes lacks the <code>Pages:Edit</code> scope, so the first build can’t deploy. You’ll see the auth error in the build log. Fix:</p>
+        <ol>
+          <li>Create a token at <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener">dash.cloudflare.com/profile/api-tokens</a> with these Account permissions: <strong>Cloudflare Pages:Edit, D1:Edit, Workers R2:Edit, Workers AI:Edit, Workers Scripts:Edit, Account Settings:Read</strong>.</li>
+          <li>In the dashboard: Workers &amp; Pages → your project → Settings → Build &amp; deployments → API token → paste it.</li>
+          <li>Re-trigger the deploy from the Deployments tab.</li>
+        </ol>
+        <p>The CLI installer below avoids this entirely — it uses <code>wrangler login</code> (OAuth) rather than an API token.</p>
+      </details>
     </section>
 
     <!-- ── Site flow · step 1: Sign in with GitHub ───────────────── -->

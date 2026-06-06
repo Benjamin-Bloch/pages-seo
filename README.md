@@ -44,6 +44,15 @@ Plug in a URL (or a keyword list), point a cron at it, and `pages-seo` quietly p
 
 Cloudflare forks the repo to your GitHub, creates a Pages project, provisions the D1 database and R2 bucket, and deploys — about 90 seconds, all in the browser. After the deploy lands, open `https://<your-project>.pages.dev/admin` and complete the first-run setup card.
 
+> [!IMPORTANT]
+> **If the first build fails with `Authentication error [code: 10000]`**, the auto-generated API token Cloudflare creates for Workers Builds is missing the `Pages:Edit` scope. Fix in 60 seconds:
+>
+> 1. Create a token at <https://dash.cloudflare.com/profile/api-tokens> with **Account** permissions: Cloudflare Pages:Edit, D1:Edit, Workers R2:Edit, Workers AI:Edit, Workers Scripts:Edit, Account Settings:Read.
+> 2. Cloudflare dashboard → Workers & Pages → your project → Settings → Build & deployments → **API token** → paste it.
+> 3. Re-trigger the deploy from the Deployments tab.
+>
+> This is a Cloudflare-side quirk of the Deploy to Cloudflare button, not something the repo can fix — they're aware of it. The CLI installer (Option B below) avoids it entirely because it uses `wrangler login` instead of an API token.
+
 ### Option B — One-liner installer
 
 If you'd rather drive `wrangler` yourself, pick whichever runtime you already have:
