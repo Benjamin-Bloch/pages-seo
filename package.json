@@ -27,16 +27,20 @@
   ],
   "scripts": {
     "setup": "bash setup.sh",
-    "deploy": "npm run bundle-schema && bash deploy.sh",
-    "dev": "wrangler pages dev public",
+    "build": "npm run bundle-schema",
     "bundle-schema": "node scripts/bundle-schema.js",
-    "predeploy": "npm run bundle-schema",
-    "db:migrate": "wrangler d1 execute pages-seo --remote --file=schema/init.sql",
-    "db:console": "wrangler d1 execute pages-seo --remote --command=\"SELECT count(*) AS posts FROM blog_posts\"",
-    "cron:deploy": "cd cron-worker && wrangler deploy"
+    "dev": "npx wrangler pages dev public",
+    "deploy": "npm run bundle-schema && npx wrangler pages deploy public",
+    "deploy:cli": "bash deploy.sh",
+    "db:migrate": "npx wrangler d1 execute pages-seo --remote --file=schema/init.sql",
+    "db:console": "npx wrangler d1 execute pages-seo --remote --command=\"SELECT count(*) AS posts FROM blog_posts\"",
+    "cron:deploy": "cd cron-worker && npx wrangler deploy"
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
   },
   "cloudflare": {
     "comment": "Descriptions surfaced by the Deploy to Cloudflare button (https://deploy.workers.cloudflare.com) when a user clicks deploy. They map to keys in .env.example. By default every key in .env.example is commented out, so the deploy flow shows zero secret prompts — pages-seo auto-generates everything it needs on first run. These descriptions only render if someone forks the repo and uncomments a key.",
