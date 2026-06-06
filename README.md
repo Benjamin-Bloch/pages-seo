@@ -36,7 +36,17 @@ Plug in a URL (or a keyword list), point a cron at it, and `pages-seo` quietly p
 
 ## 🚀 Install in one command
 
-Run the installer straight from the demo site — pick whichever runtime you already have:
+### Option A — 1-click deploy (zero terminal)
+
+<a href="https://deploy.workers.cloudflare.com/?url=https://github.com/Benjamin-Bloch/pages-seo">
+  <img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" />
+</a>
+
+Cloudflare forks the repo to your GitHub, creates a Pages project, provisions the D1 database and R2 bucket, and deploys — about 90 seconds, all in the browser. After the deploy lands, open `https://<your-project>.pages.dev/admin` and complete the first-run setup card.
+
+### Option B — One-liner installer
+
+If you'd rather drive `wrangler` yourself, pick whichever runtime you already have:
 
 ```bash
 # Bash / Zsh

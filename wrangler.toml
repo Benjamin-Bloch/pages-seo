@@ -1,0 +1,31 @@
+name = "pages-seo"
+compatibility_date = "2026-05-18"
+pages_build_output_dir = "./public"
+
+# This file is what the Cloudflare "Deploy to Cloudflare" button reads
+# when a user clicks deploy.workers.cloudflare.com/?url=... pointing
+# at this repo. The placeholder D1 database_id below is a marker:
+# Cloudflare's deploy flow detects all-zero UUIDs and offers to
+# provision a fresh D1 database (matching `database_name`) on the
+# user's account. Same for the R2 bucket.
+#
+# Local development on a maintainer fork: copy this file to
+# wrangler.live.toml (gitignored) with your real IDs, OR run
+# `bash setup.sh` which writes a fresh wrangler.toml with the IDs
+# provisioned by the CLI installer.
+#
+# DO NOT replace these placeholder IDs in committed code — every
+# fork would inherit the same database id, which is wrong (each
+# install needs its own database).
+
+[[d1_databases]]
+binding = "DB"
+database_name = "pages-seo"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+[[r2_buckets]]
+binding = "IMAGES"
+bucket_name = "pages-seo-images"
+
+[ai]
+binding = "AI"

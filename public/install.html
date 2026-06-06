@@ -1,0 +1,1105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="robots" content="noindex,nofollow" />
+<title>Install pages-seo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" />
+<link rel="stylesheet" href="/admin.css" />
+<style>
+  /* Re-skin admin.css's layout in the marketing palette so the
+     installer matches seo.benjaminb.xyz (cream + editorial yellow)
+     instead of the admin dashboard's dark/teal theme. Loaded after
+     admin.css so these win. */
+  :root {
+    --bg: #fbfaf7;
+    --bg-soft: #f3f1ec;
+    --bg-card: #ffffff;
+    --ink: #0a0a0a;
+    --ink-dim: #4b525e;
+    --ink-faint: #8a93a3;
+    --accent: #0a0a0a;            /* black primary, like the marketing CTAs */
+    --accent-soft: rgba(245,207,62,0.16);
+    --line: #e8e5dd;
+    --line-2: #d4d0c5;
+    --good: #2f8d4a;
+    --warn: #8a5a00;
+    --bad: #c14a3a;
+    --highlight: #f5cf3e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e0f12; --bg-soft: #15171c; --bg-card: #181a1f;
+      --ink: #f0eee8; --ink-dim: #a09c93; --ink-faint: #6b6760;
+      --accent: #f5cf3e; --accent-soft: rgba(245,207,62,0.12);
+      --line: #262932; --line-2: #353945;
+      --good: #5dd28e; --warn: #e0b76a; --bad: #ff8aa1; --highlight: #f5cf3e;
+    }
+  }
+  html, body { background: var(--bg); }
+
+  /* admin.css hardcodes .btn-primary text to near-black (built for its
+     cyan accent). Our accent is black, so force white text + a correct
+     hover. Without this the primary button is black-on-black. */
+  .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn-primary:hover { background: #2a2a2a; border-color: #2a2a2a; color: #fff; }
+  @media (prefers-color-scheme: dark) {
+    /* In dark mode the accent is yellow, so dark text reads correctly. */
+    .btn-primary { color: #0a0a0a; }
+    .btn-primary:hover { background: #ffe066; border-color: #ffe066; color: #0a0a0a; }
+  }
+
+  /* admin.css already lays .wiz-head out as a 3-col grid
+     (brand | steps | ai-link). The only fix needed is to keep the AI
+     link in normal flow (its base rule below is no longer absolute) so
+     it sits in the grid's 3rd column instead of overlapping the steps.
+     On narrow widths, let the header wrap. */
+  @media (max-width: 720px) {
+    .wiz-head { grid-template-columns: 1fr auto; }
+    .wiz-head .wiz-steps { grid-column: 1 / -1; justify-content: flex-start; order: 3; }
+  }
+
+  .install-step-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+  .install-step { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 8px; color: var(--ink-dim); transition: color .2s, border-color .2s; }
+  .install-step.is-active { color: var(--accent); border-color: rgba(245,207,62,0.4); background: rgba(245,207,62,0.05); }
+  .install-step.is-done { color: var(--good); border-color: rgba(122,252,166,0.3); }
+  .install-step .install-step-icon { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 11px; font-family: var(--mono); }
+  .install-step.is-active .install-step-icon::before { content: ""; width: 12px; height: 12px; border-radius: 50%; border: 2px solid currentColor; border-top-color: transparent; animation: wiz-spin .8s linear infinite; }
+  .install-step.is-done .install-step-icon::before { content: "✓"; font-size: 14px; }
+  .install-step.is-pending .install-step-icon::before { content: "○"; opacity: 0.4; font-size: 14px; }
+
+  /* Chooser cards */
+  .chooser { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  @media (max-width: 860px) { .chooser { grid-template-columns: 1fr; } }
+  .chooser-card {
+    background: var(--bg-soft); border: 1px solid var(--line);
+    border-radius: 14px; padding: 22px 22px 20px;
+    cursor: pointer; transition: border-color .15s, transform .15s, background .15s, box-shadow .15s;
+    display: flex; flex-direction: column; gap: 8px; text-align: left;
+    color: inherit; font: inherit; text-decoration: none;
+  }
+  .chooser-card:hover { border-color: var(--accent); transform: translateY(-2px); background: rgba(245,207,62,0.04); }
+  .chooser-card h3 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.005em; color: var(--ink); }
+  .chooser-card p { margin: 0; font-size: 13px; color: var(--ink-dim); line-height: 1.55; }
+  .chooser-card .chooser-pill {
+    align-self: flex-start; font-family: var(--mono); font-size: 10px; letter-spacing: .08em;
+    text-transform: uppercase; padding: 3px 8px; border-radius: 5px;
+    background: var(--accent-soft); color: var(--accent);
+  }
+  .chooser-card .chooser-pill.is-warn { background: rgba(224,183,106,0.1); color: var(--warn); }
+  .chooser-card .chooser-meta {
+    margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line);
+    font-size: 11px; color: var(--ink-faint); font-family: var(--mono);
+  }
+
+  /* Featured card — the 1-click option deserves more visual weight. */
+  .chooser-card-featured {
+    border-color: #F38020;
+    background: linear-gradient(180deg, rgba(243,128,32,0.05), transparent 60%);
+    box-shadow: 0 4px 20px rgba(243,128,32,0.08);
+  }
+  .chooser-card-featured:hover {
+    border-color: #F38020;
+    background: linear-gradient(180deg, rgba(243,128,32,0.1), transparent 60%);
+    box-shadow: 0 6px 28px rgba(243,128,32,0.18);
+  }
+  .chooser-pill-cf {
+    background: rgba(243,128,32,0.12) !important;
+    color: #F38020 !important;
+  }
+
+  /* Terminal pickers + copy block */
+  .term-tabs { display: flex; gap: 4px; margin: 4px 0 0; padding: 4px; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 10px; }
+  .term-tab {
+    flex: 1; padding: 8px 12px; border-radius: 7px; background: transparent;
+    border: 0; color: var(--ink-dim); font: inherit; font-size: 13px; cursor: pointer;
+    transition: background .15s, color .15s;
+  }
+  .term-tab:hover { color: var(--ink); }
+  .term-tab.is-active { background: var(--bg-card); color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+
+  .term-cmd-wrap { position: relative; }
+  .term-cmd {
+    margin: 0; padding: 16px 60px 16px 18px;
+    background: var(--bg-soft); border: 1px solid var(--line-2);
+    border-radius: 10px; font-family: var(--mono); font-size: 13px;
+    color: var(--ink); white-space: pre-wrap; word-break: break-all;
+    line-height: 1.55;
+  }
+  .term-copy {
+    position: absolute; top: 10px; right: 10px;
+    padding: 6px 12px; background: var(--bg-card); border: 1px solid var(--line-2);
+    color: var(--ink-dim); font: inherit; font-size: 11px; letter-spacing: .04em;
+    text-transform: uppercase; font-family: var(--mono);
+    border-radius: 6px; cursor: pointer; transition: color .15s, border-color .15s;
+  }
+  .term-copy:hover { color: var(--accent); border-color: var(--accent); }
+  .term-copy.is-copied { color: var(--good); border-color: rgba(122,252,166,0.4); }
+
+  /* Storage warning banner */
+  .store-warn {
+    display: flex; gap: 10px; align-items: flex-start;
+    padding: 10px 14px; border-radius: 8px;
+    background: rgba(224,183,106,0.06); border: 1px solid rgba(224,183,106,0.2);
+    color: var(--ink-dim); font-size: 12px; line-height: 1.5;
+  }
+  .store-warn b { color: var(--warn); }
+
+  .resume-banner {
+    display: flex; gap: 14px; align-items: center; justify-content: space-between;
+    padding: 14px 18px;
+    background: rgba(245,207,62,0.06);
+    border: 1px solid rgba(245,207,62,0.32);
+    border-radius: 10px;
+    margin: 0 0 24px;
+  }
+  .resume-banner-text strong { color: var(--accent); display: block; font-size: 14px; }
+  .resume-banner-text p { margin: 2px 0 0; font-size: 12.5px; color: var(--ink-dim); }
+  .resume-banner-text code { background: var(--bg-soft); padding: 1px 6px; border-radius: 4px; font-size: 11px; }
+  .resume-banner-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+  /* "Stuck? Use AI" escape hatch in the wizard header. Laid out inline
+     in the flex header (see .wiz-head override above) so it never
+     overlaps the step list. */
+  .wiz-ai-link {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px;
+    font-size: 12px; font-weight: 500;
+    color: #8a6d00;
+    background: rgba(245,207,62,0.14);
+    border: 1px solid rgba(245,207,62,0.45);
+    border-radius: 999px;
+    text-decoration: none;
+    transition: background .15s, border-color .15s, transform .15s;
+  }
+  .wiz-ai-link:hover {
+    background: rgba(245,207,62,0.28);
+    border-color: rgba(245,207,62,0.7);
+    transform: translateY(-1px);
+  }
+  @media (prefers-color-scheme: dark) { .wiz-ai-link { color: #f5cf3e; } }
+</style>
+</head>
+<body>
+
+<div class="wiz" style="display:flex">
+  <div class="wiz-shell" style="width:min(680px,100%);margin:48px 0">
+
+    <header class="wiz-head">
+      <div class="wiz-brand-mark">
+        <span class="wiz-dot"></span>
+        <span class="wiz-brand-text">pages-seo · installer</span>
+      </div>
+      <ol class="wiz-steps" aria-label="Install progress">
+        <li class="wiz-step is-current" data-stage="chooser"><b>1. Pick</b></li>
+        <li class="wiz-step" data-stage="config"><b>2. Configure</b></li>
+        <li class="wiz-step" data-stage="run"><b>3. Run</b></li>
+      </ol>
+      <a class="wiz-ai-link" href="/ai-setup" title="Don't know what to do? Get an AI to walk you through it">
+        ✦ Stuck? Use AI
+      </a>
+    </header>
+
+    <!-- ── Resume banner ─────────────────────────────────────────
+         Surfaces only when we detect server-side install_state for
+         the project + token in this browser's localStorage. The
+         endpoint that backs this (/api/install/provision GET) takes
+         project + token_fp params and 404s if there's nothing to
+         resume, so the banner reliably appears only when there's
+         real work to pick back up. -->
+    <div id="resume-banner" class="resume-banner" hidden>
+      <div class="resume-banner-text">
+        <strong>Pick up where you left off?</strong>
+        <p>We found an install in progress for <code id="resume-project">—</code> on this browser. Last step: <span id="resume-step">—</span>.</p>
+      </div>
+      <div class="resume-banner-actions">
+        <button id="resume-go" class="btn btn-primary" type="button">Resume</button>
+        <button id="resume-clear" class="btn btn-ghost" type="button">Start over</button>
+      </div>
+    </div>
+
+    <!-- ── Chooser pane ─────────────────────────────────────────── -->
+    <!-- Default landing: the user picks Browser vs Terminal first. -->
+    <section class="wiz-pane" id="pane-chooser" hidden>
+      <div class="wiz-eyebrow">Install pages-seo</div>
+      <h1 class="wiz-h1"><span class="serif-i">How</span> would you like to install?</h1>
+      <p class="wiz-lede">Two routes, same result — a live site on your own Cloudflare account in about a minute.</p>
+      <div class="chooser">
+        <a class="chooser-card chooser-card-featured" href="https://deploy.workers.cloudflare.com/?url=https://github.com/Benjamin-Bloch/pages-seo" rel="noopener">
+          <span class="chooser-pill chooser-pill-cf">1-click</span>
+          <h3>Deploy to Cloudflare</h3>
+          <p>Cloudflare forks the repo, provisions D1 + R2, and deploys — all in the browser. No commands, no tokens.</p>
+          <span class="chooser-meta">Fastest · ~90 sec</span>
+        </a>
+        <button class="chooser-card" type="button" data-pick="site">
+          <span class="chooser-pill">Browser</span>
+          <h3>Setup via site</h3>
+          <p>Sign in with GitHub and install in your browser — no terminal needed. More control over secrets and config.</p>
+          <span class="chooser-meta">Configurable · ~1 min</span>
+        </button>
+        <button class="chooser-card" type="button" data-pick="term">
+          <span class="chooser-pill">Terminal</span>
+          <h3>Setup via terminal</h3>
+          <p>Copy one command, paste into your shell. Uses <code>wrangler login</code> — no API token to paste.</p>
+          <span class="chooser-meta">For devs · ~2 min</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- ── Site flow · step 1: Sign in with GitHub ───────────────── -->
+    <!-- Replaces the old "fork the repo by hand + paste your owner/
+         repo + paste your CF token" megaform. We OAuth into GitHub,
+         auto-fork the upstream repo, link them to the Cloudflare
+         Pages GitHub App scoped to their fork, then ask only for
+         the CF token + admin credentials. -->
+    <section class="wiz-pane wiz-pane-center" id="pane-site-github" hidden>
+      <div class="wiz-eyebrow">Install pages-seo</div>
+      <h1 class="wiz-h1"><span class="serif-i">Sign in</span> with GitHub.</h1>
+      <p class="wiz-lede">We'll fork the repo to your account, configure Cloudflare, and seed your admin in about a minute.</p>
+      <div class="wiz-actions" style="gap:10px;margin-top:14px;justify-content:center">
+        <a id="gh-connect-link" class="btn btn-primary wiz-btn-lg" href="#">Sign in with GitHub →</a>
+      </div>
+      <p class="wiz-foot-note" style="margin:14px 0 0">Scope: <code>public_repo</code>, just enough to fork the upstream. Token stays in an encrypted cookie — never stored in any database. <a href="#" id="term-fallback-link">Prefer a one-line terminal command? →</a></p>
+      <div id="site-github-err" class="wiz-err"></div>
+    </section>
+
+    <!-- ── Site flow · step 2: fork + Cloudflare GitHub App ──────── -->
+    <section class="wiz-pane" id="pane-site-fork" hidden>
+      <div class="wiz-eyebrow">Setup via site · step 2 of 3</div>
+      <h1 class="wiz-h1"><span class="serif-i">Your</span> fork is ready.</h1>
+      <p class="wiz-lede" id="fork-status">Forking the repo to your account…</p>
+
+      <div id="fork-card" hidden class="install-help" style="background:rgba(245,207,62,0.06);border:1px solid rgba(245,207,62,0.25);padding:12px 16px;border-radius:10px;margin:10px 0 0">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+          <code id="fork-fullname" style="font-family:var(--mono);font-size:13px;color:var(--accent)">—</code>
+          <a id="fork-link" target="_blank" rel="noopener" style="font-size:11px;color:var(--ink-dim)">Open on GitHub →</a>
+        </div>
+      </div>
+
+      <div style="margin-top:18px">
+        <p class="wiz-foot-note" style="margin:0 0 6px">One last GitHub step: install the <b>Cloudflare Workers &amp; Pages</b> GitHub App on your fork so Cloudflare can read it.</p>
+        <a id="cf-app-link" class="btn btn-primary" target="_blank" rel="noopener" style="font-size:13px">Authorise Cloudflare app on your fork →</a>
+        <p class="wiz-foot-note" style="margin:8px 0 0">When the GitHub tab redirects you back, choose your fork (or "All repositories"). The app install lasts forever — you only do this once per Cloudflare account.</p>
+      </div>
+
+      <div class="wiz-actions" style="gap:10px;margin-top:18px">
+        <button class="btn btn-ghost" type="button" data-back="site-github">← Back</button>
+        <button id="fork-continue" class="btn btn-primary" type="button" disabled>Continue →</button>
+      </div>
+      <div id="site-fork-err" class="wiz-err"></div>
+    </section>
+
+    <!-- ── Site flow · step 3: form (CF token + admin) ───────────── -->
+    <section class="wiz-pane" id="pane-site-form" hidden>
+      <div class="wiz-eyebrow">Setup via site · step 3 of 3</div>
+      <h1 class="wiz-h1"><span class="serif-i">Last</span> details.</h1>
+      <p class="wiz-lede">Cloudflare doesn't have an OAuth flow for third-party apps, so we use an API token. The link below pre-selects all the permissions we need.</p>
+
+      <p style="margin:6px 0 4px">
+        <a id="token-link" class="btn btn-ghost" target="_blank" rel="noopener" style="font-size:13px">Create a Cloudflare API token →</a>
+      </p>
+
+      <form id="install-form" method="post" action="#" autocomplete="off" style="display:flex;flex-direction:column;gap:14px">
+        <!-- Hidden owner/repo, set from the previous step. -->
+        <input id="f-owner" type="hidden" />
+        <input id="f-repo"  type="hidden" />
+
+        <label class="wiz-field wiz-field-big">
+          <span>Cloudflare API token <em>(paste from the page above)</em></span>
+          <input id="f-token" type="password" required autocomplete="off" placeholder="Paste the token here" />
+          <button id="f-token-paste" type="button" style="align-self:flex-start;margin-top:6px;background:transparent;border:0;color:var(--accent);font:inherit;font-size:11px;cursor:pointer;padding:0">Paste from clipboard</button>
+        </label>
+        <label class="wiz-field">
+          <span>Site name</span>
+          <input id="f-site-name" type="text" required maxlength="80" placeholder="My Site" />
+          <span class="wiz-foot-note" style="margin-top:4px">Your Pages URL will be <code id="slug-preview" style="font-family:var(--mono);color:var(--accent)">your-site.pages.dev</code></span>
+        </label>
+        <!-- Hidden project slug. We auto-derive it from the site
+             name (lowercase, dashes for spaces, strip non-alnum)
+             so the operator never sees the constraint. If the
+             auto-derived slug collides on Cloudflare the install
+             POST returns a friendly error. -->
+        <input id="f-project" type="hidden" required pattern="[a-z][a-z0-9-]{1,32}" />
+
+        <!-- Admin credentials are NOT collected here. We provision the
+             infrastructure, then hand the operator a one-time setup
+             link to their new site (e.g. https://<slug>.pages.dev/
+             admin?setup=<token>). The first visit consumes that token
+             and prompts for email + password right where they'll log
+             in from then on. -->
+
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-dim);cursor:pointer">
+          <input id="f-remember" type="checkbox" checked />
+          <span>Remember token in this browser so I can resume later</span>
+        </label>
+        <div id="store-warn" class="store-warn" hidden>
+          <b>Heads-up:</b>
+          <span>Your Cloudflare token is stored in your browser's localStorage on <code>seo.benjaminb.xyz</code>. Clear it on a shared machine. We clear it automatically once the install completes.</span>
+        </div>
+
+        <div class="wiz-actions" style="gap:10px">
+          <button class="btn btn-ghost" type="button" data-back="chooser">← Back</button>
+          <button id="install-go" class="btn btn-primary" type="submit">Install →</button>
+        </div>
+        <div id="install-err" class="wiz-err"></div>
+      </form>
+    </section>
+
+    <!-- ── Site flow — provisioning ─────────────────────────────── -->
+    <section class="wiz-pane" id="pane-site-provision" hidden>
+      <div class="wiz-eyebrow">Provisioning</div>
+      <h1 class="wiz-h1"><span class="serif-i">Working</span> on it.</h1>
+      <p class="wiz-lede">Spinning up your resources. Usually 20–40 seconds.</p>
+      <ol class="install-step-list" id="provision-steps">
+        <li class="install-step is-pending" data-step="account"><span class="install-step-icon"></span> Identifying your Cloudflare account</li>
+        <li class="install-step is-pending" data-step="d1"><span class="install-step-icon"></span> Creating D1 database</li>
+        <li class="install-step is-pending" data-step="r2"><span class="install-step-icon"></span> Creating R2 bucket</li>
+        <li class="install-step is-pending" data-step="schema"><span class="install-step-icon"></span> Applying database schema</li>
+        <li class="install-step is-pending" data-step="pages"><span class="install-step-icon"></span> Creating Pages project</li>
+        <li class="install-step is-pending" data-step="seed"><span class="install-step-icon"></span> Seeding your admin account</li>
+      </ol>
+    </section>
+
+    <!-- ── Site flow — failure ──────────────────────────────────── -->
+    <section class="wiz-pane wiz-pane-center" id="pane-site-fail" hidden>
+      <div class="wiz-tick" style="color: var(--bad); background: rgba(255,138,161,0.1); border-color: rgba(255,138,161,0.4); font-size: 28px;">!</div>
+      <h1 class="wiz-h1"><span class="serif-i">Hit a snag.</span></h1>
+      <p class="wiz-lede" id="fail-detail">—</p>
+
+      <div id="fail-github" class="wiz-foot-note" hidden style="text-align:left;max-width:560px;margin:8px auto 0;padding:16px;background:var(--bg-soft);border:1px solid var(--line);border-radius:10px;font-size:13px;line-height:1.55">
+        <p style="margin:0 0 12px;color:var(--ink-dim)"><b style="color:var(--ink)">Cloudflare can't see your repo.</b> Even with your GitHub linked to Cloudflare, the linkage is per-repo — Cloudflare can only pull from repos owned by you that have <i>Cloudflare Workers &amp; Pages</i> granted access. Three things to verify, in order:</p>
+        <ol style="margin:0 0 10px 18px;padding:0;color:var(--ink-dim);line-height:1.7">
+          <li><b>Does the repo exist?</b> We're looking for <code id="fail-repo">—</code>. <a id="fail-repo-link" target="_blank" rel="noopener">Open it →</a> — if you get a 404, you haven't forked yet. <a href="https://github.com/Benjamin-Bloch/pages-seo/fork" target="_blank" rel="noopener" class="btn btn-primary" style="font-size:11px;padding:4px 10px;margin-left:6px">Fork now</a></li>
+          <li style="margin-top:8px"><b>Did you grant the Cloudflare app access to it?</b> <a id="gh-install-app" target="_blank" rel="noopener" class="btn btn-ghost" style="font-size:11px;padding:4px 10px">Manage permissions →</a> — choose your fork (or "All repositories") and Save.</li>
+          <li style="margin-top:8px"><b>Are you using the right Cloudflare account?</b> The API token has to belong to the same Cloudflare account where you authorised the GitHub App. If you have multiple, double-check which one your token is from.</li>
+        </ol>
+        <p style="margin:10px 0 0;color:var(--ink-faint);font-size:12px">Once all three are true, click <b>Resume install</b> below. Your D1 + R2 from the earlier steps are kept; only the Pages project is recreated.</p>
+        <p style="margin:8px 0 0;color:var(--ink-faint);font-size:12px">Hate GitHub? The <b>Setup via terminal</b> path on the chooser skips this entirely — it uses <code>wrangler pages deploy</code> which doesn't need a Git source.</p>
+      </div>
+
+      <p class="wiz-foot-note" style="text-align:center;max-width:480px;margin:8px auto 0">
+        Your progress is saved. Hitting <b>Resume</b> picks up from the step that failed.
+      </p>
+      <div class="wiz-actions wiz-actions-single" style="gap:10px;flex-direction:row">
+        <button id="fail-resume" class="btn btn-primary" type="button">Resume install →</button>
+        <button class="btn btn-ghost" type="button" data-back="chooser">Back to chooser</button>
+      </div>
+    </section>
+
+    <!-- ── Terminal flow — pick runtime + show command ──────────── -->
+    <section class="wiz-pane" id="pane-term" hidden>
+      <div class="wiz-eyebrow">Setup via terminal</div>
+      <h1 class="wiz-h1"><span class="serif-i">Copy.</span> Paste.<br/>Done.</h1>
+      <p class="wiz-lede">Pick the runtime you already have on your machine. The command downloads our installer and runs it locally — it uses <code>wrangler login</code> (browser OAuth) so you never paste an API token.</p>
+
+      <div class="term-tabs" role="tablist">
+        <button class="term-tab is-active" data-term="bash" role="tab">Bash / Zsh</button>
+        <button class="term-tab" data-term="python" role="tab">Python</button>
+        <button class="term-tab" data-term="node" role="tab">Node</button>
+      </div>
+
+      <div class="term-cmd-wrap">
+        <pre id="term-cmd" class="term-cmd"></pre>
+        <button id="term-copy" class="term-copy" type="button">Copy</button>
+      </div>
+
+      <ol style="margin:8px 0 0 20px;padding:0;font-size:13px;color:var(--ink-dim);line-height:1.7">
+        <li>Open Terminal (macOS), iTerm, Windows Terminal, or any shell.</li>
+        <li>Paste the command above and hit enter.</li>
+        <li>The installer will run <code>wrangler login</code> if needed (browser opens), then ask for your site name, admin email, and password.</li>
+        <li>~2 minutes later your site is live. The installer opens <code>/admin</code> with your credentials pre-filled.</li>
+      </ol>
+
+      <div class="wiz-actions" style="gap:10px;margin-top:8px">
+        <button class="btn btn-ghost" type="button" data-back="chooser">← Back</button>
+        <a id="term-help-link" class="btn btn-ghost" href="https://github.com/Benjamin-Bloch/pages-seo/tree/main/cli" target="_blank" rel="noopener">What does the script do?</a>
+      </div>
+    </section>
+
+    <!-- ── Success pane ─────────────────────────────────────────── -->
+    <section class="wiz-pane wiz-pane-center" id="pane-done" hidden>
+      <!-- Two states swap inside this pane:
+           - .is-building: shown while Cloudflare compiles + rolls out
+             the Functions bundle (typically 1-3 minutes after the
+             provisioner returns). Spinner + status line.
+           - .is-live: shown the instant /api/setup on the new site
+             returns 200. Tick + dashboard button. -->
+      <div id="done-building">
+        <h1 class="wiz-h1"><span class="serif-i">Deploying…</span></h1>
+        <p class="wiz-lede">Cloudflare is cloning your fork, compiling the Functions, and rolling out to the edge. Usually 1–3 minutes from here.</p>
+
+        <ol class="install-step-list" id="build-steps" style="margin-top:18px;text-align:left;max-width:520px;margin-left:auto;margin-right:auto">
+          <li class="install-step is-active" data-bs="clone"><span class="install-step-icon"></span> Cloning your fork from GitHub</li>
+          <li class="install-step is-pending" data-bs="build"><span class="install-step-icon"></span> Compiling Pages Functions</li>
+          <li class="install-step is-pending" data-bs="upload"><span class="install-step-icon"></span> Uploading static assets &amp; Worker</li>
+          <li class="install-step is-pending" data-bs="rollout"><span class="install-step-icon"></span> Rolling out to Cloudflare's edge</li>
+          <li class="install-step is-pending" data-bs="live"><span class="install-step-icon"></span> Waiting for first response from your site</li>
+        </ol>
+
+        <p style="margin-top:18px;color:var(--ink-faint);font-size:13px">Site:
+          <code id="done-url" style="font-family:var(--mono);color:var(--accent)">—</code>
+        </p>
+        <p class="wiz-foot-note" style="margin-top:6px"><span id="done-poll-status">Just kicked off the build…</span></p>
+      </div>
+
+      <div id="done-live" hidden>
+        <div class="wiz-tick wiz-tick-big">✓</div>
+        <h1 class="wiz-h1"><span class="serif-i">You're</span> live.</h1>
+        <p>Your new site:</p>
+        <code id="done-url-live" style="font-family:var(--mono);background:var(--bg-soft);padding:4px 10px;border-radius:6px;font-size:13px;color:var(--accent)">—</code>
+        <p class="wiz-lede" style="margin-top: 14px;">The link below opens your new admin via a one-time setup link. You'll set your password there.</p>
+        <div class="wiz-actions wiz-actions-single">
+          <a id="open-admin" class="btn btn-primary wiz-btn-lg" target="_blank" rel="noopener">Open my dashboard →</a>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  const $ = (s) => document.querySelector(s);
+  const $$ = (s) => Array.from(document.querySelectorAll(s));
+
+  // ── pane navigation ──────────────────────────────────────────
+  // Panes are keyed by id suffix. The header stepper hops to
+  // chooser/config/run based on which pane is showing.
+  const PANE_TO_STAGE = {
+    chooser: 'chooser',
+    'site-github': 'config',
+    'site-fork': 'config',
+    'site-form': 'config',
+    'site-provision': 'run',
+    'site-fail': 'run',
+    term: 'config',
+    done: 'run',
+  };
+  function showPane(name) {
+    $$('.wiz-pane').forEach((el) => { el.hidden = el.id !== ('pane-' + name); });
+    const stage = PANE_TO_STAGE[name] || 'chooser';
+    $$('.wiz-step').forEach((el) => {
+      const s = el.dataset.stage;
+      el.classList.toggle('is-current', s === stage);
+      el.classList.toggle('is-done',
+        (s === 'chooser' && stage !== 'chooser') ||
+        (s === 'config' && stage === 'run')
+      );
+    });
+    try { history.replaceState(null, '', '#' + name); } catch { /* */ }
+  }
+
+  // Chooser → site or terminal
+  $$('[data-pick]').forEach((b) => b.addEventListener('click', () => {
+    if (b.dataset.pick === 'site') showPane('site-github');
+    else showPane('term');
+  }));
+  $$('[data-back]').forEach((b) => b.addEventListener('click', () => showPane(b.dataset.back)));
+
+  // Discreet "prefer terminal" link in the github pane.
+  const termFallback = $('#term-fallback-link');
+  if (termFallback) {
+    termFallback.addEventListener('click', (e) => { e.preventDefault(); showPane('term'); });
+  }
+
+  // Auto-derive the project slug from the site name. Lowercase,
+  // replace runs of non-alphanumerics with a single dash, trim
+  // leading/trailing dashes, cap at 32 chars, ensure it starts with
+  // a letter. Updates the URL preview underneath the field so the
+  // operator can see what their pages.dev will look like.
+  function slugify(s) {
+    let out = String(s || '').toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    // Pages slugs must start with a letter.
+    if (out && !/^[a-z]/.test(out)) out = 's-' + out;
+    return out.slice(0, 32);
+  }
+  function updateSlugPreview() {
+    const slug = slugify($('#f-site-name').value) || 'your-site';
+    $('#f-project').value = slug;
+    $('#slug-preview').textContent = slug + '.pages.dev';
+  }
+  $('#f-site-name').addEventListener('input', updateSlugPreview);
+
+  // ── token deeplink ───────────────────────────────────────────
+  const PERMS = [
+    { key: 'page',             type: 'edit' },
+    { key: 'd1',               type: 'edit' },
+    { key: 'workers_r2',       type: 'edit' },
+    { key: 'ai',               type: 'edit' },
+    { key: 'workers_scripts',  type: 'edit' },
+    { key: 'account_settings', type: 'read' },
+  ];
+  $('#token-link').href = 'https://dash.cloudflare.com/?to=/:account/api-tokens' +
+    '&permissionGroupKeys=' + encodeURIComponent(JSON.stringify(PERMS)) +
+    '&name=' + encodeURIComponent('pages-seo install');
+
+  // ── GitHub OAuth + auto-fork ────────────────────────────────
+  // Routes the operator through Sign in with GitHub, auto-forks the
+  // upstream repo to their account, and prepares the Cloudflare-app
+  // install deeplink scoped to that fork. Exposes Github.bootFromOAuth()
+  // which the bottom-of-script landing logic calls when the page
+  // loads with ?gh=connected.
+  const Github = (() => {
+    let state = { connected: false, owner: '', repo: '', fullName: '', login: '' };
+
+    $('#gh-connect-link').addEventListener('click', (e) => {
+      e.preventDefault();
+      // flow=install tells the shared OAuth callback to redirect
+      // back to /install instead of /update.
+      location.href = '/api/update/github/start?flow=install&state=';
+    });
+
+    async function bootFromOAuth() {
+      // We're on /install with the OAuth cookie freshly set. Hit
+      // /api/install/github/fork to ensure the user has a fork.
+      const card  = $('#fork-card');
+      const status = $('#fork-status');
+      const cont  = $('#fork-continue');
+      status.textContent = 'Forking the repo to your account…';
+      card.hidden = true;
+      cont.disabled = true;
+
+      let r, d;
+      try {
+        r = await fetch('/api/install/github/fork', { method: 'POST' });
+        d = await r.json().catch(() => null);
+      } catch (e) {
+        $('#site-fork-err').textContent = 'Network error: ' + (e?.message || e);
+        return;
+      }
+      if (!r.ok || !d?.ok) {
+        $('#site-fork-err').textContent = (d?.detail || d?.error || ('HTTP ' + r.status));
+        return;
+      }
+      state = {
+        connected: true,
+        owner: d.owner,
+        repo: d.repo,
+        fullName: d.full_name,
+        login: d.owner,  // for a fork the owner IS the user
+      };
+      // Wire the fork into the hidden inputs that the existing
+      // install POST already reads.
+      $('#f-owner').value = state.owner;
+      $('#f-repo').value  = state.repo;
+
+      // Render the success card.
+      $('#fork-fullname').textContent = state.fullName;
+      $('#fork-link').href = d.html_url || ('https://github.com/' + state.fullName);
+      card.hidden = false;
+      // d.action ∈ { 'created', 'reused', 'reused_synced' }. We tell
+      // the operator whether we touched anything so they understand
+      // what's about to deploy.
+      if (d.action === 'created') {
+        status.textContent = `We forked ${state.fullName} to your account just now.`;
+      } else if (d.action === 'reused_synced') {
+        status.textContent = `Found your existing fork — synced it with upstream so the deploy uses the latest code.`;
+      } else {
+        status.textContent = `Found your existing fork — already up to date.`;
+      }
+
+      // Cloudflare GitHub App install URL. The user goes here in a
+      // new tab, authorises the app on their fork, and we detect
+      // the install via /user/installations the moment they return.
+      $('#cf-app-link').href =
+        'https://github.com/apps/cloudflare-workers-and-pages/installations/new';
+
+      cont.disabled = false;
+
+      // Auto-authorize result from fork.js. When the user has the
+      // Cloudflare app installed AND we added the fork (or it was
+      // already in scope), the manual "Authorise" step is fully
+      // skipped — we surface a one-line confirmation and let
+      // maybeAutoAdvance() move on immediately.
+      const cfAccess = d?.cf_app_access;
+      if (cfAccess?.ok && ['added', 'already', 'all_mode'].includes(cfAccess.reason)) {
+        const msg = cfAccess.reason === 'added'
+          ? 'We added your fork to your Cloudflare GitHub App. No more clicking.'
+          : 'Your Cloudflare GitHub App already has access to this fork.';
+        status.textContent = `${status.textContent} ${msg}`;
+      }
+
+      // If the user already installed the Cloudflare app on a
+      // previous attempt, skip the manual click entirely — we can
+      // see the install via /user/installations and auto-advance.
+      maybeAutoAdvance(/* initial */ true);
+
+      // Once they click the Authorise link, poll every 3s. When
+      // /user/installations shows the Cloudflare app, advance to
+      // the next pane without making them click Continue.
+      $('#cf-app-link').addEventListener('click', () => {
+        startPolling();
+      });
+
+      // Also poll on focus — the user returns from the GitHub tab
+      // back to ours, that's a strong signal something happened.
+      window.addEventListener('focus', () => {
+        if (!polling) return;
+        maybeAutoAdvance();
+      });
+    }
+
+    let polling = false;
+    let pollTimer = null;
+    function startPolling() {
+      if (polling) return;
+      polling = true;
+      // Update the Continue button copy so it's clear we're waiting.
+      const cont = $('#fork-continue');
+      cont.disabled = false;
+      cont.textContent = 'Waiting for Cloudflare app… (click to skip)';
+      pollTimer = setInterval(() => maybeAutoAdvance(), 3000);
+    }
+    async function maybeAutoAdvance(initial) {
+      try {
+        const r = await fetch('/api/install/github/cf-app');
+        const d = await r.json().catch(() => null);
+        if (d?.installed) {
+          if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+          polling = false;
+          // Smooth, no jarring jump.
+          const cont = $('#fork-continue');
+          cont.textContent = '✓ Cloudflare app installed';
+          setTimeout(() => showPane('site-form'), 600);
+        } else if (initial) {
+          // First call: just no-op silently. We expect "not installed
+          // yet" on a fresh user.
+        }
+      } catch { /* ignore */ }
+    }
+
+    $('#fork-continue').addEventListener('click', () => {
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      polling = false;
+      showPane('site-form');
+    });
+
+    return { bootFromOAuth };
+  })();
+
+  // ── clipboard paste for the CF token field ─────────────────
+  // Two ways the token gets into the field:
+  //   1. Manual: the "Paste from clipboard" button (always works
+  //      because it's inside a user-gesture).
+  //   2. Auto: when the user returns to our tab from the CF
+  //      token-creation tab, we try to read the clipboard. Browsers
+  //      allow this if (a) the user previously granted permission
+  //      (the button click counts) or (b) they hit Cmd+V on the
+  //      field. We silently no-op on failure so it never gets in
+  //      the way.
+  //
+  // Token shape heuristic: CF API tokens are 40+ alphanumeric/
+  // underscore characters with no whitespace. If the clipboard
+  // matches that, we fill it in.
+  const TOKEN_RX = /^[A-Za-z0-9_-]{32,}$/;
+  async function tryAutoPasteToken() {
+    // Only relevant when we're on the form pane and the field is empty.
+    if ($('#pane-site-form').hidden) return;
+    if ($('#f-token').value.trim()) return;
+    try {
+      const text = (await navigator.clipboard.readText()).trim();
+      if (text && TOKEN_RX.test(text)) {
+        $('#f-token').value = text;
+        $('#f-token').focus();
+        // Brief inline confirmation so the operator knows it worked
+        // without a popup.
+        const note = document.createElement('span');
+        note.textContent = ' ✓ pasted from clipboard';
+        note.style.cssText = 'color:var(--good);font-size:11px;margin-left:6px';
+        const btn = $('#f-token-paste');
+        if (btn && !btn.dataset.autopasted) {
+          btn.dataset.autopasted = '1';
+          btn.parentNode.insertBefore(note, btn.nextSibling);
+        }
+      }
+    } catch { /* permission denied, no clipboard API — silent */ }
+  }
+  $('#f-token-paste').addEventListener('click', tryAutoPasteToken);
+  // Auto-attempt when the user switches back to our tab — typically
+  // moments after copying their newly-created CF token in another
+  // tab. We listen on three signals because browsers fire them
+  // inconsistently:
+  //   focus            — works when the window itself regains focus
+  //   visibilitychange — works on tab-switch even if the window was
+  //                      already focused (Chrome's preferred signal)
+  //   pageshow         — fires on bfcache restore (Safari back/forward)
+  // tryAutoPasteToken() is idempotent and bails fast if the field is
+  // already filled, so firing it multiple times is harmless.
+  window.addEventListener('focus', () => { tryAutoPasteToken(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') tryAutoPasteToken();
+  });
+  window.addEventListener('pageshow', () => { tryAutoPasteToken(); });
+
+  // ── draft autosave ───────────────────────────────────────────
+  // We save NON-secret fields by default. When the user ticks the
+  // "remember" box (default on), we also save the API token and
+  // password. localStorage is locked to seo.benjaminb.xyz origin.
+  const DRAFT_KEY  = 'pages-seo:install-draft:v2';
+  const SECRET_KEY = 'pages-seo:install-secrets:v2';
+
+  function saveDraft() {
+    try {
+      const draft = {
+        owner:     $('#f-owner').value.trim(),
+        repo:      $('#f-repo').value.trim(),
+        project:   $('#f-project').value.trim().toLowerCase(),
+        site_name: $('#f-site-name').value.trim(),
+        remember:  $('#f-remember').checked,
+        ts: Date.now(),
+      };
+      if (draft.project || draft.owner) localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      if (draft.remember) {
+        // Only the CF API token now — admin password isn't collected
+        // here any more (the new site asks for it on first /admin
+        // visit via the magic-link URL).
+        const secrets = { token: $('#f-token').value, ts: Date.now() };
+        if (secrets.token) localStorage.setItem(SECRET_KEY, JSON.stringify(secrets));
+      } else {
+        localStorage.removeItem(SECRET_KEY);
+      }
+    } catch { /* localStorage may be full/disabled */ }
+  }
+  function loadDraft() {
+    try {
+      const d = localStorage.getItem(DRAFT_KEY);
+      const s = localStorage.getItem(SECRET_KEY);
+      return { draft: d ? JSON.parse(d) : null, secrets: s ? JSON.parse(s) : null };
+    } catch { return { draft: null, secrets: null }; }
+  }
+  function clearAll() {
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+      localStorage.removeItem(SECRET_KEY);
+    } catch { /* */ }
+  }
+
+  const { draft, secrets } = loadDraft();
+  if (draft) {
+    if (draft.owner)     $('#f-owner').value     = draft.owner;
+    if (draft.repo)      $('#f-repo').value      = draft.repo;
+    if (draft.project)   $('#f-project').value   = draft.project;
+    if (draft.site_name) $('#f-site-name').value = draft.site_name;
+    if (typeof draft.remember === 'boolean') $('#f-remember').checked = draft.remember;
+  }
+  if (secrets) {
+    if (secrets.token) $('#f-token').value = secrets.token;
+  }
+  function syncWarnVisibility() {
+    $('#store-warn').hidden = !$('#f-remember').checked;
+  }
+  syncWarnVisibility();
+  $('#f-remember').addEventListener('change', () => { syncWarnVisibility(); saveDraft(); });
+
+  ['#f-owner', '#f-repo', '#f-project', '#f-site-name', '#f-token'].forEach((sel) => {
+    $(sel).addEventListener('input', saveDraft);
+  });
+
+  // ── resume detection ───────────────────────────────────────
+  // If localStorage carries a draft AND we can compute a server-
+  // side token fingerprint (8 hex chars of sha256), ask the
+  // provision endpoint whether there's an in-progress install for
+  // that pair. If so, show the resume banner. Bail silently on any
+  // failure — resume is a nice-to-have, never blocks the user.
+  async function tokenFingerprint(token) {
+    if (!token || !crypto?.subtle?.digest) return '';
+    try {
+      const bytes = new TextEncoder().encode(token);
+      const digest = await crypto.subtle.digest('SHA-256', bytes);
+      return Array.from(new Uint8Array(digest))
+        .slice(0, 8)
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+    } catch { return ''; }
+  }
+  async function maybeShowResume() {
+    const project = $('#f-project').value || draft?.project;
+    const token   = secrets?.token || $('#f-token').value;
+    if (!project || !token) return;
+    const fp = await tokenFingerprint(token);
+    if (!fp) return;
+    let r;
+    try {
+      r = await fetch(`/api/install/provision?project=${encodeURIComponent(project)}&token_fp=${fp}`);
+    } catch { return; }
+    if (!r.ok) return;
+    const body = await r.json().catch(() => null);
+    if (!body?.found || !body?.state) return;
+    // Only show if the state has actual progress (something past
+    // initial validation) — otherwise the banner is noise.
+    const s = body.state;
+    if (!s.account_id && !s.d1_id && !s.r2_name) return;
+    $('#resume-project').textContent = project;
+    $('#resume-step').textContent = s.last_step || (s.deploy_started ? 'deploy' : s.pages_created ? 'pages' : 'provision');
+    $('#resume-banner').hidden = false;
+  }
+  $('#resume-go').addEventListener('click', () => {
+    $('#resume-banner').hidden = true;
+    // Send the user to the form pane (or wherever the standard
+    // resume target is). The POST handler short-circuits any
+    // already-completed steps, so they'll skip through.
+    document.querySelector('[data-pick="site"]')?.click();
+  });
+  $('#resume-clear').addEventListener('click', () => {
+    clearAll();
+    $('#resume-banner').hidden = true;
+    // Clear visible form too so we don't leave half-state on screen.
+    ['#f-owner', '#f-repo', '#f-project', '#f-site-name', '#f-token'].forEach((s) => {
+      const el = document.querySelector(s); if (el) el.value = '';
+    });
+  });
+  // Fire once after initial restoration. Delay 200ms so the
+  // background OAuth-cookie check etc. has a chance to settle.
+  setTimeout(maybeShowResume, 200);
+
+  // ── progress ticker ──────────────────────────────────────────
+  function markStep(name, state) {
+    const el = document.querySelector(`#provision-steps [data-step="${name}"]`);
+    if (!el) return;
+    el.classList.remove('is-pending', 'is-active', 'is-done');
+    el.classList.add('is-' + state);
+  }
+  function startProgress() {
+    const order = ['account', 'd1', 'r2', 'schema', 'pages', 'seed'];
+    let i = 0;
+    markStep(order[0], 'active');
+    return setInterval(() => {
+      if (i >= order.length - 1) return;
+      markStep(order[i], 'done');
+      i++;
+      markStep(order[i], 'active');
+    }, 4500);
+  }
+  function finishProgress() {
+    ['account','d1','r2','schema','pages','seed'].forEach((s) => markStep(s, 'done'));
+  }
+
+  // ── install runner ───────────────────────────────────────────
+  let lastBody = null;
+  async function runInstall(body) {
+    showPane('site-provision');
+    const ticker = startProgress();
+    let r, data;
+    try {
+      r = await fetch('/api/install/provision', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      data = await r.json().catch(() => null);
+    } catch (e) {
+      clearInterval(ticker);
+      showPane('site-fail');
+      $('#fail-detail').textContent = 'Network error: ' + (e?.message || e);
+      return;
+    }
+    clearInterval(ticker);
+    if (!r.ok || !data?.ok) {
+      showPane('site-fail');
+      const at = data?.failed_at ? ` (at step: ${data.failed_at})` : '';
+      $('#fail-detail').textContent = (data?.detail || data?.error || ('HTTP ' + r.status)) + at;
+      const gh = $('#fail-github');
+      if (data?.hint === 'github_app_required') {
+        const owner = data.owner || lastBody?.owner || 'YOUR-USERNAME';
+        const repo  = data.repo  || lastBody?.repo  || 'pages-seo';
+        $('#fail-repo').textContent = `${owner}/${repo}`;
+        $('#fail-repo-link').href   = data.repo_url || `https://github.com/${owner}/${repo}`;
+        $('#gh-install-app').href   = data.github_app_install_url || 'https://github.com/apps/cloudflare-workers-and-pages/installations/new';
+        gh.hidden = false;
+      } else {
+        gh.hidden = true;
+      }
+      return;
+    }
+    finishProgress();
+    clearAll();
+    setTimeout(() => {
+      showPane('done');
+      const url = data.pages_url || `https://${body.project}.pages.dev`;
+      $('#done-url').textContent = url;
+      $('#done-url-live').textContent = url;
+      // The magic-link admin URL is now provided directly by the
+      // server (admin_setup_url). The new site's /admin?setup=<token>
+      // page will check the token against its own env.SETUP_TOKEN and
+      // then prompt for email + password.
+      const adminUrl = data.admin_setup_url || (url + '/admin');
+      $('#open-admin').href = adminUrl;
+      pollUntilLive(url);
+    }, 500);
+  }
+
+  // Poll /api/install/check on this server (which proxies to
+  // <new-site>/api/setup) until it answers ok+live, then flip the
+  // done pane from "deploying" to "live". Backs off gently and
+  // caps at ~5 minutes — most Pages builds complete in 1-3 min.
+  // Five build steps in the order Cloudflare goes through them.
+  // Cloudflare doesn't give us per-step progress over the API so we
+  // animate this on a time-based estimate. Steps are: clone (15s),
+  // build (25s), upload (10s), rollout (15s), live (waiting). The
+  // live step only completes when the poll returns ok+live; the
+  // others tick forward on a schedule. If polling completes early,
+  // we flip ALL remaining steps to done and reveal the live pane.
+  const BUILD_STEPS = ['clone', 'build', 'upload', 'rollout', 'live'];
+  const STEP_DURATIONS_MS = [15000, 25000, 10000, 15000];  // last step is live, has no fixed duration
+
+  function setStep(name, state) {
+    const el = document.querySelector(`#build-steps [data-bs="${name}"]`);
+    if (!el) return;
+    el.classList.remove('is-pending', 'is-active', 'is-done');
+    el.classList.add('is-' + state);
+  }
+  function markAllStepsDone() {
+    BUILD_STEPS.forEach((s) => setStep(s, 'done'));
+  }
+  function startBuildAnimation() {
+    // First step starts active from the markup; advance one by one
+    // on a timer, stopping at `live`. The polling loop turns `live`
+    // into done when the site responds.
+    setStep('clone', 'active');
+    let idx = 0;
+    return setInterval(() => {
+      if (idx >= STEP_DURATIONS_MS.length) return;
+      setStep(BUILD_STEPS[idx], 'done');
+      idx++;
+      if (idx < BUILD_STEPS.length) setStep(BUILD_STEPS[idx], 'active');
+    }, STEP_DURATIONS_MS[0]); // simple, all-equal cadence is fine for v1
+  }
+
+  async function pollUntilLive(url) {
+    const status = $('#done-poll-status');
+    const ticker = startBuildAnimation();
+    const start = Date.now();
+    const MAX_MS = 5 * 60 * 1000;
+    let attempt = 0;
+    while (Date.now() - start < MAX_MS) {
+      attempt++;
+      try {
+        const r = await fetch('/api/install/check?url=' + encodeURIComponent(url));
+        const d = await r.json().catch(() => null);
+        if (d?.live) {
+          clearInterval(ticker);
+          markAllStepsDone();
+          status.textContent = 'Live!';
+          // Tiny pause so the operator sees the last step flip to
+          // done before the success pane replaces it.
+          setTimeout(() => {
+            $('#done-building').hidden = true;
+            $('#done-live').hidden = false;
+          }, 600);
+          return;
+        }
+        const seconds = Math.round((Date.now() - start) / 1000);
+        status.textContent = `${seconds}s elapsed · check ${attempt} · keeping an eye on it…`;
+      } catch {
+        status.textContent = `Couldn't reach the new site yet, retrying…`;
+      }
+      // Tight at first, looser later — most builds finish in ~90s.
+      await new Promise((res) => setTimeout(res, attempt < 8 ? 5000 : 10000));
+    }
+    clearInterval(ticker);
+    status.textContent = `Build is taking longer than usual — open ${url} manually.`;
+    markAllStepsDone();
+    $('#done-building').hidden = true;
+    $('#done-live').hidden = false;
+  }
+
+  $('#install-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const err = $('#install-err'); err.textContent = '';
+    const body = {
+      token:        $('#f-token').value.trim(),
+      owner:        $('#f-owner').value.trim(),
+      repo:         $('#f-repo').value.trim(),
+      site_name:    $('#f-site-name').value.trim(),
+      project:      $('#f-project').value.trim().toLowerCase(),
+    };
+    if (!body.token)     { err.textContent = 'Token required.'; return; }
+    if (!body.owner)     { err.textContent = 'GitHub owner is required — your username on github.com.'; return; }
+    if (!body.repo)      { err.textContent = 'Repo name is required (defaults to pages-seo).'; return; }
+    if (!body.site_name) { err.textContent = 'Site name required.'; return; }
+    if (!/^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/.test(body.owner)) { err.textContent = 'GitHub owner: letters, digits, dashes only.'; return; }
+    if (!/^[A-Za-z0-9._-]{1,100}$/.test(body.repo))          { err.textContent = 'Repo name: letters, digits, dot, dash, underscore.'; return; }
+    if (!body.project || !/^[a-z][a-z0-9-]{1,32}$/.test(body.project)) { err.textContent = 'Project slug must be lowercase letters/digits/dashes.'; return; }
+    saveDraft();
+    lastBody = body;
+    runInstall(body);
+  });
+
+  $('#fail-resume').addEventListener('click', () => {
+    if (!lastBody) { showPane('site-form'); return; }
+    runInstall(lastBody);
+  });
+
+  // ── terminal tabs + copy ─────────────────────────────────────
+  const CMDS = {
+    bash:   'curl -fsSL https://seo.benjaminb.xyz/install/run.sh | bash',
+    python: 'curl -fsSL https://seo.benjaminb.xyz/install/run.py | python3',
+    node:   'curl -fsSL https://seo.benjaminb.xyz/install/run.js | node',
+  };
+  function setTerm(name) {
+    $$('.term-tab').forEach((t) => t.classList.toggle('is-active', t.dataset.term === name));
+    $('#term-cmd').textContent = CMDS[name];
+    $('#term-copy').classList.remove('is-copied');
+    $('#term-copy').textContent = 'Copy';
+  }
+  $$('.term-tab').forEach((t) => t.addEventListener('click', () => setTerm(t.dataset.term)));
+  setTerm('bash');
+
+  $('#term-copy').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText($('#term-cmd').textContent);
+      $('#term-copy').classList.add('is-copied');
+      $('#term-copy').textContent = '✓ Copied';
+      setTimeout(() => {
+        $('#term-copy').classList.remove('is-copied');
+        $('#term-copy').textContent = 'Copy';
+      }, 2000);
+    } catch {
+      // Fallback for browsers without clipboard API: select the text.
+      const range = document.createRange();
+      range.selectNode($('#term-cmd'));
+      window.getSelection().removeAllRanges();
+      window.getSelection().addRange(range);
+    }
+  });
+
+  // ── deep-link landing (e.g. /install#term) ───────────────────
+  // After the GitHub OAuth callback we get bounced to
+  // /install?gh=connected — we use that to land on the fork step.
+  // /install?gh=error&error=… surfaces a friendly message.
+  (function () {
+    const params = new URLSearchParams(location.search);
+    const gh = params.get('gh');
+    if (gh === 'connected') {
+      // Clear the search params so a refresh doesn't loop.
+      try { history.replaceState(null, '', location.pathname); } catch { /* */ }
+      showPane('site-fork');
+      Github.bootFromOAuth();
+      return;
+    }
+    if (gh === 'error') {
+      const code = params.get('error') || 'unknown';
+      const detail = params.get('detail') || '';
+      try { history.replaceState(null, '', location.pathname); } catch { /* */ }
+      showPane('site-github');
+      const err = $('#site-github-err');
+      if (err) err.textContent = 'GitHub sign-in failed: ' + code + (detail ? ' — ' + detail : '');
+      return;
+    }
+    // Default landing pane is the Browser-vs-Terminal chooser — the
+    // user picks how they want to install first. (A #hash can deep-link
+    // straight to a specific pane.)
+    const hash = (location.hash || '#chooser').slice(1);
+    if (['site-github','site-fork','site-form','term','chooser'].includes(hash)) showPane(hash);
+    else showPane('chooser');
+  })();
+})();
+</script>
+</body>
+</html>

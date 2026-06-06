@@ -295,6 +295,36 @@ body::after {
   color: var(--accent, #7afff0);
   animation: ai-sparkle 2.8s ease-in-out infinite;
 }
+
+/* Deploy to Cloudflare — branded orange so it reads as "click the
+   official Cloudflare button," not a generic primary. */
+.btn-deploy {
+  background: linear-gradient(135deg, #F38020, #FAAD3F);
+  border-color: #F38020;
+  color: #fff;
+  font-weight: 600;
+}
+.btn-deploy:hover {
+  background: linear-gradient(135deg, #E17518, #F08F25);
+  border-color: #E17518;
+  color: #fff;
+  opacity: 1;
+}
+.btn-deploy svg { color: #fff; }
+
+/* Quiet "or browse" link — sits below a primary CTA, looks
+   recessive on purpose so the primary stays the obvious next step. */
+.btn-quiet {
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-top: 8px;
+  padding: 8px 14px;
+  font-size: 0.86rem;
+  color: var(--muted);
+  text-align: center;
+  border-bottom: 1px dotted transparent;
+  width: 100%;
+}
+.btn-quiet:hover { color: var(--ink); opacity: 1; }
 .cta-sub {
   margin: -16px 0 28px;
   font-size: 0.86rem; color: var(--muted);
