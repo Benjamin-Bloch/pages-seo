@@ -30,7 +30,7 @@
     "build": "npm run bundle-schema",
     "bundle-schema": "node scripts/bundle-schema.js",
     "dev": "npx wrangler pages dev public",
-    "deploy": "npm run bundle-schema && npx wrangler pages deploy public",
+    "deploy": "npm run bundle-schema && bash scripts/cloudflare-deploy.sh",
     "deploy:cli": "bash deploy.sh",
     "db:migrate": "npx wrangler d1 execute pages-seo --remote --file=schema/init.sql",
     "db:console": "npx wrangler d1 execute pages-seo --remote --command=\"SELECT count(*) AS posts FROM blog_posts\"",
