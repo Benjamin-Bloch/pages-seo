@@ -7,6 +7,108 @@ version.
 
 The format is loosely Keep-a-Changelog, dates in ISO order.
 
+## 1.0.5 — 2026-06-06
+
+### Added
+- **AI duplicate detection** (`functions/_lib/dedup.js`). Every
+  candidate topic is embedded via Workers AI's BGE base model and
+  cosine-compared against the 50 most recent published posts. The
+  cron repicks on near-duplicates (similarity ≥ 0.80) up to 5 times,
+  then falls back to the least-similar option. Calibrated against
+  real posts: rewrites of an existing topic score ~0.83 (blocked);
+  family-related but distinct topics score ~0.77 (allowed).
+- **Pre-publish quality scoring** (`functions/_lib/quality.js`).
+  Deterministic 0–100 check on word count, headings, lists,
+  internal links, title/meta length. Posts scoring 'bad' (< 45)
+  go to a new `status='review'` state instead of going live.
+  Public site treats 'review' as 404; admin still sees them. The
+  operator can `force_publish: true` to override.
+- **Internal-link injection** (`functions/_lib/internal_links.js`).
+  After generation, scan the body for phrases matching titles and
+  keywords of other published posts, and inject up to 3 markdown
+  links — skipping code blocks and existing links. Big SEO + reader-
+  retention win; every new post becomes a link upgrade for older ones.
+- **Slug cleanup + 301 redirects.** The AI occasionally prepended
+  "Blog" to its own title/slug field, producing URLs like
+  `/blog/blogoptimize-...`. Text generation now strips this via a
+  title-level check (the AI's tell is a capital letter immediately
+  after "Blog"), then re-slugifies. A new admin endpoint
+  `POST /api/admin/blog/rename-slug` migrates broken legacy slugs
+  with automatic 301 redirects (via a new `blog_post_redirects`
+  table created on first use).
+- **Category-aware topic rotation.** `functions/_lib/topics.js` now
+  tags each topic with a `category` (on-page, technical, content,
+  links, off-page, analytics, platform, ai). The cron picker
+  prefers categories not used in the last 7 days, preventing the
+  "three Cloudflare Pages posts in five days" clustering pattern.
+- **Public RSS feed** at `/feed.xml`. RSS 2.0 with the 30 most
+  recent posts, advertised via `<link rel="alternate">` in every
+  blog page's `<head>` and a `Feed:` line in `robots.txt`. No
+  config required — uses the request's own host.
+- **Richer `/api/version`.** External tools and other installs now
+  get `recent_commits[]` (last 20 on main), `release_notes` (body
+  of the latest GH release), and `commits_since_tag` (count of
+  main commits ahead of the latest tag). Backward-compatible: all
+  v1 fields preserved.
+- **Beefier `/api/health`.** Adds `posts.count`,
+  `posts.last_published`, `posts.hours_since_last`,
+  `posts.cron_likely_alive`, and `jobs.in_flight_stuck` so an
+  uptime monitor can detect a silently-dead cron without you having
+  to look at the admin UI.
+- **Cron Worker `/diag`** (`pages-seo-cron`). Unauthenticated
+  config probe that reports whether each secret is configured,
+  whether the BLOG_URL/PROG_URL endpoints answer, the current UK
+  offset, and the next scheduled run times. Doesn't leak any
+  secret values.
+
+### Fixed
+- **Cron's `ADMIN_TOKEN` was stale.** The cron Worker had a
+  different `ADMIN_TOKEN` from the Pages project, so every cron
+  hour returned `{"error":"unauthorized"}`. Rotated to a fresh
+  64-hex token on both sides — diagnosed via the new `/diag`.
+- **Installer (`run.py`/`run.js`/`run.sh`) D1 parsing.** Wrangler
+  changed its `d1 create` output from a TOML snippet to JSON;
+  installers now accept both, with a bare-UUID fallback for any
+  future format change.
+- **Installer source archive missing `wrangler.toml`.** Releases
+  ship `wrangler.template.toml` so the demo's real D1/R2 IDs
+  aren't carried into installs. All three installers now copy
+  the template into place when the working file is absent.
+- **Installer password input was fully hidden.** Both `run.py` and
+  `run.sh` now read from `/dev/tty` (so curl-piped invocations
+  don't swallow script bytes as input) and show the last typed
+  character in plain before masking on the next keystroke —
+  clearer than blind input without exposing the password.
+- **Markdown rendering — full GFM support.** Tables, fenced code
+  blocks, blockquotes, horizontal rules, nested lists, underscore
+  bold/italic, strikethrough, images, and bare-URL autolinks all
+  now render. Replaced the NUL-byte sentinel in the inline-code
+  protection (which made the source a binary file) with a split-
+  based approach. Bare-URL autolinks now correctly strip trailing
+  sentence punctuation.
+- **Cover SVGs serve the cream/sage background** for posts without
+  a stored hero image. Falls back to the live `/cover/<slug>.svg`
+  template via a `?v=<template_updated_at>` cache-buster, so
+  template edits invalidate cached covers immediately.
+- **`/install` page restyled** to match the marketing palette
+  (was inheriting admin dashboard's dark/cyan theme). Black primary
+  button + cream background. The "Stuck? Use AI" pill no longer
+  overlaps the step list. Re-instated the Browser-vs-Terminal
+  chooser as the first step.
+- **README/CLI docs replaced `npx pages-seo-install`** with the
+  real working install one-liners. The CLI was never published to
+  npm.
+
+### Changed
+- Migration: `blog_posts` gains `embedding`, `embedding_model`,
+  `embedding_at` columns (all nullable; backfilled via the new
+  `POST /api/admin/blog/embed-backfill` endpoint).
+- Migration: `blog_post_redirects` table created lazily by the
+  rename-slug endpoint. No separate migration needed.
+- `/api/version` cache headers now include
+  `stale-while-revalidate=86400` so a GitHub blip never breaks
+  external consumers.
+
 ## 1.0.4 — 2026-05-21
 
 ### Added

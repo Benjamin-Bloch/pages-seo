@@ -7,6 +7,17 @@ export const onRequestGet = async ({ env, request, params }) => {
   if (!/^[a-z0-9-]+$/.test(slug)) {
     return new Response('Not found', { status: 404, headers: { 'content-type': 'text/plain' } });
   }
+  // Honour slug renames: blog_post_redirects maps old_slug -> new_slug.
+  // 301 transfers ranking to the new URL. Table is created on demand by
+  // the admin rename endpoint; lookup degrades gracefully if missing.
+  try {
+    const r = await env.DB.prepare(
+      `SELECT new_slug FROM blog_post_redirects WHERE old_slug = ? LIMIT 1`
+    ).bind(slug).first();
+    if (r?.new_slug) {
+      return Response.redirect(new URL(`/blog/${r.new_slug}`, request.url).toString(), 301);
+    }
+  } catch { /* table not yet created */ }
   const post = await env.DB.prepare(
     `SELECT slug, title, meta_description, body_markdown, hero_image_key, hero_image_alt,
             keywords, status, published_at
@@ -14,6 +25,9 @@ export const onRequestGet = async ({ env, request, params }) => {
   ).bind(slug).first();
   if (!post) return new Response('Not found', { status: 404, headers: { 'content-type': 'text/plain' } });
   if (post.status === 'hidden') return new Response('Gone', { status: 410, headers: { 'content-type': 'text/plain' } });
+  // 'review' posts are admin-only drafts — invisible to public visitors
+  // but still listed in /admin. Treat as 404 to keep them off Google.
+  if (post.status === 'review') return new Response('Not found', { status: 404, headers: { 'content-type': 'text/plain' } });
   post.urlPath = '/blog/' + post.slug;
 
   // "Read next" — three other recent posts the LLM didn't write into

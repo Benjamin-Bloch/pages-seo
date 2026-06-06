@@ -1,12 +1,13 @@
 // Step 2/4 — call the AI for article text. Falls back to OpenAI if
 // Workers AI fails.
-import { json, nowSec } from '../../../_lib/util.js';
+import { json, nowSec, slugify } from '../../../_lib/util.js';
 import { adminGate } from '../../../_lib/auth.js';
 import { generateContent } from '../../../_lib/ai.js';
 import { sanitiseMarkdownLinks } from '../../../_lib/links/sanitise.js';
 import { buildAliasMap } from '../../../_lib/links/aliases.js';
 import { loadSettings } from '../../../_lib/settings.js';
 import { checkBudget } from '../../../_lib/usage.js';
+import { injectInternalLinks, loadLinkTargets } from '../../../_lib/internal_links.js';
 
 export const onRequestPost = async ({ request, env }) => {
   const gate = await adminGate(env, request); if (gate) return gate;
@@ -88,7 +89,47 @@ export const onRequestPost = async ({ request, env }) => {
   // persisted so no broken link ever reaches /blog/<slug>.
   post.body_markdown = sanitiseMarkdownLinks(post.body_markdown, { aliases });
 
+  // The AI sometimes prepends "Blog" to its title/slug fields, producing
+  // URLs like /blog/blogoptimize-... or /blog/blogai-content-... — the
+  // category is already in the route, so this is duplicate noise.
+  //
+  // There's no purely-syntactic way to tell "blogai-content" (bug) from
+  // "bloggers-guide" (legit) on the slug alone, so we rely on the TITLE
+  // as the authoritative signal:
+  //
+  //   - The AI's tell is a capital letter immediately after "Blog"
+  //     ("BlogAI Content", "BlogOptimize Cloudflare ..."), or a
+  //     separator ("Blog: SEO ...", "Blog - SEO ...").
+  //   - If the title gets cleaned, re-slugify from it. Otherwise leave
+  //     the original slug alone (it might legitimately start with
+  //     "blog" — bloggers, blogging).
+  let titleTouched = false;
+  if (post.title) {
+    const cleaned = String(post.title).replace(/^Blog(?:\s*[:\-]\s*|(?=[A-Z]))/, '');
+    if (cleaned !== post.title) {
+      post.title = cleaned;
+      titleTouched = true;
+    }
+  }
+  if (titleTouched) {
+    // Re-slugify from the cleaned title (uses the same slugifier the
+    // AI's `shapeArticle` used). slugify is imported from util.js.
+    post.slug = slugify(post.title);
+  }
   const slug = await uniqSlug(post.slug);
+
+  // Internal-link injection: scan the body for phrases that match
+  // existing post titles/keywords, link them up to 3 times. Big SEO
+  // and retention win — turns every new post into a link upgrade
+  // for older ones. Best-effort: failure here is non-fatal.
+  try {
+    const targets = await loadLinkTargets(env, slug, { limit: 80 });
+    if (targets.length) {
+      const { body: linkedBody, injected } = injectInternalLinks(post.body_markdown, slug, targets);
+      post.body_markdown = linkedBody;
+      post._internal_links_injected = injected.length;
+    }
+  } catch { /* non-fatal */ }
 
   await env.DB.prepare(
     `UPDATE blog_jobs

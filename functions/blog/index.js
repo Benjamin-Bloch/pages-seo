@@ -52,9 +52,12 @@ export async function renderBlogIndex({ env, request, page = 1 }) {
     const date = new Date((p.published_at || 0) * 1000).toLocaleDateString('en-GB', {
       year: 'numeric', month: 'long', day: 'numeric',
     });
-    const img = p.hero_image_key
-      ? `<img src="/image/${esc(p.hero_image_key)}" alt="${esc(p.hero_image_alt || p.title)}" width="640" height="336" loading="lazy" decoding="async" />`
-      : '';
+    // Prefer the stored R2 hero image; fall back to the live cover
+    // template so a card is never blank.
+    const imgSrc = p.hero_image_key
+      ? `/image/${esc(p.hero_image_key)}`
+      : `/cover/${esc(p.slug)}.svg`;
+    const img = `<img src="${imgSrc}" alt="${esc(p.hero_image_alt || p.title)}" width="640" height="336" loading="lazy" decoding="async" />`;
     return `
       <li>
         ${img}
@@ -166,6 +169,7 @@ export async function renderBlogIndex({ env, request, page = 1 }) {
 <link rel="canonical" href="${canonical}" />
 ${relLinks}
 ${verifyMetas}
+<link rel="alternate" type="application/rss+xml" title="${esc(siteName)} — RSS feed" href="${baseUrl}/feed.xml" />
 <meta name="robots" content="index,follow" />
 <meta property="og:title" content="${esc(titleStr)}" />
 <meta property="og:description" content="${esc(siteDesc)}" />

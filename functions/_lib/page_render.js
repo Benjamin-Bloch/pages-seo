@@ -215,6 +215,7 @@ export function renderContentPage({ env, request, post, kind, related = [], sett
 ${post.keywords ? `<meta name="keywords" content="${esc(post.keywords)}" />` : ''}
 <link rel="canonical" href="https://${host}${urlPath}" />
 <meta name="robots" content="index,follow,max-image-preview:large" />
+<link rel="alternate" type="application/rss+xml" title="${esc(env.SITE_NAME || settings.site_name || 'pages-seo')} — RSS feed" href="https://${host}/feed.xml" />
 ${verifyMetas}
 <meta property="og:type" content="${kind === 'blog' ? 'article' : 'website'}" />
 <meta property="og:title" content="${esc(post.title)}" />

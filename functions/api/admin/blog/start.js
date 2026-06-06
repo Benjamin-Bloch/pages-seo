@@ -12,6 +12,7 @@ import { json, newId, nowSec, audit } from '../../../_lib/util.js';
 import { adminGate } from '../../../_lib/auth.js';
 import { pickNextTopic } from '../../../_lib/topics.js';
 import { planSingleForToday } from '../../../_lib/calendar_planner.js';
+import { checkDuplicate, pickNonDuplicate } from '../../../_lib/dedup.js';
 
 function todayUtc() { return new Date().toISOString().slice(0, 10); }
 
@@ -62,6 +63,35 @@ export const onRequestPost = async ({ request, env }) => {
       angle: slot.angle || slot.title,
     };
   }
+
+  // AI duplicate check.
+  //
+  //  - Cron / legacy path (no slot, no explicit topic): repick up to 5x
+  //    from the eligible pool, fall back to the least-similar option if
+  //    everything's a duplicate. Always publishes something.
+  //  - Calendar-claimed slot or operator-supplied topic_key+angle:
+  //    the operator chose this — we WARN by writing the similarity into
+  //    the audit log but don't override the choice.
+  //
+  // Set body.skip_dedup:true to bypass entirely (useful for tests).
+  let dupInfo = null;
+  if (!body.skip_dedup && !topic && !slot) {
+    const pick = await pickNonDuplicate(env, () => pickNextTopic(env), { maxTries: 5 });
+    if (pick.topic) {
+      topic = pick.topic;
+      dupInfo = { similarity: pick.dup?.similarity, fallback: pick.fallback, tries: pick.tries, against: pick.dup?.against };
+    }
+  } else if (!body.skip_dedup && topic) {
+    const dup = await checkDuplicate(env, { title: topic.key, angle: topic.angle });
+    dupInfo = { similarity: dup.similarity, duplicate: dup.duplicate, against: dup.against };
+    // Warn-only for operator-chosen topics.
+    if (dup.duplicate) {
+      await audit(env, 'cron', 'dedup.warn', topic.key, JSON.stringify({
+        similarity: dup.similarity, against: dup.against?.slug,
+      })).catch(() => {});
+    }
+  }
+
   if (!topic) topic = await pickNextTopic(env);
   if (!topic) return json(500, { error: 'no_topic_available' });
 
@@ -79,5 +109,13 @@ export const onRequestPost = async ({ request, env }) => {
     await audit(env, 'cron', 'calendar.claim', slot.id, JSON.stringify({ job_id: id }));
   }
 
-  return json(200, { ok: true, job_id: id, status: 'created', topic: topic.key, slot_id: slot?.id || null });
+  // Log dedup outcome to audit so the admin UI shows what happened.
+  if (dupInfo) {
+    await audit(env, 'cron', 'dedup.check', topic.key, JSON.stringify(dupInfo)).catch(() => {});
+  }
+
+  return json(200, {
+    ok: true, job_id: id, status: 'created', topic: topic.key, slot_id: slot?.id || null,
+    dedup: dupInfo,
+  });
 };

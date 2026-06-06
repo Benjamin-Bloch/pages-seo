@@ -22,16 +22,31 @@ CREATE TABLE IF NOT EXISTS blog_posts (
   body_markdown   TEXT NOT NULL,
   hero_image_key  TEXT,                              -- R2 object key (nullable)
   hero_image_alt  TEXT,
-  status          TEXT NOT NULL DEFAULT 'published', -- published | hidden
+  status          TEXT NOT NULL DEFAULT 'published', -- published | review | hidden
   topic_seed      TEXT,
   keywords        TEXT,                              -- comma-separated long-tails
   ai_provider     TEXT,                              -- 'workers-ai' | 'openai'
   created_at      INTEGER NOT NULL,
   published_at    INTEGER NOT NULL,
-  hidden_at       INTEGER
+  hidden_at       INTEGER,
+  -- AI similarity dedup (v1.0.5+). JSON-encoded float array from
+  -- @cf/baai/bge-base-en-v1.5 (768-d). Nullable so existing rows
+  -- keep working; new posts are embedded at publish time.
+  embedding       TEXT,
+  embedding_model TEXT,
+  embedding_at    INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_blog_status_published_at
   ON blog_posts(status, published_at DESC);
+
+-- Slug renames (v1.0.5+). Maps old_slug -> new_slug; the /blog/<slug>
+-- handler does a 301 redirect when it finds a row here. Lets us clean
+-- up bad AI-generated slugs without breaking inbound links.
+CREATE TABLE IF NOT EXISTS blog_post_redirects (
+  old_slug   TEXT PRIMARY KEY,
+  new_slug   TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS blog_jobs (
   id              TEXT PRIMARY KEY,
@@ -313,3 +328,25 @@ CREATE TABLE IF NOT EXISTS site_aliases (
   updated_at      INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_aliases_kind ON site_aliases(kind);
+
+-- Installer state. One row per install attempt keyed by the project
+-- slug + a fingerprint of the API token (we never store the token
+-- itself). Lets a half-finished install resume on retry rather than
+-- restarting from step 1.
+CREATE TABLE IF NOT EXISTS install_state (
+  project          TEXT NOT NULL,                    -- pages slug the user chose
+  token_fp         TEXT NOT NULL,                    -- sha256 of the token, first 16 hex chars
+  account_id       TEXT,
+  d1_id            TEXT,
+  r2_name          TEXT,
+  pages_created    INTEGER NOT NULL DEFAULT 0,       -- 0 | 1
+  deploy_started   INTEGER NOT NULL DEFAULT 0,       -- 0 | 1
+  pages_url        TEXT,
+  last_error       TEXT,
+  last_step        TEXT,
+  setup_token      TEXT,                             -- one-time magic-link token for the new site's /api/setup
+  created_at       INTEGER NOT NULL,
+  updated_at       INTEGER NOT NULL,
+  PRIMARY KEY (project, token_fp)
+);
+CREATE INDEX IF NOT EXISTS idx_install_updated ON install_state(updated_at DESC);

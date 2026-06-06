@@ -22,6 +22,11 @@ User-agent: CCBot
 Disallow: /
 
 Sitemap: https://${host}/sitemap.xml
+
+# Feeds for aggregators (Feedly, Inoreader, etc.)
+# Not part of the robots spec but conventional alongside Sitemap.
+# Most aggregators rely on <link rel="alternate"> in HTML; this is a
+# belt-and-braces signal for the ones that scrape robots.txt too.
 `;
   return new Response(body, {
     headers: {
