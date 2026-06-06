@@ -59,8 +59,10 @@ export const onRequestPost = async ({ request, env, waitUntil }) => {
       provider: settings.default_ai_provider || undefined,
       source,
       brand: {
-        name: env.SITE_NAME || 'this site',
-        url: env.SITE_URL || '/',
+        // settings.site_name resolves Pages secret first, then D1
+        // — supports CLI + browser + 1-click Deploy installs.
+        name: settings.site_name || 'this site',
+        url: settings.site_url || '/',
         cta: settings.site_cta,
         tone: settings.brand_voice_tone || settings.site_tone || undefined,
         audience: settings.brand_target_audience || settings.site_audience || undefined,

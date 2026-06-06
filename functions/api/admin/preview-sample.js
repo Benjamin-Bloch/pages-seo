@@ -34,8 +34,10 @@ export const onRequestPost = async ({ request, env }) => {
   const settings = await loadSettings(env);
   const provider = body.provider ? String(body.provider) : (settings.default_ai_provider || undefined);
   const brand = {
-    name: body.brand?.name || env.SITE_NAME,
-    url:  body.brand?.url  || env.SITE_URL,
+    // settings.site_name / site_url resolve Pages secret first, then
+    // D1 setting — works on CLI + browser + 1-click Deploy installs.
+    name: body.brand?.name || settings.site_name,
+    url:  body.brand?.url  || settings.site_url,
     cta:  body.brand?.cta  || settings.site_cta,
     tone: body.brand?.tone || settings.brand_voice_tone || settings.site_tone || undefined,
     audience: body.brand?.audience || settings.brand_target_audience || settings.site_audience || undefined,

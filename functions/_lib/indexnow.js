@@ -6,21 +6,30 @@
 //   2. Save as a secret:  wrangler pages secret put INDEXNOW_KEY
 //   3. The /<INDEXNOW_KEY>.txt route serves it (functions/[key].txt.js).
 
+import { getIndexNowKey } from './indexnow_key.js';
+import { getSiteIdentity } from './site_identity.js';
+
 const INDEXNOW_URL = 'https://api.indexnow.org/indexnow';
 
 // Resolve the host the page lives on. The widely-known case is the
 // user's own domain (e.g. blog.example.com). We use the request URL's
-// hostname when available; falls back to env.SITE_URL.
-export function getHost(env, request) {
+// hostname when available; falls back to the resolved SITE_URL
+// (Pages secret or D1 setting).
+export async function getHost(env, request) {
   if (request) try { return new URL(request.url).hostname; } catch { /* */ }
-  if (env?.SITE_URL) try { return new URL(env.SITE_URL).hostname; } catch { /* */ }
+  const id = await getSiteIdentity(env);
+  if (id?.url) try { return new URL(id.url).hostname; } catch { /* */ }
   return null;
 }
 
 export async function pingIndexNow(env, urls, request = null) {
-  if (!env?.INDEXNOW_KEY) return { ok: false, error: 'indexnow_not_configured' };
+  // Resolve via Pages secret first, D1 setting second. Both browser
+  // and 1-click Deploy installs end up with the key in D1; only the
+  // CLI install path puts it in a Pages secret.
+  const key = await getIndexNowKey(env);
+  if (!key) return { ok: false, error: 'indexnow_not_configured' };
   if (!urls || !urls.length) return { ok: false, error: 'no_urls' };
-  const host = getHost(env, request);
+  const host = await getHost(env, request);
   if (!host) return { ok: false, error: 'no_host' };
 
   const r = await fetch(INDEXNOW_URL, {
@@ -28,7 +37,7 @@ export async function pingIndexNow(env, urls, request = null) {
     headers: { 'content-type': 'application/json; charset=utf-8' },
     body: JSON.stringify({
       host,
-      key: env.INDEXNOW_KEY,
+      key,
       urlList: urls.slice(0, 10000), // IndexNow per-request cap
     }),
   });

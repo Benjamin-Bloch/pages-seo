@@ -37,5 +37,46 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "cloudflare": {
+    "comment": "Descriptions surfaced by the Deploy to Cloudflare button (https://deploy.workers.cloudflare.com) when a user clicks deploy. They map to keys in .env.example. By default every key in .env.example is commented out, so the deploy flow shows zero secret prompts — pages-seo auto-generates everything it needs on first run. These descriptions only render if someone forks the repo and uncomments a key.",
+    "bindings": {
+      "SITE_NAME": {
+        "description": "Optional. Display name for your site (used in titles, OG tags, RSS). Leave blank to auto-detect from the request host."
+      },
+      "SITE_URL": {
+        "description": "Optional. Canonical URL of your site. Leave blank to auto-detect from the request host."
+      },
+      "ADMIN_TOKEN": {
+        "description": "Optional. 64-char random hex used to authenticate admin requests and sign session cookies. Leave blank — pages-seo generates one on first visit to /admin and stores it in D1."
+      },
+      "INDEXNOW_KEY": {
+        "description": "Optional. 64-char random hex used to ping Bing/Yandex/Seznam when new posts publish. Leave blank — pages-seo generates one on first run."
+      },
+      "OPENAI_API_KEY": {
+        "description": "Optional. OpenAI API key. Skip unless you want OpenAI as a fallback provider. Workers AI runs by default with no key."
+      },
+      "ANTHROPIC_API_KEY": {
+        "description": "Optional. Anthropic API key (Claude). Skip unless you want Anthropic as a fallback provider."
+      },
+      "GEMINI_API_KEY": {
+        "description": "Optional. Google AI Studio API key (Gemini). Skip unless you want Gemini as a fallback provider."
+      },
+      "GROQ_API_KEY": {
+        "description": "Optional. Groq API key. Skip unless you want Groq as a fast fallback provider."
+      },
+      "DEEPSEEK_API_KEY": {
+        "description": "Optional. DeepSeek API key. Skip unless you want DeepSeek as a fallback provider."
+      },
+      "MISTRAL_API_KEY": {
+        "description": "Optional. Mistral API key. Skip unless you want Mistral as a fallback provider."
+      },
+      "TOGETHER_API_KEY": {
+        "description": "Optional. Together AI API key. Skip unless you want Together as a fallback provider."
+      },
+      "CEREBRAS_API_KEY": {
+        "description": "Optional. Cerebras API key. Skip unless you want Cerebras as a fast fallback provider."
+      }
+    }
   }
 }

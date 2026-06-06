@@ -153,6 +153,14 @@ export async function loadSettings(env) {
   for (const k of KEYS) {
     if (out[k] == null || out[k] === '') out[k] = FALLBACK[k](env);
   }
+
+  // Derived aliases. site_name / site_url are read in lots of
+  // legacy call sites; resolve them from (env first, then D1) so
+  // CLI installs (Pages secret) AND 1-click Deploy installs (D1
+  // row) both work without each call site duplicating the logic.
+  out.site_name = (env?.SITE_NAME || '').trim() || out.site_name_db || '';
+  out.site_url  = (env?.SITE_URL  || '').trim() || out.site_url_db  || '';
+
   return out;
 }
 

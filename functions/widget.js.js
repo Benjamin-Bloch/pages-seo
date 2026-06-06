@@ -13,11 +13,15 @@
 // posts the site has.
 
 import { widgetBody } from './_lib/widget_render.js';
+import { getSiteIdentity } from './_lib/site_identity.js';
 
 export const onRequestGet = async ({ env, request }) => {
   const url = new URL(request.url);
   const apiBase = `${url.protocol}//${url.host}`;
-  const title = env?.SITE_NAME ? `${env.SITE_NAME} · Blog` : 'Blog';
+  // Resolve via Pages secret first, D1 setting second so 1-click
+  // Deploy installs get a proper title without needing a secret.
+  const id = await getSiteIdentity(env);
+  const title = id.name ? `${id.name} · Blog` : 'Blog';
   const js = widgetBody({ title, apiBase, perPage: 10 });
   return new Response(js, {
     headers: {
