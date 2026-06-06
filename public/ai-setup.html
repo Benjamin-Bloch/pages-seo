@@ -298,6 +298,81 @@
     margin: 0 0 0.6rem;
   }
 
+  /* "Install as a slash command" disclosure beneath the prompt */
+  .slash-card {
+    margin-top: 1.25rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .slash-card[open] { border-color: var(--line-strong); }
+  .slash-card summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 0.95rem 1.25rem;
+    font-size: 0.92rem;
+    color: var(--ink);
+    user-select: none;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px;
+  }
+  .slash-card summary::-webkit-details-marker { display: none; }
+  .slash-card summary::after {
+    content: "▾"; font-size: 0.85em;
+    color: var(--muted);
+    transition: transform .15s;
+  }
+  .slash-card[open] summary::after { transform: rotate(180deg); }
+  .slash-summary-label { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .slash-pill {
+    background: var(--accent);
+    color: var(--bg);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 999px;
+  }
+  .slash-body {
+    padding: 0 1.25rem 1.25rem;
+    color: var(--muted);
+    font-size: 0.9rem;
+    line-height: 1.6;
+  }
+  .slash-body h4 {
+    font-size: 0.78rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--muted);
+    margin: 1rem 0 0.4rem;
+  }
+  .slash-body p { margin: 0 0 0.6rem; color: var(--ink-2); }
+  .slash-body ol, .slash-body ul {
+    margin: 0 0 0.6rem; padding-left: 1.25rem;
+    color: var(--ink-2);
+  }
+  .slash-body li { margin-bottom: 0.25rem; }
+  .slash-body code {
+    background: var(--bg-2); color: var(--ink);
+    padding: 1px 6px; border-radius: 4px;
+    font-size: 0.88em;
+  }
+  .slash-body pre {
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 0.7rem 0.9rem;
+    margin: 0.4rem 0 0.9rem;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    line-height: 1.55;
+    color: var(--ink-2);
+    overflow-x: auto;
+  }
+  .slash-body a { color: var(--ink); border-bottom: 1px dotted var(--muted-2); }
+  .slash-body a:hover { border-bottom-color: var(--accent); }
+
   /* Mobile tightening */
   @media (max-width: 600px) {
     .ai-page { margin: 1.25rem auto; padding: 0 1rem 3rem; }
@@ -393,6 +468,19 @@
     </details>
   </div>
 
+  <details id="slash-card" class="slash-card" hidden>
+    <summary>
+      <span class="slash-summary-label">
+        <span class="slash-pill">Pro</span>
+        Skip the copy-paste — install as a slash command for
+        <span id="slash-tool-name">your tool</span>
+      </span>
+    </summary>
+    <div class="slash-body" id="slash-body">
+      <!-- populated by JS -->
+    </div>
+  </details>
+
   <div class="ai-steps">
     <h2>How to use it</h2>
     <ol>
@@ -434,30 +522,60 @@
   // Per-tool metadata: name, blurb suffix, "open in" URL + label.
   // Chat sets ?q= prefill (ChatGPT only). Other tools just open
   // their site; the user pastes the prompt into the agent.
+  //
+  // `slash` is the persistent-install variant: each agent tool has
+  // a way to ship the prompt as a slash command / skill so the user
+  // doesn't have to paste it every conversation. `null` = no
+  // equivalent (e.g. plain chat).
   const TOOLS = {
     'chat': {
       name: 'Chat AI',
       ledeSuffix: 'Paste into ChatGPT, Claude, or Gemini. The AI walks you through every step.',
       openUrl:   () => `https://chatgpt.com/?q=${encodeURIComponent('I have copied a pages-seo setup prompt to my clipboard. Wait for me to paste it, then follow it step by step.')}`,
       openLabel: 'ChatGPT',
+      slash:     null,
     },
     'claude-code': {
       name: 'Claude Code',
       ledeSuffix: 'Paste into Claude Code on your machine. The agent can run wrangler and do the whole thing itself.',
       openUrl:   () => 'https://claude.com/product/claude-code',
       openLabel: 'Claude Code docs',
+      slash: {
+        kind: 'skill',
+        label: 'Claude Skill',
+        intro: 'Claude Code auto-loads skills from <code>~/.claude/skills/</code> when their description matches what you ask about. Drop this skill in once; every future conversation about pages-seo loads the install / update / repair playbooks automatically.',
+        installCmd: 'mkdir -p ~/.claude/skills/pages-seo && curl -fsSL https://seo.benjaminb.xyz/skills/pages-seo/SKILL.md -o ~/.claude/skills/pages-seo/SKILL.md',
+        useNote: 'Then just say "Help me install pages-seo" (or update, or repair) in any Claude Code session — the skill loads automatically.',
+        viewUrl: '/skills/pages-seo/SKILL.md',
+      },
     },
     'codex': {
       name: 'ChatGPT Codex',
       ledeSuffix: 'Paste into a Codex sandbox after pointing it at the pages-seo repo (or your fork).',
       openUrl:   () => 'https://chatgpt.com/codex',
       openLabel: 'Codex',
+      slash: {
+        kind: 'agents-md',
+        label: 'AGENTS.md',
+        intro: 'Codex reads <code>AGENTS.md</code> at the repo root on every task. Drop this file in your fork once and Codex picks up the file layout, hard rules, schema conventions, and release flow without you re-explaining them.',
+        installCmd: 'curl -fsSL https://seo.benjaminb.xyz/AGENTS.md -o AGENTS.md && git add AGENTS.md && git commit -m "docs: add AGENTS.md for Codex"',
+        useNote: 'Codex picks it up automatically — no slash command needed. Same file works for Claude Code (link it as <code>CLAUDE.md</code>).',
+        viewUrl: '/AGENTS.md',
+      },
     },
     'copilot': {
       name: 'Copilot Chat',
       ledeSuffix: 'Paste into Copilot Chat in your IDE. It gives you one terminal command at a time.',
       openUrl:   () => 'https://github.com/features/copilot',
       openLabel: 'Copilot',
+      slash: {
+        kind: 'prompt-file',
+        label: 'Prompt file',
+        intro: 'VS Code Copilot Chat supports <code>.github/prompts/*.prompt.md</code> files that you invoke with a slash command. Drop these in your repo once and the install / update / repair playbooks become <code>/pages-seo-install</code>, <code>/pages-seo-update</code>, <code>/pages-seo-repair</code>.',
+        installCmd: 'mkdir -p .github/prompts && for f in install update repair; do curl -fsSL "https://seo.benjaminb.xyz/prompts/pages-seo-$f.prompt.md" -o ".github/prompts/pages-seo-$f.prompt.md"; done',
+        useNote: 'In VS Code, open Copilot Chat and type <code>/pages-seo-install</code> (or <code>/pages-seo-update</code>, <code>/pages-seo-repair</code>).',
+        viewUrl: '/prompts/pages-seo-install.prompt.md',
+      },
     },
   };
 
@@ -561,6 +679,53 @@
     const openTarget = document.getElementById('open-link-target');
     openLink.href = t.openUrl();
     openTarget.textContent = t.openLabel;
+
+    renderSlashCard(t);
+  }
+
+  // Render the "install as a slash command" disclosure. Hidden for
+  // tools that have no equivalent (plain chat).
+  function renderSlashCard(t) {
+    const card = document.getElementById('slash-card');
+    if (!t.slash) { card.hidden = true; return; }
+    card.hidden = false;
+    document.getElementById('slash-tool-name').textContent = t.name;
+    const body = document.getElementById('slash-body');
+    while (body.firstChild) body.removeChild(body.firstChild);
+
+    // Intro paragraph (allows <code> from the metadata; metadata is
+    // hard-coded in this file, not user input — but we still scope
+    // the HTML to a single <p> insertion to keep the surface small).
+    const intro = document.createElement('p');
+    intro.innerHTML = t.slash.intro;
+    body.appendChild(intro);
+
+    // "Install" header + command block
+    const h1 = document.createElement('h4');
+    h1.textContent = 'Install';
+    body.appendChild(h1);
+    const pre = document.createElement('pre');
+    pre.textContent = t.slash.installCmd;
+    body.appendChild(pre);
+
+    // "Use" header + note
+    const h2 = document.createElement('h4');
+    h2.textContent = 'Use';
+    body.appendChild(h2);
+    const note = document.createElement('p');
+    note.innerHTML = t.slash.useNote;
+    body.appendChild(note);
+
+    // "Preview the file" link
+    const linkP = document.createElement('p');
+    linkP.style.marginTop = '0.5rem';
+    const a = document.createElement('a');
+    a.href = t.slash.viewUrl;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.textContent = `Preview the ${t.slash.label.toLowerCase()} →`;
+    linkP.appendChild(a);
+    body.appendChild(linkP);
   }
 
   function capFirst(s) { return s.charAt(0).toUpperCase() + s.slice(1); }

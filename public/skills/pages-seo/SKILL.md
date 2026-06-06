@@ -1,0 +1,1 @@
+../../../.claude/skills/pages-seo/SKILL.md

@@ -1,0 +1,1 @@
+../../.github/prompts/pages-seo-install.prompt.md
