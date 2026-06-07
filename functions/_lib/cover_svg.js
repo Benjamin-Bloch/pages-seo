@@ -259,12 +259,22 @@ export async function renderCoverSvg(spec, ctx, env) {
   }
   // Compose the @import URL. fonts.googleapis.com supports loading
   // multiple families in one stylesheet — concatenate with &.
+  //
+  // The whole SVG is parsed as XML by browsers when loaded via
+  // <img src=…>. A naked & inside <style> breaks the parse with
+  // "EntityRef: expecting ';'". We wrap the stylesheet in a CDATA
+  // block so the parser leaves the ampersands alone. (We still
+  // build the URL with literal & because CSS itself doesn't want
+  // them HTML-escaped.)
   const fontImport = families.size
     ? '@import url("https://fonts.googleapis.com/css2?' +
       [...families].map((f) =>
         `family=${encodeURIComponent(f).replace(/%20/g, '+')}:wght@300;400;500;600;700;800`
       ).join('&') + '&display=swap");'
     : '';
+  const styleBlock = fontImport
+    ? `<style><![CDATA[${fontImport}]]></style>`
+    : '<style></style>';
 
   // Background. Either an asset URL (covers the whole viewport) or a
   // solid colour from the first 'backdrop' box layer if present.
@@ -285,7 +295,7 @@ export async function renderCoverSvg(spec, ctx, env) {
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">
-  <style>${fontImport}</style>
+  ${styleBlock}
   ${backgroundEl}
   ${layerEls}
 </svg>`;
