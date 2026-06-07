@@ -1999,26 +1999,6 @@
 
     // ── Templates panel (rail) ───────────────────────────────────
     function renderTemplatesPanel(inner) {
-      // Top: "Install premium template" affordance.
-      inner.appendChild(el('button', {
-        class: 'ce-btn ce-btn-ghost ce-upload-tile',
-        title: 'Install the maintainer\'s curated premium template (black + gold serif). Marks it default so new posts use it when hero_image_mode = cover.',
-        onclick: async (e) => {
-          const btn = e.currentTarget;
-          btn.disabled = true; btn.textContent = 'Installing…';
-          const r = await api('/api/admin/cover/install-official', { method: 'POST' });
-          btn.disabled = false; btn.textContent = '✨ Install premium template';
-          if (r.body?.ok) {
-            await loadTemplates();
-            const fresh = state.templates.find((t) => t.id === r.body.id);
-            if (fresh) loadTemplateSpec(fresh);
-            if (activeRail === 'templates') renderRailPanel('templates');
-          } else {
-            notify('Install failed: ' + (r.body?.error || r.status), 'bad', { errorCode: r.body?.error });
-          }
-        },
-      }, '✨ Install premium template'));
-
       // Import tile. Hidden file input + label styled as a button. We
       // wire the change handler to read the .template file, POST its
       // JSON to /import, and refresh the panel on success.

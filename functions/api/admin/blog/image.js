@@ -12,10 +12,9 @@
 //             returns 501 (not yet implemented), we transparently
 //             fall back to the AI path so the job still completes.
 //
-// The 'cover' path is the maintainer's "exclusive" route: it uses a
-// template they designed (e.g. the "main — official" one installed
-// via /api/admin/cover/install-official) instead of letting the AI
-// pick. Users who want the AI look keep mode='ai'.
+// The 'cover' path uses a template the user designed in the cover
+// editor instead of letting the AI pick a hero. Users who want the
+// AI look keep mode='ai'.
 import { json, nowSec } from '../../../_lib/util.js';
 import { adminGate } from '../../../_lib/auth.js';
 import { generateImage } from '../../../_lib/ai.js';
