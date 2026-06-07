@@ -146,6 +146,129 @@
   .install-note code { background: var(--bg-2); padding: 1px 5px; border-radius: 4px; font-size: 0.88em; }
   .install-note strong { color: var(--ink); font-weight: 600; }
 
+  /* D1 quota recovery block. Shown inside pane-site-fail when the
+     installer detects the user is at Cloudflare's free-tier 10-D1
+     cap. Lists their databases inline with a delete button each. */
+  .d1-quota-card {
+    text-align: left;
+    max-width: 560px;
+    margin: 16px auto 0;
+    padding: 18px 20px;
+    background: var(--bg-soft);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--warn);
+    border-radius: 10px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--ink-dim);
+  }
+  .d1-quota-intro {
+    margin: 0 0 14px;
+    color: var(--ink-dim);
+  }
+  .d1-quota-intro b { color: var(--ink); }
+  .d1-quota-list {
+    display: flex; flex-direction: column;
+    gap: 8px;
+    margin: 0 0 14px;
+  }
+  .d1-quota-loading {
+    margin: 0; padding: 14px;
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: 12.5px;
+    background: var(--bg);
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+  }
+  .d1-quota-item {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 12px;
+    align-items: center;
+    padding: 10px 14px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    transition: border-color .15s, background .15s;
+  }
+  .d1-quota-item:hover { border-color: var(--line-2); }
+  .d1-quota-item.is-confirming { border-color: var(--warn); background: rgba(224,183,106,0.05); }
+  .d1-quota-item.is-deleting { opacity: 0.6; }
+  .d1-quota-item.is-deleted {
+    border-color: rgba(122,252,166,0.32);
+    background: rgba(122,252,166,0.04);
+  }
+  .d1-quota-name {
+    min-width: 0;
+    display: flex; flex-direction: column;
+    gap: 2px;
+  }
+  .d1-quota-name code {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--ink);
+    background: transparent;
+    padding: 0;
+    word-break: break-all;
+  }
+  .d1-quota-meta {
+    font-size: 11px;
+    color: var(--ink-faint);
+    font-family: var(--mono);
+  }
+  .d1-quota-actions {
+    display: flex; gap: 6px;
+    flex-shrink: 0;
+  }
+  .d1-quota-actions .btn {
+    padding: 5px 10px;
+    font-size: 11px;
+  }
+  .d1-quota-actions .btn-bad {
+    background: transparent;
+    border: 1px solid var(--bad);
+    color: var(--bad);
+  }
+  .d1-quota-actions .btn-bad:hover {
+    background: var(--bad);
+    color: var(--bg);
+  }
+  .d1-quota-foot {
+    margin: 0;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+    color: var(--ink-faint);
+    font-size: 11.5px;
+    line-height: 1.6;
+  }
+  .d1-quota-foot a {
+    color: var(--ink);
+    border-bottom: 1px dotted var(--ink-faint);
+  }
+  .d1-quota-foot a:hover { border-bottom-color: var(--ink); }
+  .d1-quota-error {
+    margin: 8px 0 0; padding: 10px 12px;
+    background: rgba(255,138,161,0.06); border: 1px solid rgba(255,138,161,0.32);
+    border-radius: 8px;
+    color: var(--bad);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  /* Brief glow on the Resume button after a successful D1 deletion
+     so the user knows that's the next step without us having to say
+     "now click Resume" anywhere. */
+  .btn-flash {
+    animation: btn-flash 1.8s ease-out;
+  }
+  @keyframes btn-flash {
+    0%   { box-shadow: 0 0 0 0   rgba(245,207,62,0.6); }
+    100% { box-shadow: 0 0 0 16px rgba(245,207,62,0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .btn-flash { animation: none; }
+  }
+
   /* Terminal pickers + copy block */
   .term-tabs { display: flex; gap: 4px; margin: 4px 0 0; padding: 4px; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 10px; }
   .term-tab {
@@ -658,6 +781,26 @@
         </ol>
         <p style="margin:10px 0 0;color:var(--ink-faint);font-size:12px">Once all three are true, click <b>Resume install</b> below. Your D1 + R2 from the earlier steps are kept; only the Pages project is recreated.</p>
         <p style="margin:8px 0 0;color:var(--ink-faint);font-size:12px">Hate GitHub? The <b>Setup via terminal</b> path on the chooser skips this entirely — it uses <code>wrangler pages deploy</code> which doesn't need a Git source.</p>
+      </div>
+
+      <!-- D1 quota recovery block. Shown when provision returns
+           hint: 'd1_quota_exceeded'. Lists the user's existing D1
+           databases with a delete button on each, plus a "I changed
+           my mind" escape hatch. Once one is deleted the Resume
+           button retries the install from the d1 step. -->
+      <div id="fail-d1-quota" class="d1-quota-card" hidden>
+        <p class="d1-quota-intro">
+          <b>Your Cloudflare account is at the D1 cap.</b>
+          The free tier allows <b>10 D1 databases</b>; you currently have <b><span id="d1-quota-count">—</span></b>.
+          Pick one to delete, then resume.
+        </p>
+        <div class="d1-quota-list" id="d1-quota-list" aria-busy="true">
+          <p class="d1-quota-loading">Loading your D1 databases…</p>
+        </div>
+        <p class="d1-quota-foot">
+          Deleting a D1 is permanent — every table and row goes with it. The list shows the name and table count so you can pick the disposable one (test installs, abandoned demos).
+          <br>If none are disposable, <a href="https://dash.cloudflare.com/?to=/:account/workers/plans" target="_blank" rel="noopener">upgrade to Workers Paid ($5/mo)</a> — bumps the cap to 50,000.
+        </p>
       </div>
 
       <p class="wiz-foot-note" style="text-align:center;max-width:480px;margin:8px auto 0">
@@ -1266,6 +1409,215 @@
     ['account','d1','r2','schema','pages','seed'].forEach((s) => markStep(s, 'done'));
   }
 
+  // ── D1 quota recovery ────────────────────────────────────────
+  // When provision.js returns hint:'d1_quota_exceeded' we render
+  // the user's existing D1 databases inline with a Delete button on
+  // each. Two-click confirmation (the first click flips the button
+  // to "Yes, delete forever" — the second actually fires). On
+  // success we mark the row green; the user clicks Resume install
+  // to re-try provision (which short-circuits all completed steps
+  // and hits D1 fresh).
+  //
+  // Token + account_id come from the install form's last submission
+  // (lastBody.token) and the failed provision response
+  // (data.account_id). Both are kept in memory only — we don't
+  // persist either to make this work.
+  let d1QuotaCtx = { token: '', accountId: '' };
+  async function loadD1Quota({ token, account_id }) {
+    d1QuotaCtx = { token: token || '', accountId: account_id || '' };
+    const list = $('#d1-quota-list');
+    list.innerHTML = '<p class="d1-quota-loading">Loading your D1 databases…</p>';
+    $('#d1-quota-count').textContent = '—';
+    if (!token) {
+      list.innerHTML = '<p class="d1-quota-error">Token missing — re-enter it on step 3 and re-run install.</p>';
+      return;
+    }
+    try {
+      const r = await fetch('/api/install/d1/list', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token, account_id }),
+      });
+      const data = await r.json();
+      if (!r.ok || !data?.ok) {
+        const detail = data?.detail || data?.error || ('HTTP ' + r.status);
+        list.innerHTML = '<p class="d1-quota-error">Could not list D1: ' + escapeHtml(detail) + '</p>';
+        return;
+      }
+      renderD1Quota(data);
+    } catch (e) {
+      list.innerHTML = '<p class="d1-quota-error">Network error: ' + escapeHtml(String(e?.message || e)) + '</p>';
+    }
+  }
+
+  function renderD1Quota(data) {
+    const list = $('#d1-quota-list');
+    list.removeAttribute('aria-busy');
+    list.innerHTML = '';
+    $('#d1-quota-count').textContent = data.count + ' / ' + data.limit;
+    if (!data.databases?.length) {
+      list.innerHTML = '<p class="d1-quota-error">No D1 databases found on this account. That is odd — the install failed with a quota error but the list is empty. Refresh and re-run install.</p>';
+      return;
+    }
+    // Sort oldest-first so the candidate-to-delete is at the top.
+    // Most users will want to drop the dustiest test install, not
+    // their most recent one.
+    const rows = data.databases.slice().sort((a, b) => {
+      const ta = a.created_at ? Date.parse(a.created_at) || 0 : 0;
+      const tb = b.created_at ? Date.parse(b.created_at) || 0 : 0;
+      return ta - tb;
+    });
+    for (const db of rows) {
+      list.appendChild(renderD1Row(db));
+    }
+  }
+
+  function renderD1Row(db) {
+    const wrap = document.createElement('div');
+    wrap.className = 'd1-quota-item';
+    wrap.dataset.uuid = db.uuid;
+
+    const name = document.createElement('div');
+    name.className = 'd1-quota-name';
+    const nameCode = document.createElement('code');
+    nameCode.textContent = db.name;
+    name.appendChild(nameCode);
+    const meta = document.createElement('span');
+    meta.className = 'd1-quota-meta';
+    const parts = [];
+    if (db.created_at) {
+      try {
+        const d = new Date(db.created_at);
+        // YYYY-MM-DD is the shortest useful precision for "is this
+        // the disposable demo I made last month?"
+        parts.push(d.toISOString().slice(0, 10));
+      } catch { /* fall through */ }
+    }
+    if (typeof db.num_tables === 'number') parts.push(db.num_tables + ' tables');
+    if (typeof db.file_size === 'number') {
+      const kb = Math.round(db.file_size / 1024);
+      parts.push(kb < 1024 ? kb + ' KB' : (kb / 1024).toFixed(1) + ' MB');
+    }
+    meta.textContent = parts.join(' · ') || '—';
+    name.appendChild(meta);
+    wrap.appendChild(name);
+
+    const actions = document.createElement('div');
+    actions.className = 'd1-quota-actions';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-bad';
+    btn.textContent = 'Delete';
+    btn.addEventListener('click', () => onDeleteClick(wrap, db, btn));
+    actions.appendChild(btn);
+    wrap.appendChild(actions);
+
+    return wrap;
+  }
+
+  // First click: flip the row into "confirming" state. The button
+  // text changes to "Yes, delete forever" and a Cancel button
+  // appears next to it. Second click on the confirm button fires
+  // the actual delete. A 6-second timer auto-reverts if the user
+  // walks away — protects against an accidental double-click later.
+  function onDeleteClick(row, db, btn) {
+    if (row.classList.contains('is-confirming')) return; // first click already handled below
+    if (row.classList.contains('is-deleted') || row.classList.contains('is-deleting')) return;
+    row.classList.add('is-confirming');
+    btn.textContent = 'Yes, delete forever';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'btn';
+    cancel.textContent = 'Cancel';
+    cancel.addEventListener('click', () => undoConfirm(row, btn, cancel, revertTimer));
+    btn.parentNode.appendChild(cancel);
+
+    // Replace the original click handler so the second click is the
+    // real delete. Cloning the node strips the old listener.
+    const confirmBtn = btn.cloneNode(true);
+    btn.replaceWith(confirmBtn);
+    confirmBtn.addEventListener('click', () => doDelete(row, db, confirmBtn, cancel, revertTimer));
+
+    const revertTimer = setTimeout(() => undoConfirm(row, confirmBtn, cancel, null), 6000);
+  }
+
+  function undoConfirm(row, deleteBtn, cancelBtn, timer) {
+    if (timer) clearTimeout(timer);
+    if (!row.classList.contains('is-confirming')) return;
+    row.classList.remove('is-confirming');
+    deleteBtn.textContent = 'Delete';
+    // Re-attach the original handler so the next click flips to confirm again.
+    const fresh = deleteBtn.cloneNode(true);
+    deleteBtn.replaceWith(fresh);
+    fresh.addEventListener('click', () => onDeleteClick(row, { uuid: row.dataset.uuid, name: row.querySelector('.d1-quota-name code').textContent }, fresh));
+    if (cancelBtn && cancelBtn.parentNode) cancelBtn.remove();
+  }
+
+  async function doDelete(row, db, confirmBtn, cancelBtn, timer) {
+    if (timer) clearTimeout(timer);
+    row.classList.remove('is-confirming');
+    row.classList.add('is-deleting');
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Deleting…';
+    if (cancelBtn) cancelBtn.disabled = true;
+    try {
+      const r = await fetch('/api/install/d1/delete', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          token: d1QuotaCtx.token,
+          account_id: d1QuotaCtx.accountId,
+          uuid: db.uuid,
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok || !data?.ok) {
+        row.classList.remove('is-deleting');
+        row.classList.add('is-confirming'); // re-show buttons
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'Yes, delete forever';
+        if (cancelBtn) cancelBtn.disabled = false;
+        const err = document.createElement('p');
+        err.className = 'd1-quota-error';
+        err.textContent = 'Delete failed: ' + (data?.detail || data?.error || ('HTTP ' + r.status));
+        row.parentNode.insertBefore(err, row.nextSibling);
+        setTimeout(() => err.remove(), 8000);
+        return;
+      }
+      row.classList.remove('is-deleting');
+      row.classList.add('is-deleted');
+      confirmBtn.textContent = '✓ Deleted';
+      if (cancelBtn) cancelBtn.remove();
+      // Decrement count so user sees "9 / 10".
+      const countEl = $('#d1-quota-count');
+      const m = countEl.textContent.match(/(\d+)\s*\/\s*(\d+)/);
+      if (m) countEl.textContent = (parseInt(m[1], 10) - 1) + ' / ' + m[2];
+      // Hint at the resume button so they know what to do next.
+      const resume = $('#fail-resume');
+      resume.classList.add('btn-flash');
+      setTimeout(() => resume.classList.remove('btn-flash'), 1800);
+    } catch (e) {
+      row.classList.remove('is-deleting');
+      row.classList.add('is-confirming');
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = 'Yes, delete forever';
+      if (cancelBtn) cancelBtn.disabled = false;
+      const err = document.createElement('p');
+      err.className = 'd1-quota-error';
+      err.textContent = 'Network error: ' + (e?.message || e);
+      row.parentNode.insertBefore(err, row.nextSibling);
+      setTimeout(() => err.remove(), 8000);
+    }
+  }
+
+  // Tiny HTML escaper used in the few d1-quota error messages we
+  // render via innerHTML (because we mix in styled spans).
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
   // ── install runner ───────────────────────────────────────────
   let lastBody = null;
   async function runInstall(body) {
@@ -1291,6 +1643,7 @@
       const at = data?.failed_at ? ` (at step: ${data.failed_at})` : '';
       $('#fail-detail').textContent = (data?.detail || data?.error || ('HTTP ' + r.status)) + at;
       const gh = $('#fail-github');
+      const d1q = $('#fail-d1-quota');
       if (data?.hint === 'github_app_required') {
         const owner = data.owner || lastBody?.owner || 'YOUR-USERNAME';
         const repo  = data.repo  || lastBody?.repo  || 'pages-seo';
@@ -1298,8 +1651,14 @@
         $('#fail-repo-link').href   = data.repo_url || `https://github.com/${owner}/${repo}`;
         $('#gh-install-app').href   = data.github_app_install_url || 'https://github.com/apps/cloudflare-workers-and-pages/installations/new';
         gh.hidden = false;
+        d1q.hidden = true;
+      } else if (data?.hint === 'd1_quota_exceeded') {
+        gh.hidden = true;
+        d1q.hidden = false;
+        loadD1Quota({ token: lastBody?.token, account_id: data.account_id });
       } else {
         gh.hidden = true;
+        d1q.hidden = true;
       }
       return;
     }
