@@ -95,20 +95,21 @@
     font-size: 11px; color: var(--ink-faint); font-family: var(--mono);
   }
 
-  /* Featured card — the 1-click option deserves more visual weight. */
+  /* Featured card — the recommended option gets the brand-yellow
+     halo so it visually leads the choice. */
   .chooser-card-featured {
-    border-color: #F38020;
-    background: linear-gradient(180deg, rgba(243,128,32,0.05), transparent 60%);
-    box-shadow: 0 4px 20px rgba(243,128,32,0.08);
+    border-color: var(--accent);
+    background: linear-gradient(180deg, rgba(245,207,62,0.06), transparent 60%);
+    box-shadow: 0 4px 20px rgba(245,207,62,0.12);
   }
   .chooser-card-featured:hover {
-    border-color: #F38020;
-    background: linear-gradient(180deg, rgba(243,128,32,0.1), transparent 60%);
-    box-shadow: 0 6px 28px rgba(243,128,32,0.18);
+    border-color: var(--accent);
+    background: linear-gradient(180deg, rgba(245,207,62,0.12), transparent 60%);
+    box-shadow: 0 6px 28px rgba(245,207,62,0.22);
   }
-  .chooser-pill-cf {
-    background: rgba(243,128,32,0.12) !important;
-    color: #F38020 !important;
+  .chooser-pill-recommended {
+    background: rgba(245,207,62,0.18) !important;
+    color: var(--accent) !important;
   }
 
   /* Heads-up callout under the chooser */
@@ -172,6 +173,229 @@
   }
   .term-copy:hover { color: var(--accent); border-color: var(--accent); }
   .term-copy.is-copied { color: var(--good); border-color: rgba(122,252,166,0.4); }
+
+  /* ── Polished token-paste step (install pane 3) ───────────────
+     Three numbered cards leading the user through "create token →
+     paste → name site". Each card stays disabled-looking until the
+     previous one is satisfied, so there's never any ambiguity
+     about what to click next. */
+  .token-step {
+    display: grid;
+    grid-template-columns: 36px 1fr;
+    gap: 14px;
+    align-items: flex-start;
+    padding: 16px 18px;
+    border-radius: 12px;
+    background: var(--bg-soft);
+    border: 1px solid var(--line);
+    transition: border-color .18s, background .18s, opacity .18s;
+  }
+  .token-step[data-state="locked"] { opacity: 0.42; }
+  .token-step[data-state="active"] {
+    border-color: var(--accent);
+    background: rgba(245,207,62,0.06);
+    box-shadow: 0 2px 16px rgba(245,207,62,0.12);
+  }
+  .token-step[data-state="done"] {
+    border-color: rgba(122,252,166,0.32);
+    background: rgba(122,252,166,0.04);
+  }
+  .token-step-num {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--bg);
+    border: 1.5px solid var(--line);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-family: var(--font-serif);
+    font-size: 15px;
+    color: var(--ink-dim);
+    margin-top: 2px;
+    transition: background .18s, border-color .18s, color .18s, transform .18s;
+  }
+  .token-step[data-state="active"] .token-step-num {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
+  }
+  .token-step[data-state="done"] .token-step-num {
+    background: var(--good);
+    border-color: var(--good);
+    color: var(--bg);
+    transform: scale(0.9);
+  }
+  .token-step[data-state="done"] .token-step-num::before {
+    content: "✓"; font-family: inherit; font-size: 15px;
+  }
+  .token-step[data-state="done"] .token-step-num { font-size: 0; }
+  .token-step[data-state="done"] .token-step-num::before { font-size: 15px; }
+
+  .token-step-body { min-width: 0; }
+  .token-step-body h4 {
+    margin: 0 0 4px;
+    font-size: 14.5px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    color: var(--ink);
+  }
+  .token-step-body > p {
+    margin: 0 0 12px;
+    font-size: 12.5px;
+    color: var(--ink-dim);
+    line-height: 1.55;
+  }
+  .token-step-hint {
+    margin: 8px 0 0 !important;
+    font-size: 11.5px !important;
+    color: var(--ink-faint) !important;
+    line-height: 1.5 !important;
+  }
+  .token-step-hint code {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--accent);
+  }
+
+  /* Big create-token button. The whole flow hinges on the user
+     clicking this so it deserves visible weight + a subtle pulse. */
+  .token-cta {
+    display: inline-flex !important;
+    align-items: center; gap: 8px;
+    padding: 11px 18px !important;
+    font-size: 13.5px !important;
+    font-weight: 600 !important;
+    box-shadow: 0 2px 12px rgba(245,207,62,0.22);
+    transition: transform .12s, box-shadow .18s !important;
+  }
+  .token-cta:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 18px rgba(245,207,62,0.32) !important;
+  }
+  .token-step[data-state="active"] .token-cta::after {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: 10px;
+    border: 2px solid var(--accent);
+    opacity: 0.5;
+    animation: token-pulse 1.8s ease-out infinite;
+    pointer-events: none;
+  }
+  .token-cta { position: relative; }
+  @keyframes token-pulse {
+    0%   { transform: scale(1);    opacity: 0.5; }
+    100% { transform: scale(1.06); opacity: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .token-step[data-state="active"] .token-cta::after { animation: none; }
+  }
+
+  .token-input-wrap {
+    display: flex; gap: 8px; align-items: stretch;
+    width: 100%;
+  }
+  .token-input-wrap input {
+    flex: 1; min-width: 0;
+    padding: 10px 14px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font: inherit; font-size: 13px;
+    color: var(--ink);
+    font-family: var(--mono);
+    transition: border-color .15s, background .15s;
+  }
+  .token-input-wrap input:focus {
+    outline: none;
+    border-color: var(--accent);
+    background: var(--bg-soft);
+  }
+  .token-input-wrap input:disabled {
+    cursor: not-allowed;
+    background: var(--bg-soft);
+    color: var(--ink-faint);
+  }
+  .token-paste-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 0 14px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--ink-dim);
+    font: inherit; font-size: 12px;
+    cursor: pointer;
+    transition: border-color .15s, color .15s, background .15s;
+  }
+  .token-paste-btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .token-paste-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .token-status {
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 8px;
+    font-size: 11.5px;
+    color: var(--ink-faint);
+    line-height: 1.5;
+  }
+  .token-status-icon {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--ink-faint);
+    flex-shrink: 0;
+    transition: background .18s;
+  }
+  .token-status[data-state="valid"] { color: var(--good); }
+  .token-status[data-state="valid"] .token-status-icon { background: var(--good); }
+  .token-status[data-state="invalid"] { color: var(--warn); }
+  .token-status[data-state="invalid"] .token-status-icon { background: var(--warn); }
+  .token-status[data-state="testing"] { color: var(--ink-dim); }
+  .token-status[data-state="testing"] .token-status-icon {
+    background: var(--accent);
+    animation: token-testing 1s ease-in-out infinite;
+  }
+  @keyframes token-testing {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .token-status[data-state="testing"] .token-status-icon { animation: none; }
+  }
+
+  .token-step input[type="text"]:not(.token-input-wrap input) {
+    width: 100%;
+    padding: 10px 14px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font: inherit; font-size: 14px;
+    color: var(--ink);
+    transition: border-color .15s, background .15s;
+  }
+  .token-step input[type="text"]:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .token-step input[type="text"]:disabled {
+    cursor: not-allowed;
+    background: var(--bg-soft);
+    color: var(--ink-faint);
+  }
+
+  .token-remember {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px;
+    color: var(--ink-dim);
+    cursor: pointer;
+    padding: 8px 12px;
+    background: var(--bg-soft);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+  .token-remember input { margin: 0; }
 
   /* Storage warning banner */
   .store-warn {
@@ -256,48 +480,29 @@
     </div>
 
     <!-- ── Chooser pane ─────────────────────────────────────────── -->
-    <!-- Default landing: the user picks Browser vs Terminal first. -->
+    <!-- Default landing: the user picks Browser vs Terminal.
+         The 1-click "Deploy to Cloudflare" button was removed in
+         v1.0.6 because Cloudflare's auto-generated CI token lacks
+         Pages:Edit scope, breaking the first deploy. Until they
+         fix it, both remaining paths actually work end-to-end. -->
     <section class="wiz-pane" id="pane-chooser" hidden>
       <div class="wiz-eyebrow">Install pages-seo</div>
       <h1 class="wiz-h1"><span class="serif-i">How</span> would you like to install?</h1>
       <p class="wiz-lede">Two routes, same result — a live site on your own Cloudflare account in about a minute.</p>
       <div class="chooser">
-        <a class="chooser-card chooser-card-featured" href="https://deploy.workers.cloudflare.com/?url=https://github.com/Benjamin-Bloch/pages-seo" rel="noopener">
-          <span class="chooser-pill chooser-pill-cf">1-click</span>
-          <h3>Deploy to Cloudflare</h3>
-          <p>Cloudflare forks the repo, provisions D1 + R2, and deploys — all in the browser. <strong>May need a one-time API token</strong> if Cloudflare's auto-generated one lacks Pages:Edit scope.</p>
-          <span class="chooser-meta">Fastest · ~90 sec</span>
-        </a>
-        <button class="chooser-card" type="button" data-pick="site">
-          <span class="chooser-pill">Browser</span>
-          <h3>Setup via site</h3>
-          <p>Sign in with GitHub and install in your browser — no terminal needed. More control over secrets and config.</p>
-          <span class="chooser-meta">Configurable · ~1 min</span>
+        <button class="chooser-card chooser-card-featured" type="button" data-pick="site">
+          <span class="chooser-pill chooser-pill-recommended">Recommended</span>
+          <h3>Setup in browser</h3>
+          <p>Sign in with GitHub, paste one Cloudflare API token (we pre-fill the scopes for you), and we'll provision everything. No terminal.</p>
+          <span class="chooser-meta">~1 min · zero commands</span>
         </button>
         <button class="chooser-card" type="button" data-pick="term">
-          <span class="chooser-pill">Terminal</span>
-          <h3>Setup via terminal</h3>
-          <p>Copy one command, paste into your shell. Uses <code>wrangler login</code> — no API token to paste.</p>
-          <span class="chooser-meta">For devs · ~2 min</span>
+          <span class="chooser-pill">For devs</span>
+          <h3>Setup in terminal</h3>
+          <p>One curl command. Uses <code>wrangler login</code> (OAuth), no token to paste — works because the auth flow runs locally.</p>
+          <span class="chooser-meta">~2 min · curl one-liner</span>
         </button>
       </div>
-
-      <!-- Heads-up callout for the Deploy-to-Cloudflare auth quirk.
-           The auto-generated API token Cloudflare creates for Workers
-           Builds sometimes lacks Pages:Edit, which fails the first
-           deploy with "Authentication error [code: 10000]". We can't
-           fix this in the repo — it's a Cloudflare-side limit. So we
-           warn up front. -->
-      <details class="install-note">
-        <summary>If the 1-click deploy fails with “Authentication error [code: 10000]” — fix in 60 sec</summary>
-        <p>Cloudflare’s auto-generated API token for new Pages projects sometimes lacks the <code>Pages:Edit</code> scope, so the first build can’t deploy. You’ll see the auth error in the build log. Fix:</p>
-        <ol>
-          <li>Create a token at <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener">dash.cloudflare.com/profile/api-tokens</a> with these Account permissions: <strong>Cloudflare Pages:Edit, D1:Edit, Workers R2:Edit, Workers AI:Edit, Workers Scripts:Edit, Account Settings:Read</strong>.</li>
-          <li>In the dashboard: Workers &amp; Pages → your project → Settings → Build &amp; deployments → API token → paste it.</li>
-          <li>Re-trigger the deploy from the Deployments tab.</li>
-        </ol>
-        <p>The CLI installer below avoids this entirely — it uses <code>wrangler login</code> (OAuth) rather than an API token.</p>
-      </details>
     </section>
 
     <!-- ── Site flow · step 1: Sign in with GitHub ───────────────── -->
@@ -344,45 +549,69 @@
     </section>
 
     <!-- ── Site flow · step 3: form (CF token + admin) ───────────── -->
+    <!-- Goal: the token paste is the single biggest friction point
+         in the whole install. Lead with action ("click this button"),
+         not apology. Three numbered visual steps, animated transitions
+         between them, real-time validation on the token field. -->
     <section class="wiz-pane" id="pane-site-form" hidden>
       <div class="wiz-eyebrow">Setup via site · step 3 of 3</div>
-      <h1 class="wiz-h1"><span class="serif-i">Last</span> details.</h1>
-      <p class="wiz-lede">Cloudflare doesn't have an OAuth flow for third-party apps, so we use an API token. The link below pre-selects all the permissions we need.</p>
+      <h1 class="wiz-h1"><span class="serif-i">Connect</span> Cloudflare.</h1>
+      <p class="wiz-lede">One API token, then we provision everything. The button below pre-fills every permission Cloudflare needs — you just name it and copy.</p>
 
-      <p style="margin:6px 0 4px">
-        <a id="token-link" class="btn btn-ghost" target="_blank" rel="noopener" style="font-size:13px">Create a Cloudflare API token →</a>
-      </p>
-
-      <form id="install-form" method="post" action="#" autocomplete="off" style="display:flex;flex-direction:column;gap:14px">
+      <form id="install-form" method="post" action="#" autocomplete="off" style="display:flex;flex-direction:column;gap:18px;margin-top:8px">
         <!-- Hidden owner/repo, set from the previous step. -->
         <input id="f-owner" type="hidden" />
         <input id="f-repo"  type="hidden" />
 
-        <label class="wiz-field wiz-field-big">
-          <span>Cloudflare API token <em>(paste from the page above)</em></span>
-          <input id="f-token" type="password" required autocomplete="off" placeholder="Paste the token here" />
-          <button id="f-token-paste" type="button" style="align-self:flex-start;margin-top:6px;background:transparent;border:0;color:var(--accent);font:inherit;font-size:11px;cursor:pointer;padding:0">Paste from clipboard</button>
-        </label>
-        <label class="wiz-field">
-          <span>Site name</span>
-          <input id="f-site-name" type="text" required maxlength="80" placeholder="My Site" />
-          <span class="wiz-foot-note" style="margin-top:4px">Your Pages URL will be <code id="slug-preview" style="font-family:var(--mono);color:var(--accent)">your-site.pages.dev</code></span>
-        </label>
-        <!-- Hidden project slug. We auto-derive it from the site
-             name (lowercase, dashes for spaces, strip non-alnum)
-             so the operator never sees the constraint. If the
-             auto-derived slug collides on Cloudflare the install
-             POST returns a friendly error. -->
+        <!-- Step 1: open the token-create page -->
+        <div class="token-step" data-step="1" id="token-step-1">
+          <div class="token-step-num">1</div>
+          <div class="token-step-body">
+            <h4>Open Cloudflare's token page</h4>
+            <p>We pre-fill all 6 permissions. You'll just name it and click Create.</p>
+            <a id="token-link" class="btn btn-primary token-cta" target="_blank" rel="noopener">
+              <span>Create the token on Cloudflare</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+            </a>
+            <p class="token-step-hint">Opens in a new tab. Permissions: Cloudflare Pages, D1, R2, Workers AI, Workers Scripts, Account Settings (read).</p>
+          </div>
+        </div>
+
+        <!-- Step 2: paste the token back -->
+        <div class="token-step" data-step="2" id="token-step-2">
+          <div class="token-step-num">2</div>
+          <div class="token-step-body">
+            <h4>Paste the token here</h4>
+            <p>Copy the value Cloudflare shows after "Create Token" and paste below.</p>
+            <div class="token-input-wrap">
+              <input id="f-token" type="password" required autocomplete="off" placeholder="Click the button above first to get a token…" disabled />
+              <button id="f-token-paste" type="button" class="token-paste-btn" title="Paste from clipboard" disabled>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="4" rx="1"/><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3"/></svg>
+                <span>Paste</span>
+              </button>
+            </div>
+            <div class="token-status" id="token-status">
+              <span class="token-status-icon" aria-hidden="true"></span>
+              <span class="token-status-text">Waiting for token…</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: name your site -->
+        <div class="token-step" data-step="3" id="token-step-3">
+          <div class="token-step-num">3</div>
+          <div class="token-step-body">
+            <h4>Name your site</h4>
+            <p>This becomes the project slug. You can change the display name in admin later.</p>
+            <input id="f-site-name" type="text" required maxlength="80" placeholder="My Site" disabled />
+            <p class="token-step-hint">Your URL will be <code id="slug-preview">your-site.pages.dev</code></p>
+          </div>
+        </div>
+
+        <!-- Hidden project slug. Auto-derived from the site name. -->
         <input id="f-project" type="hidden" required pattern="[a-z][a-z0-9-]{1,32}" />
 
-        <!-- Admin credentials are NOT collected here. We provision the
-             infrastructure, then hand the operator a one-time setup
-             link to their new site (e.g. https://<slug>.pages.dev/
-             admin?setup=<token>). The first visit consumes that token
-             and prompts for email + password right where they'll log
-             in from then on. -->
-
-        <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-dim);cursor:pointer">
+        <label class="token-remember" id="token-remember-row" hidden>
           <input id="f-remember" type="checkbox" checked />
           <span>Remember token in this browser so I can resume later</span>
         </label>
@@ -391,9 +620,9 @@
           <span>Your Cloudflare token is stored in your browser's localStorage on <code>seo.benjaminb.xyz</code>. Clear it on a shared machine. We clear it automatically once the install completes.</span>
         </div>
 
-        <div class="wiz-actions" style="gap:10px">
+        <div class="wiz-actions" style="gap:10px;margin-top:4px">
           <button class="btn btn-ghost" type="button" data-back="chooser">← Back</button>
-          <button id="install-go" class="btn btn-primary" type="submit">Install →</button>
+          <button id="install-go" class="btn btn-primary" type="submit" disabled>Install →</button>
         </div>
         <div id="install-err" class="wiz-err"></div>
       </form>
@@ -757,17 +986,9 @@
       const text = (await navigator.clipboard.readText()).trim();
       if (text && TOKEN_RX.test(text)) {
         $('#f-token').value = text;
+        // Dispatch input so the step state machine picks up the change.
+        $('#f-token').dispatchEvent(new Event('input', { bubbles: true }));
         $('#f-token').focus();
-        // Brief inline confirmation so the operator knows it worked
-        // without a popup.
-        const note = document.createElement('span');
-        note.textContent = ' ✓ pasted from clipboard';
-        note.style.cssText = 'color:var(--good);font-size:11px;margin-left:6px';
-        const btn = $('#f-token-paste');
-        if (btn && !btn.dataset.autopasted) {
-          btn.dataset.autopasted = '1';
-          btn.parentNode.insertBefore(note, btn.nextSibling);
-        }
       }
     } catch { /* permission denied, no clipboard API — silent */ }
   }
@@ -787,6 +1008,120 @@
     if (document.visibilityState === 'visible') tryAutoPasteToken();
   });
   window.addEventListener('pageshow', () => { tryAutoPasteToken(); });
+
+  // ── Token-step state machine ────────────────────────────────
+  // Drives the three numbered cards on pane-site-form. Each card
+  // has data-state="locked" (greyed), "active" (yellow halo) or
+  // "done" (green check). Transitions:
+  //   - pane opens                  → step 1 active, 2 + 3 locked
+  //   - user clicks token-link CTA  → step 1 done, step 2 active (enables input)
+  //   - token matches TOKEN_RX      → step 2 done, step 3 active (enables site-name)
+  //   - site name has 2+ chars      → step 3 done, Install button enabled
+  // Idempotent — safe to call as the user edits backwards too.
+  function setTokenStepState(num, state) {
+    const el = document.getElementById('token-step-' + num);
+    if (el) el.dataset.state = state;
+  }
+
+  function refreshTokenSteps() {
+    if ($('#pane-site-form').hidden) return;
+    const token = $('#f-token').value.trim();
+    const siteName = $('#f-site-name').value.trim();
+    const tokenValid = TOKEN_RX.test(token);
+    const siteValid  = siteName.length >= 2;
+    const tokenOpened = sessionStorage.getItem('pages-seo:token-link-opened') === '1';
+
+    // Step 1: done once they've clicked the create-token CTA.
+    setTokenStepState(1, tokenOpened ? 'done' : 'active');
+
+    // Step 2: locked until step 1 done; active until token valid; then done.
+    const tokenInput = $('#f-token');
+    const tokenPasteBtn = $('#f-token-paste');
+    if (!tokenOpened) {
+      setTokenStepState(2, 'locked');
+      tokenInput.disabled = true;
+      tokenPasteBtn.disabled = true;
+    } else if (!tokenValid) {
+      setTokenStepState(2, 'active');
+      tokenInput.disabled = false;
+      tokenPasteBtn.disabled = false;
+    } else {
+      setTokenStepState(2, 'done');
+      tokenInput.disabled = false;
+      tokenPasteBtn.disabled = false;
+    }
+
+    // Step 3: locked until step 2 done; active until site name valid; then done.
+    const siteInput = $('#f-site-name');
+    if (!tokenValid) {
+      setTokenStepState(3, 'locked');
+      siteInput.disabled = true;
+    } else if (!siteValid) {
+      setTokenStepState(3, 'active');
+      if (siteInput.disabled) {
+        siteInput.disabled = false;
+        // Only auto-focus on the transition from disabled→enabled, not
+        // every keystroke, otherwise we'd steal focus while typing.
+        if (!siteInput.dataset.autoFocused) {
+          siteInput.dataset.autoFocused = '1';
+          setTimeout(() => siteInput.focus(), 80);
+        }
+      }
+    } else {
+      setTokenStepState(3, 'done');
+      siteInput.disabled = false;
+    }
+
+    // Token status line under the input.
+    const status = $('#token-status');
+    const statusText = status.querySelector('.token-status-text');
+    if (!tokenOpened) {
+      status.dataset.state = '';
+      statusText.textContent = 'Click the button in step 1 first.';
+    } else if (!token) {
+      status.dataset.state = '';
+      statusText.textContent = 'Waiting for token…';
+    } else if (!tokenValid) {
+      status.dataset.state = 'invalid';
+      statusText.textContent = 'Doesn\'t look like a Cloudflare token (expected 32+ alphanumeric chars).';
+    } else {
+      status.dataset.state = 'valid';
+      statusText.textContent = 'Looks like a valid token. We\'ll verify the scopes when you click Install.';
+    }
+
+    // Remember-in-browser checkbox row only relevant once they have a token.
+    $('#token-remember-row').hidden = !token;
+
+    // Install button enabled only when all 3 steps are done.
+    $('#install-go').disabled = !(tokenValid && siteValid);
+  }
+
+  // Persist "token link opened" in sessionStorage so a back/forward
+  // navigation within the wizard doesn't reset the step state.
+  $('#token-link').addEventListener('click', () => {
+    sessionStorage.setItem('pages-seo:token-link-opened', '1');
+    // Give the new tab a beat to open, then refresh state.
+    setTimeout(refreshTokenSteps, 80);
+  });
+
+  // Refresh on every input event so the user sees state change in
+  // real time as they type/paste/edit.
+  $('#f-token').addEventListener('input', refreshTokenSteps);
+  $('#f-site-name').addEventListener('input', refreshTokenSteps);
+
+  // Also refresh when the form pane becomes visible (e.g. after the
+  // GitHub OAuth roundtrip lands them on step 3) and on tab-switch
+  // (so the auto-paste handler's value change is reflected).
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      setTimeout(refreshTokenSteps, 80);
+    }
+  });
+
+  // Hook into the existing pane-show flow: every time we make
+  // pane-site-form visible we should re-run the controller.
+  const formPaneObserver = new MutationObserver(refreshTokenSteps);
+  formPaneObserver.observe($('#pane-site-form'), { attributes: true, attributeFilter: ['hidden'] });
 
   // ── draft autosave ───────────────────────────────────────────
   // We save NON-secret fields by default. When the user ticks the

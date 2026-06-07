@@ -36,24 +36,13 @@ Plug in a URL (or a keyword list), point a cron at it, and `pages-seo` quietly p
 
 ## 🚀 Install in one command
 
-### Option A — 1-click deploy (zero terminal)
+### Recommended — Browser installer (no terminal)
 
-<a href="https://deploy.workers.cloudflare.com/?url=https://github.com/Benjamin-Bloch/pages-seo">
-  <img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" />
-</a>
+[**seo.benjaminb.xyz/install →**](https://seo.benjaminb.xyz/install)
 
-Cloudflare forks the repo to your GitHub, creates a Pages project, provisions the D1 database and R2 bucket, and deploys — about 90 seconds, all in the browser. After the deploy lands, open `https://<your-project>.pages.dev/admin` and complete the first-run setup card.
+Sign in with GitHub, paste one Cloudflare API token (the page pre-fills every required permission for you — one click to generate), and we provision D1, R2, the Pages project, the schema, and your admin account in about a minute. Nothing to install locally.
 
-> [!IMPORTANT]
-> **If the first build fails with `Authentication error [code: 10000]`**, the auto-generated API token Cloudflare creates for Workers Builds is missing the `Pages:Edit` scope. Fix in 60 seconds:
->
-> 1. Create a token at <https://dash.cloudflare.com/profile/api-tokens> with **Account** permissions: Cloudflare Pages:Edit, D1:Edit, Workers R2:Edit, Workers AI:Edit, Workers Scripts:Edit, Account Settings:Read.
-> 2. Cloudflare dashboard → Workers & Pages → your project → Settings → Build & deployments → **API token** → paste it.
-> 3. Re-trigger the deploy from the Deployments tab.
->
-> This is a Cloudflare-side quirk of the Deploy to Cloudflare button, not something the repo can fix — they're aware of it. The CLI installer (Option B below) avoids it entirely because it uses `wrangler login` instead of an API token.
-
-### Option B — One-liner installer
+### Or — Terminal installer
 
 If you'd rather drive `wrangler` yourself, pick whichever runtime you already have:
 
@@ -68,7 +57,10 @@ curl -fsSL https://seo.benjaminb.xyz/install/run.py | python3
 curl -fsSL https://seo.benjaminb.xyz/install/run.js | node
 ```
 
-Prefer a browser flow with no terminal? Open **[seo.benjaminb.xyz/install](https://seo.benjaminb.xyz/install)** and sign in with GitHub.
+The CLI installer uses `wrangler login` (OAuth) instead of a token — no scope juggling required.
+
+> [!NOTE]
+> We previously offered a "Deploy to Cloudflare" 1-click button. Cloudflare's auto-generated CI token for new Pages projects doesn't include `Pages:Edit`, which breaks the first deploy. Until Cloudflare ships a fix, the browser installer above is the no-terminal path that actually works end-to-end.
 
 Either way, the installer will:
 

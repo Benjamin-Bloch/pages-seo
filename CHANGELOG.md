@@ -7,6 +7,68 @@ version.
 
 The format is loosely Keep-a-Changelog, dates in ISO order.
 
+## 1.0.6 — 2026-06-07
+
+### Removed
+- **The "Deploy to Cloudflare" 1-click button.** Cloudflare's auto-
+  generated CI token for new Pages projects doesn't include
+  `Pages:Edit`, so the very first build fails with
+  `Authentication error [code: 10000]`. Until Cloudflare ships a
+  fix, the button created more confusion than convenience —
+  every install hit the wall, half the users abandoned. The
+  browser installer at `/install` now becomes the no-terminal
+  path, and it actually works end-to-end. Removed from the
+  marketing hero CTA row, the install-page section, the
+  `/install` chooser, and the README. The
+  `err-deploy-button-auth-10000` entry in `/docs#errors`
+  documents the trace for anyone who already had a half-broken
+  project.
+
+### Added
+- **First-run zero-secret install.** The deploy flow no longer
+  requires any user-supplied secrets. `ADMIN_TOKEN` and
+  `INDEXNOW_KEY` auto-generate on first `/api/setup` call;
+  `SITE_NAME` / `SITE_URL` auto-resolve from the request host or
+  the operator's input in the first-run setup card. The full
+  list of "optional" Pages secrets in `.env.example` is now
+  commented out by default so Cloudflare's deploy UI shows zero
+  required fields. `package.json` ships a `cloudflare.bindings`
+  block with descriptions so any forker who DOES uncomment a key
+  gets context.
+
+### Changed
+- **`/install` step 3 redesigned for token paste.** Three numbered
+  cards (open token page → paste token → name site), each visually
+  locked/active/done as the user progresses. Big animated CTA on
+  the create-token step, real-time validation on the token field
+  (regex-match + status line), auto-paste detection on
+  tab-refocus, auto-focus on the site-name input once the token
+  validates. The Install button stays disabled until all three
+  steps are done — no more "submit then learn what's wrong".
+
+### Fixed
+- **IndexNow never worked on browser installs.** Both the ping
+  client and the site-verification file route read `env.INDEXNOW_KEY`
+  with no D1 fallback, so installs that never set the secret
+  silently never pinged Bing/Yandex/Seznam. Added
+  `functions/_lib/indexnow_key.js` mirroring the `admin_token.js`
+  resolution pattern; both call sites now use it.
+- **Site name fell back to "pages-seo" forever on browser installs.**
+  `feed.xml`, `blog/index`, `page_render`, `widget.js`, and the
+  admin generate endpoints read `settings.site_name`, but
+  `/api/setup` was writing `site_name_db`. Added a derived alias
+  in `loadSettings()` that resolves `site_name` from
+  (env-or-`site_name_db`). One fix unblocked 5 call sites.
+- **`getHost()` in IndexNow** also only checked `env.SITE_URL`. Now
+  resolves through `getSiteIdentity()` (env-or-D1).
+- **Workers Builds deploy command broke on `wrangler: command not found`.**
+  `deploy.sh` called bare `wrangler`; Workers Builds CI doesn't
+  install wrangler globally. Added wrangler as a `devDependency`,
+  rewrote the `deploy` script to use `npx wrangler pages deploy`,
+  added a `cloudflare-deploy.sh` wrapper that turns auth-10000
+  errors into actionable build-log messages instead of a generic
+  stack trace. The old script lives at `deploy:cli`.
+
 ## 1.0.5 — 2026-06-06
 
 ### Added
