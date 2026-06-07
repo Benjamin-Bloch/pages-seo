@@ -350,3 +350,26 @@ CREATE TABLE IF NOT EXISTS install_state (
   PRIMARY KEY (project, token_fp)
 );
 CREATE INDEX IF NOT EXISTS idx_install_updated ON install_state(updated_at DESC);
+
+-- Admin notices. Surfaces backend conditions the admin SPA can't
+-- detect on its own — e.g. a cron tick noticed no default cover
+-- template is installed, or the AI provider chain exhausted budget.
+-- Notices are dedup'd by `kind`: re-recording an existing kind that
+-- is still undismissed is a no-op (idempotent). Dismissing one and
+-- recording it again creates a fresh row, so a recurring issue
+-- doesn't get permanently silenced by an old click.
+CREATE TABLE IF NOT EXISTS admin_notices (
+  id            TEXT PRIMARY KEY,                 -- 16-byte hex
+  kind          TEXT NOT NULL,                    -- slug, e.g. 'cover_template_missing'
+  severity      TEXT NOT NULL DEFAULT 'warn',     -- info | warn | error
+  title         TEXT NOT NULL,
+  detail        TEXT,                             -- short paragraph; null OK
+  action_url    TEXT,                             -- optional deep link
+  action_label  TEXT,                             -- optional CTA label
+  created_at    INTEGER NOT NULL,
+  dismissed_at  INTEGER                           -- NULL = active
+);
+CREATE INDEX IF NOT EXISTS idx_admin_notices_active
+  ON admin_notices(dismissed_at, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_admin_notices_kind
+  ON admin_notices(kind, dismissed_at);

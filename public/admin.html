@@ -882,7 +882,14 @@
             <li>In that project, open <a href="https://console.cloud.google.com/apis/library/searchconsole.googleapis.com" target="_blank" rel="noopener">Search Console API</a> and click <b>Enable</b>. Also enable the <a href="https://console.cloud.google.com/apis/library/indexing.googleapis.com" target="_blank" rel="noopener">Indexing API</a> if you want per-URL pings.</li>
             <li>Go to <a href="https://console.cloud.google.com/iam-admin/serviceaccounts" target="_blank" rel="noopener">Service accounts → Create service account</a>. Skip the role + user steps.</li>
             <li>Click the account → <b>Keys</b> tab → <b>Add Key → JSON</b>. Save the file.</li>
-            <li>In <a href="https://search.google.com/search-console/users" target="_blank" rel="noopener">Search Console → Users and permissions</a>, click <b>Add user</b>. Paste the service account email (it ends in <code>iam.gserviceaccount.com</code>). Set permission to <b>Owner</b>.</li>
+            <li>In <a href="https://search.google.com/search-console/users" target="_blank" rel="noopener">Search Console → Users and permissions</a>, click <b>Add user</b>. Paste the service account email (it ends in <code>iam.gserviceaccount.com</code>). Set permission to <b>Owner</b>.
+              <div class="gsc-warn">
+                <b>If Google says <em>"Account not found"</em>:</b> that error is misleading. Google checks whether the email is a registered Google account first — service accounts aren't. Click <b>Add</b> anyway and the permission will be granted regardless. The error doesn't block the action. (Bug acknowledged by Google; no fix shipped as of 2026.)
+              </div>
+              <div class="gsc-warn" style="margin-top:6px">
+                <b>For Domain properties (e.g. <code>sc-domain:example.com</code>):</b> the dialog might not let you set Owner permission, only Restricted/Full. Pick <b>Full</b> — that's enough for sitemap re-submission and the Indexing API.
+              </div>
+            </li>
             <li>Open the JSON file in a text editor, copy the entire contents, paste below.</li>
           </ol>
         </details>

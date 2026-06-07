@@ -28,6 +28,7 @@
 import { renderCoverSvg } from '../_lib/cover_svg.js';
 import { buildBrandContext } from '../_lib/template.js';
 import { loadSettings } from '../_lib/settings.js';
+import { recordNotice, clearNotice } from '../_lib/notices.js';
 
 export const onRequestGet = async ({ env, request, params }) => {
   const slug = String(params.slug || '').toLowerCase();
@@ -65,10 +66,23 @@ export const onRequestGet = async ({ env, request, params }) => {
     ).first();
   } catch { /* no template */ }
   if (!template?.spec_json) {
+    // Surface this to the admin dashboard so the operator knows the
+    // site has been falling back. Fire-and-forget; no await.
+    recordNotice(env, {
+      kind: 'cover_template_missing',
+      severity: 'warn',
+      title: 'No default cover template',
+      detail: 'Posts without an AI-generated hero image fall back to a plain card. Set a default in Covers, or run the install-default-cover script.',
+      action_url: '/admin#covers',
+      action_label: 'Open Covers',
+    });
     return new Response('No default cover template configured', {
       status: 404, headers: { 'content-type': 'text/plain' },
     });
   }
+  // We did find a template — clear any stale notice from a prior
+  // window where no template was set.
+  clearNotice(env, 'cover_template_missing');
   let spec;
   try { spec = JSON.parse(template.spec_json); }
   catch { return new Response('Template spec corrupt', { status: 500, headers: { 'content-type': 'text/plain' } }); }

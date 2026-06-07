@@ -155,6 +155,70 @@
   }
   window.psPopulateVersionBadge = populateVersionBadge;
 
+  // Pull active admin notices (backend-detected conditions the SPA
+  // can't see) and surface them as sticky toasts. Each notice has a
+  // unique id; we cache shown ids in sessionStorage so re-mounts
+  // don't re-show the same notice repeatedly.
+  //
+  // The notices endpoint never 5xxs on a half-migrated DB (it
+  // returns an empty array with note:'table_missing'). So this
+  // function is safe to call from any boot path.
+  async function loadAdminNotices() {
+    const { status, body } = await api('/api/admin/notices');
+    if (status !== 200 || !body?.ok) return;
+    const notices = Array.isArray(body.notices) ? body.notices : [];
+    if (!notices.length) return;
+    const shownKey = 'pages-seo:admin-notices-shown';
+    const shown = new Set(JSON.parse(sessionStorage.getItem(shownKey) || '[]'));
+    for (const n of notices) {
+      if (shown.has(n.id)) continue;
+      shown.add(n.id);
+      const kind = n.severity === 'error' ? 'bad'
+                 : n.severity === 'warn'  ? 'warn'
+                 : 'info';
+      const opts = { duration: 0 };  // sticky — user dismisses
+      if (n.action_url && n.action_label) {
+        opts.action = {
+          label: n.action_label,
+          onClick: () => {
+            // Internal anchors get activated; external links open in new tab.
+            const url = n.action_url;
+            if (url.startsWith('#') || url.startsWith('/admin#')) {
+              // /admin#covers → activate the 'covers' tab
+              const m = url.match(/#([a-z][a-z0-9-]*)/i);
+              if (m && typeof activateTab === 'function') activateTab(m[1]);
+            } else if (url.startsWith('http')) {
+              window.open(url, '_blank', 'noopener');
+            } else {
+              window.location.href = url;
+            }
+            dismissNotice(n.id).catch(() => {});
+          },
+        };
+      }
+      const t = toast(n.title + (n.detail ? ' — ' + n.detail : ''), kind, opts);
+      // Wrap the close button so dismissing the toast also dismisses
+      // the backend notice (so it doesn't re-pop on next mount).
+      const root = document.getElementById('toast-root');
+      const last = root?.lastElementChild;
+      const closeBtn = last?.querySelector('.toast-close');
+      if (closeBtn) {
+        const orig = closeBtn.onclick;
+        closeBtn.onclick = (ev) => {
+          dismissNotice(n.id).catch(() => {});
+          orig?.(ev);
+        };
+      }
+    }
+    sessionStorage.setItem(shownKey, JSON.stringify([...shown]));
+  }
+  async function dismissNotice(id) {
+    await api('/api/admin/notices/dismiss', {
+      method: 'POST',
+      body: JSON.stringify({ id }),
+    });
+  }
+
   async function api(path, opts = {}) {
     const headers = { 'content-type': 'application/json', ...(opts.headers || {}) };
     // `credentials: 'same-origin'` is the default, but we set it
@@ -1933,6 +1997,14 @@
     // Re-check every 10 minutes while the tab is open so users
     // notice an upstream release without manually refreshing.
     setInterval(() => { populateVersionBadge().catch(() => {}); }, 10 * 60 * 1000);
+
+    // Pull any active admin notices and render them as sticky
+    // toasts. These are conditions detected by the backend (cover
+    // template missing, provider budget exhausted, etc.) that the
+    // SPA can't otherwise see. Re-check every 5 minutes so a notice
+    // recorded mid-session surfaces without a refresh.
+    loadAdminNotices().catch(() => {});
+    setInterval(() => { loadAdminNotices().catch(() => {}); }, 5 * 60 * 1000);
 
     // overview quick-actions reuse the same handlers as their tabs.
     $('#qa-blog').addEventListener('click', () => { activateTab('blog'); runBlogChain(); });
