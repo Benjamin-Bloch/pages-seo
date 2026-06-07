@@ -12,3 +12,13 @@
 /install/run.js
   Content-Type: application/javascript; charset=utf-8
   Cache-Control: public, max-age=300
+
+# Self-hosted webfonts used by the cover SVG renderer. Long-cache
+# them aggressively — they're versioned implicitly by the URL (the
+# weight is in the filename) and update only when the font itself
+# is replaced (rare). cross-origin CORS so the SVG can reference
+# them when embedded via <img>.
+/_fonts/*.woff2
+  Content-Type: font/woff2
+  Cache-Control: public, max-age=31536000, immutable
+  Access-Control-Allow-Origin: *

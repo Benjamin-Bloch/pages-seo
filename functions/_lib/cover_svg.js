@@ -75,6 +75,26 @@ function googleFontFamily(stack) {
   return fam;
 }
 
+// Map (family, weight) → same-origin WOFF2 path. Fonts ship as
+// static assets under /_fonts/ on every install (see public/_fonts/
+// + the _headers entry). Self-hosting them this way cuts the
+// observed paint delay from 200-800ms (Google Fonts roundtrip) to
+// ~30ms (warm Cloudflare edge cache, multiplexed with the SVG).
+//
+// Returns null for combinations we don't ship — caller falls back
+// to the system stack in the font-family declaration on the
+// <text> element.
+const SELF_HOSTED_FONTS = {
+  'Inter|400':              '/_fonts/inter-400.woff2',
+  'Inter|500':              '/_fonts/inter-500.woff2',
+  'Inter|600':              '/_fonts/inter-600.woff2',
+  'Instrument Serif|400':   '/_fonts/instrument-serif-400.woff2',
+};
+function selfHostedFontUrl(family, weight) {
+  const w = String(weight || '400').replace(/\D/g, '') || '400';
+  return SELF_HOSTED_FONTS[`${family}|${w}`] || null;
+}
+
 // Convert a hex/rgba colour into a string SVG accepts. SVG accepts
 // CSS-style rgba() and hex directly, so we mostly pass through.
 function colour(v) {
@@ -249,31 +269,36 @@ export async function renderCoverSvg(spec, ctx, env) {
   // per colo per cache cycle.
   const inlined = await buildInlineMap(spec, env);
 
-  // Collect unique Google Fonts referenced by text layers.
-  const families = new Set();
+  // Collect unique (family, weight) pairs referenced by text layers.
+  // We only emit @font-face for combinations we self-host under
+  // /_fonts/; anything else falls through to the layer's own family
+  // stack (which already has a system fallback like "serif" or
+  // "sans-serif" appended).
+  //
+  // Same-origin URLs let the browser fetch each font in parallel
+  // with the SVG (HTTP/2 multiplex), and Cloudflare's edge serves
+  // them in ~30ms when warm vs the 200-800ms Google Fonts roundtrip.
+  const fontFaces = new Map();
   for (const l of layers) {
-    if (l.kind === 'text') {
-      const fam = googleFontFamily(l.family);
-      if (fam) families.add(fam);
+    if (l.kind !== 'text') continue;
+    const fam = googleFontFamily(l.family);
+    if (!fam) continue;
+    const url = selfHostedFontUrl(fam, l.weight);
+    if (!url) continue;
+    const w = String(l.weight || '400').replace(/\D/g, '') || '400';
+    const key = `${fam}|${w}`;
+    if (!fontFaces.has(key)) {
+      fontFaces.set(key, { family: fam, weight: w, url });
     }
   }
-  // Compose the @import URL. fonts.googleapis.com supports loading
-  // multiple families in one stylesheet — concatenate with &.
-  //
-  // The whole SVG is parsed as XML by browsers when loaded via
-  // <img src=…>. A naked & inside <style> breaks the parse with
-  // "EntityRef: expecting ';'". We wrap the stylesheet in a CDATA
-  // block so the parser leaves the ampersands alone. (We still
-  // build the URL with literal & because CSS itself doesn't want
-  // them HTML-escaped.)
-  const fontImport = families.size
-    ? '@import url("https://fonts.googleapis.com/css2?' +
-      [...families].map((f) =>
-        `family=${encodeURIComponent(f).replace(/%20/g, '+')}:wght@300;400;500;600;700;800`
-      ).join('&') + '&display=swap");'
-    : '';
-  const styleBlock = fontImport
-    ? `<style><![CDATA[${fontImport}]]></style>`
+  const fontRules = [...fontFaces.values()].map(({ family, weight, url }) =>
+    `@font-face{font-family:"${family}";font-weight:${weight};font-style:normal;` +
+    `font-display:swap;src:url("${url}") format("woff2");}`
+  ).join('');
+  // Wrap in CDATA so any future urls or quotes inside the stylesheet
+  // don't break the SVG's XML parse when it's embedded via <img src=…>.
+  const styleBlock = fontRules
+    ? `<style><![CDATA[${fontRules}]]></style>`
     : '<style></style>';
 
   // Background. Either an asset URL (covers the whole viewport) or a
