@@ -1,0 +1,14 @@
+# Serve installer scripts as plain text so `curl | bash`-style
+# pipelines and browser preview both work. Cache short so updates
+# propagate without a manual purge.
+/install/run.sh
+  Content-Type: text/x-shellscript; charset=utf-8
+  Cache-Control: public, max-age=300
+
+/install/run.py
+  Content-Type: text/x-python; charset=utf-8
+  Cache-Control: public, max-age=300
+
+/install/run.js
+  Content-Type: application/javascript; charset=utf-8
+  Cache-Control: public, max-age=300

@@ -2210,6 +2210,39 @@
       return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) ? e : '';
     }
 
+    // The terminal installer (install/run.{py,js,sh}) builds a magic
+    // link of the form /admin#install=<base64({email, password,
+    // site_name})>. We decode it here so the setup form can auto-fill
+    // and auto-submit — the user lands straight in the dashboard
+    // without retyping anything. Returns null on missing/malformed
+    // payloads so the form falls back to manual entry.
+    function readInstallHash() {
+      const m = (location.hash || '').match(/[#&]install=([A-Za-z0-9_-]+)/);
+      if (!m) return null;
+      try {
+        // urlsafe base64 with no padding (matches run.py's b64encode + rstrip('=')).
+        let b64 = m[1].replace(/-/g, '+').replace(/_/g, '/');
+        while (b64.length % 4) b64 += '=';
+        const json = decodeURIComponent(escape(atob(b64)));
+        const p = JSON.parse(json);
+        if (!p || typeof p !== 'object') return null;
+        const email = String(p.email || '').trim().toLowerCase();
+        const password = String(p.password || '');
+        const site_name = String(p.site_name || '').trim();
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return null;
+        if (password.length < 8) return null;
+        return { email, password, site_name };
+      } catch { return null; }
+    }
+    function clearInstallHash() {
+      try {
+        const url = new URL(location.href);
+        url.hash = url.hash.replace(/[#&]?install=[A-Za-z0-9_-]+/, '');
+        if (url.hash === '#') url.hash = '';
+        history.replaceState(null, '', url.pathname + url.search + url.hash);
+      } catch { /* */ }
+    }
+
     function clearTokenFromUrl() {
       // Remove ?setup= AND ?email= so a refresh doesn't keep them
       // in the bar (and so the browser doesn't preserve them in
@@ -2257,6 +2290,32 @@
         const target = (emailInput && emailInput.value) ? $('#setup-password') : $('#setup-email');
         if (target) target.focus();
       }, 50);
+
+      // Terminal-installer magic link: if /admin#install=<base64({email,
+      // password, site_name})> is present, fill the form and submit it
+      // automatically so the user lands straight in the dashboard.
+      const hashInstall = readInstallHash();
+      if (hashInstall) {
+        clearInstallHash();
+        const errEl = $('#setup-err'); if (errEl) errEl.textContent = '';
+        $('#setup-email').value = hashInstall.email;
+        $('#setup-password').value = hashInstall.password;
+        if (hashInstall.site_name) $('#setup-site-name').value = hashInstall.site_name;
+        // Give the user a one-line status while we submit.
+        if (errEl) {
+          errEl.style.color = 'var(--ink-dim, #4b525e)';
+          errEl.textContent = 'Finishing install with the credentials from your terminal…';
+        }
+        // Tiny delay so the user can see what's happening before the
+        // form replaces the screen with the dashboard.
+        setTimeout(() => {
+          const form = $('#setup-form');
+          if (form) {
+            if (typeof form.requestSubmit === 'function') form.requestSubmit();
+            else form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+          }
+        }, 250);
+      }
     }
 
     function showSuccess() {

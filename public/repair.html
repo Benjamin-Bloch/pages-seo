@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Repair · pages-seo</title>
+<link rel="stylesheet" href="/marketing.css" />
+<style>
+  .repair { max-width: 760px; margin: 3rem auto; padding: 2rem; background: var(--surface); border-radius: 12px; box-shadow: 0 2px 24px rgba(0,0,0,.08); }
+  .repair h1 { margin: 0 0 0.25rem; font-size: 1.7rem; }
+  .repair .lede { color: var(--muted); line-height: 1.55; margin: 0 0 1.5rem; }
+  .repair-form label { display: block; margin-top: 1rem; font-weight: 600; font-size: 0.9rem; }
+  .repair-form label em { font-weight: 400; color: var(--muted); font-style: normal; font-size: 0.85em; }
+  .repair-form input, .repair-form select {
+    width: 100%; box-sizing: border-box;
+    padding: 0.65rem 0.85rem; margin-top: 0.3rem;
+    border: 1px solid var(--line-strong); border-radius: 6px;
+    font: inherit; background: var(--surface);
+  }
+  .repair-form input:focus, .repair-form select:focus {
+    outline: none; border-color: var(--link);
+    box-shadow: 0 0 0 3px rgba(44,95,185,0.15);
+  }
+  .token-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 0.4rem; }
+  .token-link {
+    display: inline-block;
+    padding: 0.4rem 0.8rem;
+    background: var(--bg-2); border: 1px solid var(--line-strong); border-radius: 5px;
+    color: var(--ink); font-size: 0.85rem; text-decoration: none;
+  }
+  .repair-ai-link {
+    position: absolute; top: 1.25rem; right: 1.5rem;
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px;
+    font-size: 12px; font-weight: 500;
+    color: var(--ink);
+    background: rgba(245,207,62,0.14);
+    border: 1px solid rgba(245,207,62,0.4);
+    border-radius: 999px;
+    text-decoration: none;
+    transition: background .15s, border-color .15s;
+  }
+  .repair-ai-link:hover { background: rgba(245,207,62,0.24); border-color: var(--ink); }
+  .repair { position: relative; }
+  @media (max-width: 600px) {
+    .repair { margin: 1rem auto; padding: 1.25rem; border-radius: 10px; }
+    .repair h1 { font-size: 1.35rem; }
+    .repair-ai-link { position: static; display: inline-flex; margin-bottom: 1rem; }
+  }
+  .token-link:hover { background: var(--line); border-color: var(--ink); }
+  .paste-btn {
+    background: transparent; border: 1px solid var(--line-strong); color: var(--muted);
+    padding: 0.4rem 0.8rem; border-radius: 5px;
+    font-size: 0.85rem; cursor: pointer;
+  }
+  .paste-btn:hover { border-color: var(--ink); color: var(--ink); }
+  .perm-info {
+    margin-top: 0.6rem; padding: 0.6rem 0.85rem;
+    background: var(--bg-2); border-left: 3px solid var(--link); border-radius: 4px;
+    font-size: 0.82rem; line-height: 1.5; color: var(--muted);
+  }
+  .perm-info code { background: rgba(0,0,0,0.04); padding: 1px 5px; border-radius: 3px; font-size: 0.92em; }
+  .picker-status {
+    margin-top: 0.35rem;
+    font-size: 0.78rem; color: var(--muted); min-height: 1em;
+  }
+  .picker-status.ok { color: #1a5d2e; }
+  .picker-status.warn { color: #9b6c0a; }
+  .picker-status.err { color: #9b1c1c; }
+  .repair-actions {
+    display: flex; gap: 8px; margin-top: 1.5rem; flex-wrap: wrap;
+  }
+  .repair-actions button {
+    padding: 0.7rem 1.2rem; border: 0; border-radius: 6px;
+    font: inherit; font-weight: 600; cursor: pointer;
+  }
+  .repair-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-primary { background: #111; color: #fff; }
+  .btn-primary:hover:not(:disabled) { background: #333; }
+  .btn-secondary { background: var(--bg-2); color: var(--ink); border: 1px solid var(--line-strong) !important; }
+  .btn-secondary:hover:not(:disabled) { background: var(--line); }
+
+  /* ── diagnostic checklist ──────────────────────────────────── */
+  .checks { margin-top: 1.5rem; display: flex; flex-direction: column; gap: 8px; }
+  .checks h2 { font-size: 1.1rem; margin: 1rem 0 0.5rem; }
+  .checks .summary { font-size: 0.85rem; color: var(--muted); margin-bottom: 0.5rem; }
+  .check {
+    display: grid;
+    grid-template-columns: 28px 1fr auto;
+    gap: 12px;
+    padding: 10px 12px;
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--line-strong);
+    border-radius: 8px;
+    align-items: center;
+  }
+  .check.ok       { border-left-color: #2ecc71; }
+  .check.critical { border-left-color: #e74c3c; background: #fef6f5; }
+  .check.warning  { border-left-color: #f39c12; background: #fffaf2; }
+  .check.info     { border-left-color: var(--link); }
+  .check-icon { font-size: 18px; font-weight: 700; text-align: center; }
+  .check.ok       .check-icon { color: #2ecc71; }
+  .check.critical .check-icon { color: #e74c3c; }
+  .check.warning  .check-icon { color: #f39c12; }
+  .check.info     .check-icon { color: var(--link); }
+  .check-text { min-width: 0; }
+  .check-label { font-weight: 600; font-size: 0.92rem; color: var(--ink); }
+  .check-detail { font-size: 0.82rem; color: var(--muted); margin-top: 2px; line-height: 1.5; }
+  .check-fix {
+    background: #111; color: #fff;
+    border: 0; padding: 6px 12px; border-radius: 5px;
+    font: inherit; font-size: 0.78rem; font-weight: 500; cursor: pointer;
+    white-space: nowrap;
+  }
+  .check-fix:hover:not(:disabled) { background: #333; }
+  .check-fix:disabled { opacity: 0.5; cursor: not-allowed; }
+  .check-fix.is-fixing { opacity: 0.6; }
+  .check.ok .check-fix { display: none; }
+  .repair-status { margin-top: 1rem; padding: 0.85rem 1rem; border-radius: 6px; font-size: 0.9rem; line-height: 1.5; }
+  .repair-status.ok   { background: #e6f4ea; color: #1a5d2e; }
+  .repair-status.err  { background: #fce8e6; color: #9b1c1c; }
+  .repair-status.info { background: #eef2ff; color: #1e3a8a; }
+</style>
+</head>
+<body>
+<div class="repair">
+  <a class="repair-ai-link" href="/ai-setup?mode=repair" title="Don't know what to do? Get an AI to walk you through it">
+    ✦ Stuck? Use AI
+  </a>
+  <h1>Repair</h1>
+  <p class="lede">
+    Advanced diagnostic + auto-fix for pages-seo installs. Paste your Cloudflare API
+    token, pick your project, then click <strong>Diagnose</strong>. Every check that
+    can be auto-fixed gets a button to do so.
+  </p>
+
+  <div class="repair-form">
+    <label for="token">Cloudflare API token <em>(needs Pages, D1, R2, Workers AI, Workers Scripts, Account Settings)</em></label>
+    <input id="token" type="password" placeholder="Paste your token here" autocomplete="off" />
+    <div class="token-tools">
+      <a id="token-link" class="token-link" target="_blank" rel="noopener">→ Create a Cloudflare API token</a>
+      <button id="paste-btn" type="button" class="paste-btn">Paste from clipboard</button>
+    </div>
+
+    <div class="perm-info">
+      <strong>What each permission does:</strong>
+      Pages = re-bind + redeploy. D1 = list and bind your database. Workers R2 = bind your bucket.
+      Workers AI = bind <code>env.AI</code>. Workers Scripts = write the <code>CF_*</code> self-repair secrets.
+      Account Settings = look up your account ID. The token is account-scoped; nothing here can
+      touch other Cloudflare resources.
+    </div>
+
+    <label for="project">Project <em>(auto-detected from your token, or pick / type)</em></label>
+    <select id="project-picker" hidden></select>
+    <input id="project" type="text" placeholder="e.g. pages-seo" />
+    <div id="project-status" class="picker-status"></div>
+
+    <div class="repair-actions">
+      <button id="diagnose-btn" class="btn-primary" type="button">Diagnose</button>
+      <button id="fixall-btn"   class="btn-secondary" type="button" disabled>Fix everything</button>
+    </div>
+  </div>
+
+  <div id="checks" class="checks" hidden></div>
+  <div id="status" class="repair-status" hidden></div>
+</div>
+
+<script>
+(function () {
+  const $   = (id) => document.getElementById(id);
+  const tokenIn   = $('token');
+  const projIn    = $('project');
+  const picker    = $('project-picker');
+  const pickerSt  = $('project-status');
+  const tokenLink = $('token-link');
+  const pasteBtn  = $('paste-btn');
+  const diagBtn   = $('diagnose-btn');
+  const fixAllBtn = $('fixall-btn');
+  const checksEl  = $('checks');
+  const statusEl  = $('status');
+
+  // ── token-link pre-fill ────────────────────────────────────
+  const PERMS = [
+    { key: 'page',             type: 'edit' },
+    { key: 'd1',               type: 'edit' },
+    { key: 'workers_r2',       type: 'edit' },
+    { key: 'ai',               type: 'edit' },
+    { key: 'workers_scripts',  type: 'edit' },
+    { key: 'account_settings', type: 'read' },
+  ];
+  tokenLink.href = 'https://dash.cloudflare.com/?to=/:account/api-tokens'
+    + '&permissionGroupKeys=' + encodeURIComponent(JSON.stringify(PERMS))
+    + '&name=' + encodeURIComponent('pages-seo repair');
+
+  // ── helpers ────────────────────────────────────────────────
+  function clearChildren(el) { while (el.firstChild) el.removeChild(el.firstChild); }
+  function setStatus(kind, text) {
+    statusEl.hidden = false;
+    statusEl.className = 'repair-status ' + kind;
+    statusEl.textContent = text;
+  }
+  function pickerSet(kind, text) {
+    pickerSt.className = 'picker-status' + (kind ? ' ' + kind : '');
+    pickerSt.textContent = text || '';
+  }
+
+  // ── auto-paste from clipboard ──────────────────────────────
+  const TOKEN_RX = /^[A-Za-z0-9_-]{32,}$/;
+  async function tryAutoPaste() {
+    if (tokenIn.value.trim()) return false;
+    try {
+      const t = (await navigator.clipboard.readText()).trim();
+      if (t && TOKEN_RX.test(t)) {
+        tokenIn.value = t;
+        tokenIn.dispatchEvent(new Event('input'));
+        return true;
+      }
+    } catch { /* permission denied */ }
+    return false;
+  }
+  pasteBtn.addEventListener('click', tryAutoPaste);
+  window.addEventListener('focus', tryAutoPaste);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') tryAutoPaste();
+  });
+
+  // ── project auto-detection ─────────────────────────────────
+  let lookupSeq = 0;
+  let lastLookupToken = '';
+  async function lookupProjects() {
+    const token = tokenIn.value.trim();
+    if (!TOKEN_RX.test(token)) {
+      picker.hidden = true; pickerSet('', '');
+      return;
+    }
+    if (token === lastLookupToken) return;
+    lastLookupToken = token;
+    const seq = ++lookupSeq;
+    pickerSet('', 'Looking up your projects…');
+    let body;
+    try {
+      const r = await fetch('/api/install/projects', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token }),
+      });
+      body = await r.json().catch(() => ({}));
+      if (!r.ok || !body?.ok) {
+        if (seq !== lookupSeq) return;
+        const msg = body?.error === 'token_rejected'
+          ? 'Token rejected — re-create via the link above (make sure Account Settings: Read is checked).'
+          : (body?.detail || body?.error || ('HTTP ' + r.status));
+        pickerSet('err', msg);
+        picker.hidden = true;
+        return;
+      }
+    } catch (e) {
+      if (seq !== lookupSeq) return;
+      pickerSet('err', 'Lookup failed: ' + (e?.message || e));
+      return;
+    }
+    if (seq !== lookupSeq) return;
+
+    const projects = body.projects || [];
+    if (!projects.length) {
+      pickerSet('warn', 'No Pages projects found on this account.');
+      picker.hidden = true;
+      return;
+    }
+    const matches = projects.filter((p) => p.looks_like_pages_seo);
+    if (matches.length === 1) {
+      projIn.value = matches[0].name;
+      picker.hidden = true;
+      pickerSet('ok', '✓ Auto-detected ' + matches[0].name + ' (D1 + R2 names match).');
+      return;
+    }
+    // Multiple candidates — render picker.
+    clearChildren(picker);
+    const ph = document.createElement('option');
+    ph.value = ''; ph.textContent = '— pick a project —';
+    picker.appendChild(ph);
+    for (const p of projects) {
+      const o = document.createElement('option');
+      o.value = p.name;
+      o.textContent = p.name + (p.looks_like_pages_seo ? ' (pages-seo install)' : '');
+      picker.appendChild(o);
+    }
+    picker.hidden = false;
+    picker.onchange = () => { if (picker.value) projIn.value = picker.value; };
+    if (matches.length) {
+      picker.value = matches[0].name;
+      projIn.value = matches[0].name;
+    }
+    pickerSet('', projects.length + ' project' + (projects.length === 1 ? '' : 's') + ' found.');
+  }
+
+  let lookupTimer = null;
+  tokenIn.addEventListener('input', () => {
+    if (lookupTimer) clearTimeout(lookupTimer);
+    lookupTimer = setTimeout(lookupProjects, 400);
+  });
+
+  // ── pre-fill from URL ──────────────────────────────────────
+  const params = new URLSearchParams(location.search);
+  if (params.get('project')) projIn.value = params.get('project');
+
+  // ── diagnose ───────────────────────────────────────────────
+  let lastReport = null;
+  async function runDiagnose() {
+    const token = tokenIn.value.trim();
+    const project = projIn.value.trim().toLowerCase();
+    if (!token)   { setStatus('err', 'Cloudflare API token required.'); tokenIn.focus(); return; }
+    if (!project) { setStatus('err', 'Project slug required.'); projIn.focus(); return; }
+
+    diagBtn.disabled = true; diagBtn.textContent = 'Diagnosing…';
+    fixAllBtn.disabled = true;
+    setStatus('info', 'Running checks against your Cloudflare account and upstream GitHub… 5–10 seconds.');
+
+    let body;
+    try {
+      const r = await fetch('/api/install/diagnose', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token, project }),
+      });
+      body = await r.json().catch(() => ({}));
+      if (!r.ok || !body?.ok) {
+        const detail = body?.detail || body?.error || ('HTTP ' + r.status);
+        setStatus('err', 'Diagnose failed: ' + detail);
+        diagBtn.disabled = false; diagBtn.textContent = 'Diagnose';
+        return;
+      }
+    } catch (e) {
+      setStatus('err', 'Network error: ' + (e?.message || e));
+      diagBtn.disabled = false; diagBtn.textContent = 'Diagnose';
+      return;
+    }
+
+    lastReport = body;
+    renderChecks(body);
+    diagBtn.disabled = false; diagBtn.textContent = 'Re-diagnose';
+
+    const s = body.summary || {};
+    const broken = (s.critical || 0) + (s.warning || 0);
+    if (broken === 0) {
+      setStatus('ok', '✓ Everything looks good — ' + (s.healthy || 0) + ' checks passing.');
+      fixAllBtn.disabled = true;
+    } else {
+      const fixable = (body.checks || []).filter((c) => !c.ok && c.fix).length;
+      setStatus(broken > 0 && s.critical > 0 ? 'err' : 'info',
+        `${s.critical || 0} critical, ${s.warning || 0} warning, ${s.info || 0} info — ` +
+        (fixable > 0 ? `${fixable} can be fixed automatically.` : 'No automated fix available; see details below.'));
+      fixAllBtn.disabled = fixable === 0;
+    }
+  }
+
+  function renderChecks(report) {
+    clearChildren(checksEl);
+    checksEl.hidden = false;
+    const header = document.createElement('h2');
+    header.textContent = 'Diagnostic report';
+    checksEl.appendChild(header);
+    const summary = document.createElement('div');
+    summary.className = 'summary';
+    const s = report.summary || {};
+    summary.textContent = `${s.healthy || 0} healthy · ${s.critical || 0} critical · ${s.warning || 0} warning · ${s.info || 0} info`;
+    checksEl.appendChild(summary);
+    for (const c of (report.checks || [])) {
+      checksEl.appendChild(buildCheckEl(c));
+    }
+  }
+
+  function buildCheckEl(c) {
+    const wrap = document.createElement('div');
+    wrap.className = 'check ' + (c.ok ? 'ok' : c.severity);
+    wrap.dataset.checkId = c.id;
+    const icon = document.createElement('div');
+    icon.className = 'check-icon';
+    icon.textContent = c.ok ? '✓' : (c.severity === 'critical' ? '✗' : c.severity === 'warning' ? '!' : 'i');
+    const txt = document.createElement('div');
+    txt.className = 'check-text';
+    const label = document.createElement('div');
+    label.className = 'check-label';
+    label.textContent = c.label;
+    const detail = document.createElement('div');
+    detail.className = 'check-detail';
+    detail.textContent = c.detail || '';
+    txt.append(label, detail);
+    wrap.append(icon, txt);
+    if (!c.ok && c.fix?.action) {
+      const btn = document.createElement('button');
+      btn.className = 'check-fix';
+      btn.type = 'button';
+      btn.textContent = fixLabel(c.fix.action);
+      btn.addEventListener('click', () => runFix(c, btn, wrap));
+      wrap.appendChild(btn);
+    }
+    return wrap;
+  }
+
+  function fixLabel(action) {
+    return {
+      rebind:      'Re-bind',
+      add_secrets: 'Add secrets',
+      sync_fork:   'Sync fork',
+      redeploy:    'Redeploy',
+    }[action] || 'Fix';
+  }
+
+  async function runFix(check, btn, wrap) {
+    btn.disabled = true; btn.classList.add('is-fixing');
+    btn.textContent = 'Fixing…';
+    const token = tokenIn.value.trim();
+    const project = projIn.value.trim().toLowerCase();
+    let body;
+    try {
+      const r = await fetch('/api/install/fix', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token, project, action: check.fix.action, args: check.fix.args || {} }),
+      });
+      body = await r.json().catch(() => ({}));
+      if (!r.ok || !body?.ok) {
+        btn.disabled = false; btn.classList.remove('is-fixing');
+        btn.textContent = fixLabel(check.fix.action);
+        const detail = body?.detail || body?.error || ('HTTP ' + r.status);
+        // Inline error inside the check card.
+        const errLine = wrap.querySelector('.check-err') || (() => {
+          const e = document.createElement('div');
+          e.className = 'check-detail check-err';
+          e.style.color = '#9b1c1c';
+          wrap.querySelector('.check-text').appendChild(e);
+          return e;
+        })();
+        errLine.textContent = 'Fix failed: ' + detail + (body?.hint ? ' — ' + body.hint : '');
+        return;
+      }
+    } catch (e) {
+      btn.disabled = false; btn.classList.remove('is-fixing');
+      btn.textContent = fixLabel(check.fix.action);
+      return;
+    }
+    // Success — mark this check as fixed and re-style.
+    wrap.className = 'check ok';
+    wrap.querySelector('.check-icon').textContent = '✓';
+    wrap.querySelector('.check-detail').textContent = 'Fixed. Re-run diagnose to confirm.';
+    btn.remove();
+  }
+
+  async function runFixAll() {
+    if (!lastReport) return;
+    const fixable = lastReport.checks.filter((c) => !c.ok && c.fix?.action);
+    if (!fixable.length) return;
+    fixAllBtn.disabled = true; fixAllBtn.textContent = 'Fixing…';
+    setStatus('info', 'Running ' + fixable.length + ' fixes sequentially…');
+
+    let okCount = 0, failCount = 0;
+    for (const c of fixable) {
+      const wrap = checksEl.querySelector(`[data-check-id="${c.id}"]`);
+      const btn  = wrap?.querySelector('.check-fix');
+      if (!wrap || !btn) continue;
+      btn.click();
+      // Wait for the button to leave "Fixing…" state.
+      for (let i = 0; i < 60; i++) {
+        await new Promise((r) => setTimeout(r, 500));
+        if (!btn.classList.contains('is-fixing')) break;
+      }
+      if (wrap.classList.contains('ok')) okCount++;
+      else failCount++;
+    }
+    fixAllBtn.disabled = false; fixAllBtn.textContent = 'Fix everything';
+    setStatus(failCount === 0 ? 'ok' : 'err',
+      `Done: ${okCount} fixed, ${failCount} failed. Click Re-diagnose to confirm.`);
+    // Trigger a redeploy at the end so the fixes go live.
+    if (okCount > 0) {
+      try {
+        await fetch('/api/install/fix', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ token: tokenIn.value.trim(), project: projIn.value.trim().toLowerCase(), action: 'redeploy' }),
+        });
+      } catch { /* */ }
+    }
+  }
+
+  diagBtn.addEventListener('click', runDiagnose);
+  fixAllBtn.addEventListener('click', runFixAll);
+
+  // Auto-paste on load.
+  tryAutoPaste().then(() => {
+    if (tokenIn.value.trim()) lookupProjects();
+  });
+})();
+</script>
+</body>
+</html>

@@ -84,7 +84,7 @@ export const onRequestGet = async ({ env, request }) => {
       slug: r.slug,
       title: r.title,
       excerpt: r.meta_description || '',
-      image: imageUrlFor(r.hero_image_key),
+      image: imageUrlFor(r.hero_image_key, r.slug),
       date: d.date,
       iso: d.iso,
       keywords: r.keywords || '',

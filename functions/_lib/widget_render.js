@@ -56,9 +56,14 @@ export function jsString(s) {
     .replace(new RegExp(' ', 'g'), '\\u2029') + "'";
 }
 
-export function imageUrlFor(key) {
-  if (!key) return null;
-  return '/image/' + key.split('/').map(encodeURIComponent).join('/');
+// Resolve a post's card image. Prefer the stored R2 hero image; when a
+// post has no hero key (e.g. its cover step failed at generation time),
+// fall back to the live /cover/<slug>.svg template so cards/widgets are
+// never blank. Returns null only when we have neither a key nor a slug.
+export function imageUrlFor(key, slug) {
+  if (key) return '/image/' + key.split('/').map(encodeURIComponent).join('/');
+  if (slug) return '/cover/' + encodeURIComponent(slug) + '.svg';
+  return null;
 }
 
 // Legacy preload helper. Older `widgetBody({ articles: […] })`
@@ -75,7 +80,7 @@ export async function loadArticles(env, limit) {
     slug: r.slug,
     title: r.title,
     excerpt: r.meta_description || '',
-    image: imageUrlFor(r.hero_image_key),
+    image: imageUrlFor(r.hero_image_key, r.slug),
     date: new Date((r.published_at || 0) * 1000)
       .toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
   }));
