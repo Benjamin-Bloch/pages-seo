@@ -1,41 +1,53 @@
 /* pages-seo · admin dashboard.
  * Standalone styling — doesn't share the public site's CSS so it can
- * evolve independently. Dark UI, dense tables, focused on operators
- * who'll spend hours staring at it. */
+ * evolve independently. Dark operator UI with the brand's editorial
+ * yellow as the accent; fixed sidebar nav on desktop, dense tables. */
+
+@font-face { font-family: "Instrument Serif"; font-style: normal; font-weight: 400; font-display: swap; src: url("/_fonts/instrument-serif-400.woff2") format("woff2"); }
+@font-face { font-family: "Instrument Serif"; font-style: italic; font-weight: 400; font-display: swap; src: url("/_fonts/instrument-serif-400-italic.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 400; font-display: swap; src: url("/_fonts/inter-400.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 500; font-display: swap; src: url("/_fonts/inter-500.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 600; font-display: swap; src: url("/_fonts/inter-600.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 700; font-display: swap; src: url("/_fonts/inter-700.woff2") format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 400; font-display: swap; src: url("/_fonts/jetbrains-mono-400.woff2") format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 500; font-display: swap; src: url("/_fonts/jetbrains-mono-500.woff2") format("woff2"); }
 
 :root{
-  --bg: #06080d;
-  --bg-soft: #0d1117;
-  --bg-card: #0f1520;
-  --ink: #e8edf2;
-  --ink-dim: #a3aec0;
-  --ink-faint: #6a7484;
-  --accent: #7afff0;
-  --accent-soft: rgba(122,255,240,0.10);
+  --bg: #0f0e0b;
+  --bg-soft: #16140f;
+  --bg-card: #1a1813;
+  --ink: #f0eee8;
+  --ink-dim: #a8a298;
+  --ink-faint: #6f6a60;
+  --accent: #f5cf3e;
+  --accent-ink: #131210;          /* text colour ON accent surfaces */
+  --accent-soft: rgba(245,207,62,0.10);
   --line: rgba(255,255,255,0.08);
   --line-2: rgba(255,255,255,0.18);
   --good: #7afca6;
   --warn: #e0b76a;
   --bad: #ff8aa1;
+  --serif: 'Instrument Serif', 'Iowan Old Style', Palatino, Georgia, serif;
   --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 /* Light theme — opt-in via data-theme="light" on <html>. Triggered
-   by the topbar theme toggle and persisted in localStorage. Keeps
-   the same accent (Workers AI cyan) and the same status colours
-   so muscle memory transfers between modes. */
+   by the theme toggle and persisted in localStorage. Light mode uses
+   the marketing site's cream + black-CTA palette; status colours stay
+   put so muscle memory transfers between modes. */
 :root[data-theme="light"]{
-  --bg: #f7f5ee;
-  --bg-soft: #efece2;
+  --bg: #faf8f3;
+  --bg-soft: #f2efe7;
   --bg-card: #ffffff;
-  --ink: #0a0c10;
-  --ink-dim: #4b525e;
-  --ink-faint: #8a93a3;
-  --accent: #0a6e62;
-  --accent-soft: rgba(10,110,98,0.10);
-  --line: rgba(10,12,16,0.10);
-  --line-2: rgba(10,12,16,0.18);
+  --ink: #131210;
+  --ink-dim: #57534b;
+  --ink-faint: #8f897d;
+  --accent: #131210;
+  --accent-ink: #faf8f3;
+  --accent-soft: rgba(245,207,62,0.28);
+  --line: rgba(19,18,16,0.10);
+  --line-2: rgba(19,18,16,0.20);
   --good: #137a3a;
   --warn: #8a5a00;
   --bad: #b3203d;
@@ -179,12 +191,15 @@ a:hover{text-decoration:underline}
 .gate-card .err{margin-top:12px;color:var(--bad);font-size:13px;min-height:18px}
 
 /* ── Dash shell ──────────────────────────────────────────────────── */
+/* Base (mobile/tablet): horizontal top bar. Desktop (≥1001px):
+   fixed left sidebar — see the media query below. Markup is shared;
+   only CSS changes between the two. */
 .dash[hidden]{display:none}
 .topbar{
   position:sticky;top:0;z-index:5;
   display:flex;align-items:center;gap:18px;
   padding:14px 24px;
-  background:rgba(6,8,13,0.85);backdrop-filter:blur(8px);
+  background:color-mix(in srgb, var(--bg) 88%, transparent);backdrop-filter:blur(8px);
   border-bottom:1px solid var(--line);
 }
 .topbar .brand{font-family:var(--mono);font-weight:600;color:var(--accent);letter-spacing:.04em;font-size:14px}
@@ -197,8 +212,70 @@ a:hover{text-decoration:underline}
 .topbar .tab:hover{color:var(--ink)}
 .topbar .tab[aria-current="page"]{color:var(--ink);background:var(--bg-soft);border-color:var(--line-2)}
 
+
 .pages{max-width:1200px;margin:0 auto;padding:28px 24px 80px}
 .page > .card + .card{margin-top:18px}
+
+/* Desktop: proper dashboard chrome — fixed sidebar, content column. */
+/* Geometric glyph per section — keyed off data-tab so admin.js's
+   markup stays untouched. Sidebar-only: inline glyphs wrap badly in
+   the narrow horizontal top bar. */
+@media (min-width:1001px){
+  .topbar .tab::before{
+    font-family:var(--mono);
+    display:inline-block;width:17px;text-align:center;
+    margin-right:7px;color:var(--ink-faint);
+    transition:color .15s;
+  }
+  .topbar .tab[data-tab="overview"]::before{content:"▤"}
+  .topbar .tab[data-tab="blog"]::before{content:"✎"}
+  .topbar .tab[data-tab="brand"]::before{content:"◈"}
+  .topbar .tab[data-tab="covers"]::before{content:"▣"}
+  .topbar .tab[data-tab="seo"]::before{content:"↗"}
+  .topbar .tab[data-tab="status"]::before{content:"◉"}
+  .topbar .tab[data-tab="settings"]::before{content:"⚙"}
+  .topbar .tab:hover::before,
+  .topbar .tab[aria-current="page"]::before{color:var(--accent)}
+}
+
+@media (min-width:1001px){
+  .topbar{
+    position:fixed;top:0;left:0;bottom:0;width:238px;
+    flex-direction:column;align-items:stretch;gap:6px;
+    padding:22px 14px 16px;
+    background:var(--bg-soft);backdrop-filter:none;
+    border-bottom:none;border-right:1px solid var(--line);
+    overflow-y:auto;
+  }
+  .topbar .brand{
+    font-size:14px;padding:0 10px 16px;margin-bottom:8px;
+    border-bottom:1px solid var(--line);
+  }
+  .topbar .tabs{flex-direction:column;gap:2px;margin-left:0;flex:0 0 auto}
+  .topbar .tab{
+    display:flex;align-items:center;width:100%;
+    text-align:left;padding:9px 12px;border-radius:8px;font-size:13.5px;
+  }
+  .topbar .tab[aria-current="page"]{
+    background:var(--accent-soft);border-color:transparent;
+    box-shadow:inset 2px 0 0 var(--accent);
+  }
+  /* Sub-nav nests under its parent tab as an indented column. */
+  .topbar .subtabs{
+    flex-direction:column;gap:1px;
+    background:transparent;border-bottom:none;
+    padding:2px 0 8px 34px;overflow:visible;
+  }
+  .topbar .subtab{text-align:left;padding:6px 10px;font-size:12.5px;border-radius:6px}
+  /* Tools pin to the sidebar foot. */
+  .topbar .topbar-tools{
+    margin-top:auto;flex-direction:column;align-items:stretch;gap:8px;
+    padding-top:14px;border-top:1px solid var(--line);
+  }
+  .topbar .topbar-tools .btn{justify-content:center}
+  .topbar .version-badge{justify-content:center;margin-right:0}
+  .pages{margin-left:238px;max-width:1140px;padding:34px 40px 90px}
+}
 
 .grid-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:18px}
 
@@ -213,15 +290,15 @@ a:hover{text-decoration:underline}
 }
 .card h2{margin:0 0 6px;font-size:18px;font-weight:600;letter-spacing:-0.01em}
 .card > p{margin:0 0 16px;color:var(--ink-dim);font-size:14px}
-.card-stat{font-size:36px;font-weight:600;color:var(--ink);letter-spacing:-0.02em}
+.card-stat{font-family:var(--serif);font-size:42px;font-weight:400;color:var(--ink);letter-spacing:-0.01em;line-height:1.05}
 .card-sub{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);margin-top:4px}
 /* "Stuck? Hand off to an AI" card — slightly tinted so it reads as an
    escape hatch rather than a primary control. */
 .ai-help-card{
-  background:linear-gradient(135deg, rgba(122,255,240,0.04), rgba(212,175,98,0.04));
-  border-color:rgba(122,255,240,0.32);
+  background:linear-gradient(135deg, rgba(245,207,62,0.04), rgba(212,175,98,0.04));
+  border-color:rgba(245,207,62,0.32);
 }
-.ai-help-card .card-eyebrow{color:#0a6e62}
+.ai-help-card .card-eyebrow{color:var(--accent)}
 
 .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .status{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--ink-faint)}
@@ -247,8 +324,8 @@ textarea{display:block;width:100%;min-height:140px;font-family:var(--mono);font-
 }
 .btn:hover{transform:translateY(-1px);border-color:var(--accent)}
 .btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
-.btn-primary{background:var(--accent);color:#06080d;border-color:var(--accent)}
-.btn-primary:hover{background:#9affec}
+.btn-primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn-primary:hover{background:color-mix(in srgb, var(--accent) 85%, #fff)}
 .btn-ghost{background:transparent}
 .btn-sm{padding:6px 12px;font-size:12px}
 .btn-danger{color:var(--bad);border-color:rgba(255,138,161,0.4)}
@@ -415,7 +492,7 @@ textarea{display:block;width:100%;min-height:140px;font-family:var(--mono);font-
   cursor:pointer;
 }
 .cover-layer:hover{background:var(--bg-card)}
-.cover-layer.selected{background:rgba(58,167,255,0.15);border:1px solid rgba(58,167,255,0.4)}
+.cover-layer.selected{background:rgba(245,207,62,0.15);border:1px solid rgba(245,207,62,0.4)}
 .cover-layer-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cover-layer-actions{display:flex;gap:2px}
 .cover-add-row{display:flex;gap:4px;margin-top:8px;flex-wrap:wrap}
@@ -654,13 +731,13 @@ em.optional{font-style:normal;color:var(--ink-faint);font-size:11px;letter-spaci
 .cal-slot{
   display:flex;gap:6px;align-items:flex-start;
   padding:6px 8px;border-radius:7px;
-  background:rgba(122,255,240,0.05);
-  border:1px solid rgba(122,255,240,0.12);
+  background:rgba(245,207,62,0.05);
+  border:1px solid rgba(245,207,62,0.12);
   font-size:12px;line-height:1.35;color:var(--ink);
   cursor:pointer;transition:background .15s,border-color .15s;
   text-align:left;
 }
-.cal-slot:hover{background:rgba(122,255,240,0.1);border-color:rgba(122,255,240,0.3)}
+.cal-slot:hover{background:rgba(245,207,62,0.1);border-color:rgba(245,207,62,0.3)}
 .cal-slot-icon{flex-shrink:0;font-size:11px;line-height:1.4;opacity:0.85}
 .cal-slot-title{
   flex:1;min-width:0;
@@ -729,7 +806,7 @@ em.optional{font-style:normal;color:var(--ink-faint);font-size:11px;letter-spaci
 .wiz{
   position:fixed;inset:0;z-index:100;
   background:
-    radial-gradient(1200px 600px at 50% -10%, rgba(122,255,240,0.10), transparent 65%),
+    radial-gradient(1200px 600px at 50% -10%, rgba(245,207,62,0.10), transparent 65%),
     radial-gradient(800px 800px at 110% 110%, rgba(245,207,62,0.06), transparent 60%),
     var(--bg);
   display:flex;align-items:flex-start;justify-content:center;
@@ -765,7 +842,7 @@ em.optional{font-style:normal;color:var(--ink-faint);font-size:11px;letter-spaci
 }
 .wiz-dot{
   width:8px;height:8px;border-radius:50%;background:var(--accent);
-  box-shadow:0 0 0 4px rgba(122,255,240,0.15);
+  box-shadow:0 0 0 4px rgba(245,207,62,0.15);
 }
 .wiz-brand-text{color:var(--ink)}
 
@@ -782,7 +859,7 @@ em.optional{font-style:normal;color:var(--ink-faint);font-size:11px;letter-spaci
 }
 .wiz-step b{font-weight:500;font-size:10px;letter-spacing:.1em}
 .wiz-step.is-current{
-  color:var(--accent);background:var(--accent-soft);border-color:rgba(122,255,240,0.25);
+  color:var(--accent);background:var(--accent-soft);border-color:rgba(245,207,62,0.25);
 }
 .wiz-step.is-done{color:var(--good)}
 .wiz-step.is-done::before{content:"✓ ";font-weight:700}
@@ -972,7 +1049,7 @@ em.optional{font-style:normal;color:var(--ink-faint);font-size:11px;letter-spaci
 }
 .wiz-tick-big{
   font-size:32px;color:var(--accent);
-  background:rgba(122,255,240,0.1);border-color:rgba(122,255,240,0.4);
+  background:rgba(245,207,62,0.1);border-color:rgba(245,207,62,0.4);
 }
 @keyframes wiz-pop{0%{transform:scale(0.6);opacity:0}100%{transform:scale(1);opacity:1}}
 .wiz-pill{
@@ -1075,9 +1152,10 @@ em.optional{font-style:normal;color:var(--ink-faint);font-size:11px;letter-spaci
 .upd-commit-list .upd-author { font-size:11px; color:var(--ink-faint); flex-shrink:0; }
 .upd-commit-list a { color:var(--accent); }
 
+.tab-badge[hidden] { display:none; }
 .tab-badge {
   display:inline-block; margin-left:6px; min-width:18px; height:18px; padding:0 5px;
-  border-radius:9px; background:var(--accent); color:#06080d;
+  border-radius:9px; background:var(--accent); color:var(--accent-ink);
   font-family:var(--mono); font-size:10px; font-weight:600; line-height:18px;
   text-align:center; vertical-align:middle;
 }

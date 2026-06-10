@@ -167,19 +167,31 @@ export function renderContentPage({ env, request, post, kind, related = [], sett
 
   // "Read next" — only on /blog/<slug> pages and only when we have at
   // least one sibling post to link to.
+  // Word-safe excerpt: cut at the last space before the limit and add
+  // an ellipsis, so cards never end mid-word ("cost-effecti").
+  const excerpt = (s, n) => {
+    const t = String(s || '');
+    if (t.length <= n) return t;
+    const cut = t.slice(0, n);
+    return cut.slice(0, Math.max(cut.lastIndexOf(' '), 40)).replace(/[,;:.\s]+$/, '') + '…';
+  };
+
   const relatedHTML = (kind === 'blog' && related.length) ? `
 <aside class="read-next">
   <h2 class="read-next-title">Read next</h2>
   <ul class="read-next-list">
     ${related.map((r) => {
-      const rSrc = r.hero_image_key ? `/image/${esc(r.hero_image_key)}` : '';
+      // Same fallback as the blog index: stored R2 hero, else the live
+      // cover template — so every card gets an image and the row
+      // doesn't look half-finished.
+      const rSrc = r.hero_image_key ? `/image/${esc(r.hero_image_key)}` : `/cover/${esc(r.slug)}.svg`;
       return `
       <li>
         <a href="/blog/${esc(r.slug)}">
-          ${rSrc ? `<img src="${rSrc}" alt="${esc(r.hero_image_alt || r.title)}" width="640" height="336" loading="lazy" decoding="async" />` : ''}
+          <img src="${rSrc}" alt="${esc(r.hero_image_alt || r.title)}" width="640" height="336" loading="lazy" decoding="async" />
           <div class="read-next-meta">
             <h3>${esc(r.title)}</h3>
-            ${r.meta_description ? `<p>${esc(r.meta_description.slice(0, 140))}</p>` : ''}
+            ${r.meta_description ? `<p>${esc(excerpt(r.meta_description, 140))}</p>` : ''}
           </div>
         </a>
       </li>`;
