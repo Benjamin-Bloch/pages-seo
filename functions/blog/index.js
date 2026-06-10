@@ -48,7 +48,7 @@ export async function renderBlogIndex({ env, request, page = 1 }) {
   const siteDesc = env.SITE_DESCRIPTION || settings.site_description ||
                    `Articles from ${siteName}.`;
 
-  const items = posts.map((p) => {
+  const items = posts.map((p, i) => {
     const date = new Date((p.published_at || 0) * 1000).toLocaleDateString('en-GB', {
       year: 'numeric', month: 'long', day: 'numeric',
     });
@@ -57,7 +57,12 @@ export async function renderBlogIndex({ env, request, page = 1 }) {
     const imgSrc = p.hero_image_key
       ? `/image/${esc(p.hero_image_key)}`
       : `/cover/${esc(p.slug)}.svg`;
-    const img = `<img src="${imgSrc}" alt="${esc(p.hero_image_alt || p.title)}" width="640" height="336" loading="lazy" decoding="async" />`;
+    // First card is the LCP candidate — load it eagerly with high
+    // priority; everything below the fold stays lazy.
+    const loadAttrs = i === 0
+      ? 'fetchpriority="high" decoding="async"'
+      : 'loading="lazy" decoding="async"';
+    const img = `<img src="${imgSrc}" alt="${esc(p.hero_image_alt || p.title)}" width="640" height="336" ${loadAttrs} />`;
     return `
       <li>
         ${img}
@@ -175,10 +180,11 @@ ${verifyMetas}
 <meta property="og:description" content="${esc(siteDesc)}" />
 <meta property="og:url" content="${canonical}" />
 <meta property="og:type" content="website" />
-<meta name="twitter:card" content="summary" />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" />
+${posts[0] ? `<meta property="og:image" content="${baseUrl}${posts[0].hero_image_key ? `/image/${esc(posts[0].hero_image_key)}` : `/cover/${esc(posts[0].slug)}.svg`}" />` : ''}
+<meta name="twitter:card" content="${posts[0] ? 'summary_large_image' : 'summary'}" />
+${posts[0] ? `<link rel="preload" as="image" href="${posts[0].hero_image_key ? `/image/${esc(posts[0].hero_image_key)}` : `/cover/${esc(posts[0].slug)}.svg`}" fetchpriority="high" />` : ''}
+<link rel="preload" href="/_fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="preload" href="/_fonts/instrument-serif-400.woff2" as="font" type="font/woff2" crossorigin />
 <link rel="stylesheet" href="/style.css" />
 <script type="application/ld+json">${ldJson}</script>
 </head>
@@ -344,6 +350,8 @@ ${verifyMetas}
     headers: {
       'content-type': 'text/html; charset=utf-8',
       'cache-control': 'public, max-age=300, s-maxage=3600',
+      'x-content-type-options': 'nosniff',
+      'referrer-policy': 'strict-origin-when-cross-origin',
     },
   });
 }

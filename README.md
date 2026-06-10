@@ -152,7 +152,7 @@ Workers AI is bound automatically and is the default. Every other provider is op
 |---|---|---|---|
 | Cloudflare Workers AI | _(binding)_ | ✅ Llama 3.3 70B | ✅ Flux 1 schnell |
 | OpenAI | `OPENAI_API_KEY` | ✅ gpt-5 | ✅ gpt-image-1 |
-| Anthropic | `ANTHROPIC_API_KEY` | ✅ Claude | — |
+| Anthropic | `ANTHROPIC_API_KEY` | ✅ Claude Fable 5 | — |
 | Google Gemini | `GEMINI_API_KEY` | ✅ Gemini 2.5 Pro | ✅ Imagen 4 |
 | Groq | `GROQ_API_KEY` | ✅ Llama 3.3 70B | — |
 | DeepSeek | `DEEPSEEK_API_KEY` | ✅ deepseek-chat | — |

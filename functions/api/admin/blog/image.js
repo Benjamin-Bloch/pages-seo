@@ -20,6 +20,12 @@ import { adminGate } from '../../../_lib/auth.js';
 import { generateImage } from '../../../_lib/ai.js';
 import { loadSettings } from '../../../_lib/settings.js';
 
+function sniffImageFormat(bytes) {
+  if (bytes?.length > 2 && bytes[0] === 0xff && bytes[1] === 0xd8) return { ext: 'jpg', type: 'image/jpeg' };
+  if (bytes?.length > 11 && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) return { ext: 'webp', type: 'image/webp' };
+  return { ext: 'png', type: 'image/png' };
+}
+
 export const onRequestPost = async ({ request, env }) => {
   const gate = await adminGate(env, request); if (gate) return gate;
   let body;
@@ -103,10 +109,15 @@ export const onRequestPost = async ({ request, env }) => {
       const source = request.headers.get('X-Source-Cron') === '1' ? 'cron-blog' : 'admin-blog';
       const r = await generateImage(env, { prompt: job.hero_image_prompt, provider: body.provider, source });
       imageProvider = r.ai_provider;
-      imageKey = `${job.slug}-${Date.now()}.png`;
+      // Sniff the actual byte format rather than assuming PNG — some
+      // providers return JPEG or WebP, and serving them with the right
+      // extension + content-type keeps caches and <img> decoding honest
+      // (JPEG/WebP heroes are also ~10x smaller than RGBA PNGs).
+      const fmt = sniffImageFormat(r.bytes);
+      imageKey = `${job.slug}-${Date.now()}.${fmt.ext}`;
       if (!env.IMAGES) throw new Error('r2_binding_missing');
       await env.IMAGES.put(imageKey, r.bytes, {
-        httpMetadata: { contentType: 'image/png', cacheControl: 'public, max-age=31536000, immutable' },
+        httpMetadata: { contentType: fmt.type, cacheControl: 'public, max-age=31536000, immutable' },
       });
     } catch (e) {
       imageError = String(e.message || e).slice(0, 800);

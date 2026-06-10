@@ -630,7 +630,7 @@ async function openAIImage(env, prompt) {
 // ── Anthropic (Claude) ─────────────────────────────────────────────────
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
-const ANTHROPIC_TEXT_MODEL = 'claude-opus-4-7';
+const ANTHROPIC_TEXT_MODEL = 'claude-fable-5';
 
 async function anthropicText(env, prompt) {
   if (!env?.ANTHROPIC_API_KEY) throw new Error('anthropic_not_configured');
@@ -645,8 +645,8 @@ async function anthropicText(env, prompt) {
     body: JSON.stringify({
       model,
       // 8192 fits a 2500-4000-word article + JSON wrapper without
-      // truncation. Anthropic's max for Opus is 32k+; 8k is the
-      // sweet spot for cost/latency on long-form articles.
+      // truncation. Fable 5 supports far more; 8k is the sweet spot
+      // for cost/latency on long-form articles.
       max_tokens: 8192,
       system: SYSTEM_JSON_ONLY,
       messages: [{ role: 'user', content: prompt }],

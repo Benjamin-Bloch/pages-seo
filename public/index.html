@@ -22,9 +22,12 @@
 <meta name="twitter:description" content="Self-hosted SEO machine: daily AI blog, programmatic pages, sitemap, IndexNow. Runs on Cloudflare's free tier." />
 <meta name="twitter:image" content="https://seo.benjaminb.xyz/og.png" />
 
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<!-- Fonts are self-hosted under /_fonts/ (declared in marketing.css) —
+     no Google Fonts round-trip. Preload the ones used above the fold. -->
+<link rel="preload" href="/_fonts/instrument-serif-400.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="preload" href="/_fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="preload" href="/_fonts/inter-500.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="preload" href="/_fonts/jetbrains-mono-400.woff2" as="font" type="font/woff2" crossorigin />
 <link rel="stylesheet" href="/marketing.css" />
 
 <script type="application/ld+json">
@@ -56,7 +59,7 @@
         { "@type": "Question", "name": "How much does pages-seo cost to run?",
           "acceptedAnswer": { "@type": "Answer", "text": "On Cloudflare's free tier with Workers AI it's $0/month until you exceed the free quotas (~10k Workers AI requests/day, 100k Pages requests/day, 5GB D1 storage)." } },
         { "@type": "Question", "name": "Do I have to use Workers AI?",
-          "acceptedAnswer": { "@type": "Answer", "text": "No. Workers AI is the default but you can plug in OpenAI, Anthropic, Gemini, Groq, DeepSeek, Mistral, Together AI, or Cerebras. They're tried as a fallback chain." } },
+          "acceptedAnswer": { "@type": "Answer", "text": "No. Workers AI is the default but you can plug in OpenAI, Anthropic Claude Fable 5, Gemini, Groq, DeepSeek, Mistral, Together AI, or Cerebras. They're tried as a fallback chain." } },
         { "@type": "Question", "name": "Will search engines penalise AI-generated content?",
           "acceptedAnswer": { "@type": "Answer", "text": "Google's published position is that AI content is fine if it's helpful. pages-seo ships SEO essentials including Article schema, structured headings, FAQ blocks, IndexNow pings and canonical URLs." } }
       ]
@@ -96,6 +99,11 @@
         <span class="pulse"></span>
         A Benjamin Bloch project · MIT licensed
       </div>
+      <a class="announce" href="#stack">
+        <span class="announce-tag">New</span>
+        Now supporting Claude Fable 5 — Anthropic's newest model
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+      </a>
       <h1>
         <span class="serif">Programmatic SEO</span>,<br/>
         on Cloudflare's <span class="gradient">free tier</span>.
@@ -146,15 +154,41 @@
 
   <div class="logos" data-reveal>
     <span class="logos-label">Runs on</span>
-    <span class="logo-pill">Cloudflare Pages</span>
-    <span class="logo-pill">D1 SQLite</span>
-    <span class="logo-pill">R2 Storage</span>
-    <span class="logo-pill">Workers AI</span>
-    <span class="logo-pill">+ 8 other LLMs</span>
+    <div class="logos-track">
+      <div class="logos-set">
+        <span class="logo-pill">Cloudflare Pages</span>
+        <span class="logo-pill">D1 SQLite</span>
+        <span class="logo-pill">R2 Storage</span>
+        <span class="logo-pill">Workers AI</span>
+        <span class="logo-pill hot">Claude Fable 5</span>
+        <span class="logo-pill">GPT-5</span>
+        <span class="logo-pill">Gemini 2.5 Pro</span>
+        <span class="logo-pill">Groq</span>
+        <span class="logo-pill">DeepSeek</span>
+        <span class="logo-pill">Mistral</span>
+        <span class="logo-pill">Together AI</span>
+        <span class="logo-pill">Cerebras</span>
+      </div>
+      <div class="logos-set" aria-hidden="true">
+        <span class="logo-pill">Cloudflare Pages</span>
+        <span class="logo-pill">D1 SQLite</span>
+        <span class="logo-pill">R2 Storage</span>
+        <span class="logo-pill">Workers AI</span>
+        <span class="logo-pill hot">Claude Fable 5</span>
+        <span class="logo-pill">GPT-5</span>
+        <span class="logo-pill">Gemini 2.5 Pro</span>
+        <span class="logo-pill">Groq</span>
+        <span class="logo-pill">DeepSeek</span>
+        <span class="logo-pill">Mistral</span>
+        <span class="logo-pill">Together AI</span>
+        <span class="logo-pill">Cerebras</span>
+      </div>
+    </div>
   </div>
 </section>
 
 <section id="how" class="how">
+  <span class="folio" aria-hidden="true">01</span>
   <div class="section-head" data-reveal>
     <span class="section-tag">01 — How it works</span>
     <h2>Set up once. <em class="serif-i">Runs itself.</em></h2>
@@ -181,6 +215,7 @@
 </section>
 
 <section id="example" class="example">
+  <span class="folio" aria-hidden="true">02</span>
   <div class="section-head" data-reveal>
     <span class="section-tag">02 — Example</span>
     <h2>A real post, <em class="serif-i">unedited.</em></h2>
@@ -204,10 +239,11 @@
 </section>
 
 <section id="stack" class="stack">
+  <span class="folio" aria-hidden="true">03</span>
   <div class="section-head" data-reveal>
     <span class="section-tag">03 — Architecture</span>
     <h2>The stack.</h2>
-    <p class="section-lede">Every component runs on Cloudflare except the LLM call. That call is your choice — Workers AI, OpenAI, Anthropic Claude, Google Gemini, or any of five more.</p>
+    <p class="section-lede">Every component runs on Cloudflare except the LLM call. That call is your choice — Workers AI, OpenAI, Anthropic's new Claude Fable 5, Google Gemini, or any of five more.</p>
   </div>
   <div class="stack-grid">
     <article class="stack-card" data-reveal>
@@ -238,12 +274,13 @@
     <article class="stack-card" data-reveal>
       <span class="stack-num">→</span>
       <h3>Optional LLM keys</h3>
-      <p>OpenAI · Anthropic · Gemini · Groq · DeepSeek · Mistral · Together · Cerebras. Drop in a key and it joins the fallback chain.</p>
+      <p>OpenAI · Anthropic (Claude Fable 5) · Gemini · Groq · DeepSeek · Mistral · Together · Cerebras. Drop in a key and it joins the fallback chain.</p>
     </article>
   </div>
 </section>
 
 <section class="vs">
+  <span class="folio" aria-hidden="true">04</span>
   <div class="section-head" data-reveal>
     <span class="section-tag">04 — Why</span>
     <h2>Why not <em class="serif-i">just buy a SaaS?</em></h2>
@@ -294,6 +331,7 @@
 </section>
 
 <section id="install" class="install">
+  <span class="folio" aria-hidden="true">05</span>
   <div class="section-head" data-reveal>
     <span class="section-tag">05 — Install</span>
     <h2>One command. <em class="serif-i">Resumable.</em></h2>
@@ -333,6 +371,7 @@ open https://&lt;your&gt;.pages.dev/admin</code></pre>
 </section>
 
 <section id="stars" class="stars">
+  <span class="folio" aria-hidden="true">06</span>
   <div class="section-head" data-reveal>
     <span class="section-tag">06 — Stars</span>
     <h2>Built in public. <em class="serif-i">Star history.</em></h2>
@@ -362,7 +401,7 @@ open https://&lt;your&gt;.pages.dev/admin</code></pre>
     </a>
   </div>
 
-  <a class="stars-chart" href="https://star-history.com/#Benjamin-Bloch/pages-seo&Date" target="_blank" rel="noopener" data-reveal>
+  <div class="stars-chart" data-reveal>
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Benjamin-Bloch/pages-seo&type=Date&theme=dark" />
       <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Benjamin-Bloch/pages-seo&type=Date" />
@@ -370,7 +409,7 @@ open https://&lt;your&gt;.pages.dev/admin</code></pre>
            src="https://api.star-history.com/svg?repos=Benjamin-Bloch/pages-seo&type=Date"
            loading="lazy" />
     </picture>
-  </a>
+  </div>
 
   <div class="stars-cta" data-reveal>
     <a class="btn primary" href="https://github.com/Benjamin-Bloch/pages-seo" rel="noopener">
@@ -382,6 +421,7 @@ open https://&lt;your&gt;.pages.dev/admin</code></pre>
 </section>
 
 <section class="faq">
+  <span class="folio" aria-hidden="true">07</span>
   <div class="section-head" data-reveal>
     <span class="section-tag">07 — FAQ</span>
     <h2>Questions.</h2>
@@ -394,10 +434,10 @@ open https://&lt;your&gt;.pages.dev/admin</code></pre>
       <p>On Cloudflare's free tier with Workers AI: <strong>$0/month</strong>. Workers AI gives you <strong>10,000 Neurons/day</strong> free — a full-length post (Qwen3 text + a Flux hero image) costs roughly <strong>150–230 Neurons</strong>, so the free tier covers <strong>~40–60 long posts per day</strong> (more if they're shorter). The default schedule is one blog post plus ten programmatic pages a day, which uses well under 20% of that. The other limits that matter: 100k Pages/Workers requests/day and 5&nbsp;GB D1 storage. Exceed any of them and you're on Workers Paid ($5/month) plus a few cents per million extra operations.</p>
     </details>
     <details data-reveal><summary>Do I have to use Workers AI?</summary>
-      <p>No. It's the default because the free tier makes it the lowest-friction option. You can route everything through OpenAI, Anthropic Claude, Google Gemini, Groq, DeepSeek, Mistral, Together AI, or Cerebras. Adding a tenth provider is one entry in <code>functions/_lib/ai.js</code>.</p>
+      <p>No. It's the default because the free tier makes it the lowest-friction option. You can route everything through OpenAI, Anthropic Claude (Fable 5, Anthropic’s newest model), Google Gemini, Groq, DeepSeek, Mistral, Together AI, or Cerebras. Adding a tenth provider is one entry in <code>functions/_lib/ai.js</code>.</p>
     </details>
     <details data-reveal><summary>How good is the generated content?</summary>
-      <p>Workers AI (Llama 3.3 70B) produces SEO-coherent, structurally clean copy — title, meta, slug, keywords, H2/H3, FAQ, CTA all in place. The prose is generic. For higher-quality output, plug in Claude or GPT-5 — same toolkit, same workflow, just different output.</p>
+      <p>Workers AI (Llama 3.3 70B) produces SEO-coherent, structurally clean copy — title, meta, slug, keywords, H2/H3, FAQ, CTA all in place. The prose is generic. For higher-quality output, plug in Claude Fable 5 or GPT-5 — same toolkit, same workflow, just different output.</p>
     </details>
     <details data-reveal><summary>Will search engines penalise AI content?</summary>
       <p>Google's published position is that AI content is fine if it's useful. The toolkit ships with Article + Breadcrumb schema, structured headings, FAQ blocks, primary/secondary keyword targeting, IndexNow pings, canonical URLs. Quality is on the model you choose.</p>
@@ -408,6 +448,20 @@ open https://&lt;your&gt;.pages.dev/admin</code></pre>
     <details data-reveal><summary>Is the admin dashboard secure?</summary>
       <p>Bearer-token auth with a 64-char hex token generated at install. Stored as a Cloudflare Pages secret on the server, in localStorage on your machine. No accounts, no sessions, no password reset flow. Rotate the token via <code>wrangler pages secret put ADMIN_TOKEN</code> if it leaks.</p>
     </details>
+  </div>
+</section>
+
+<section class="outro">
+  <div class="outro-inner" data-reveal>
+    <h2>Your domain. Your database.<br/><em>Your model.</em></h2>
+    <p>One command stands between you and a self-hosted SEO machine that publishes while you sleep. MIT licensed, forever.</p>
+    <div class="cta-row">
+      <a class="btn primary" href="/install">
+        Install in 5 minutes
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+      </a>
+      <a class="btn" href="https://github.com/Benjamin-Bloch/pages-seo" rel="noopener">Browse the source</a>
+    </div>
   </div>
 </section>
 

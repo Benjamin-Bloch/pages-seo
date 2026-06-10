@@ -6,6 +6,19 @@
    (functions/_lib/page_render.js).
    ────────────────────────────────────────────────────────────────── */
 
+/* Self-hosted webfonts (also declared in marketing.css — both files
+   can be loaded standalone, and duplicate @font-face rules for the
+   same family/weight/src are coalesced by the browser). */
+@font-face { font-family: "Instrument Serif"; font-style: normal; font-weight: 400; font-display: swap; src: url("/_fonts/instrument-serif-400.woff2") format("woff2"); }
+@font-face { font-family: "Instrument Serif"; font-style: italic; font-weight: 400; font-display: swap; src: url("/_fonts/instrument-serif-400-italic.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 400; font-display: swap; src: url("/_fonts/inter-400.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 500; font-display: swap; src: url("/_fonts/inter-500.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 600; font-display: swap; src: url("/_fonts/inter-600.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 700; font-display: swap; src: url("/_fonts/inter-700.woff2") format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 400; font-display: swap; src: url("/_fonts/jetbrains-mono-400.woff2") format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 500; font-display: swap; src: url("/_fonts/jetbrains-mono-500.woff2") format("woff2"); }
+
+
 :root {
   --bg: #fbfaf7;
   --bg-2: #f3f1ec;

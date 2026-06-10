@@ -22,7 +22,7 @@ import { nowSec } from './util.js';
 export const BUNDLED_PRICES = {
   'workers-ai': { in: 0,    out: 0,     image: 0    },
   'openai':     { in: 1.25, out: 10.00, image: 0.04 }, // gpt-5
-  'anthropic':  { in: 15.00,out: 75.00, image: null },  // claude-opus-4-7
+  'anthropic':  { in: 10.00,out: 50.00, image: null },  // claude-fable-5
   'gemini':     { in: 1.25, out: 10.00, image: 0.04 }, // gemini-2.5-pro / imagen-4
   'groq':       { in: 0.59, out: 0.79,  image: null }, // llama-3.3-70b
   'deepseek':   { in: 0.27, out: 1.10,  image: null },
@@ -38,7 +38,7 @@ export const BUNDLED_PRICES = {
 // default models.
 const MODELS_DEV_MAP = {
   'openai':    { provider: 'openai',          model: 'gpt-5' },
-  'anthropic': { provider: 'anthropic',       model: 'claude-opus-4-7' },
+  'anthropic': { provider: 'anthropic',       model: 'claude-fable-5' },
   'gemini':    { provider: 'google',          model: 'gemini-2.5-pro' },
   'groq':      { provider: 'groq',            model: 'llama-3.3-70b-versatile' },
   'deepseek':  { provider: 'deepseek',        model: 'deepseek-chat' },

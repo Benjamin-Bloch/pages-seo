@@ -22,3 +22,28 @@
   Content-Type: font/woff2
   Cache-Control: public, max-age=31536000, immutable
   Access-Control-Allow-Origin: *
+
+# ── Security headers ─────────────────────────────────────────────
+# Static-asset responses get baseline hardening. (Function responses
+# set their own headers in code — _headers doesn't apply to them.)
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+# The admin SPA and sign-in page must never be framed (clickjacking)
+# and should never be cached by shared caches.
+/admin
+  X-Frame-Options: DENY
+  Cache-Control: no-store
+
+/admin.html
+  X-Frame-Options: DENY
+  Cache-Control: no-store
+
+/sign-in
+  X-Frame-Options: DENY
+  Cache-Control: no-store
+
+/sign-in.html
+  X-Frame-Options: DENY
+  Cache-Control: no-store

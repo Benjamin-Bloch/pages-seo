@@ -18,13 +18,25 @@ import { missingConfig, configError } from './config.js';
 import { SESSION_COOKIE, readCookie, verifySessionToken } from './passwords.js';
 import { getAdminToken } from './admin_token.js';
 
+// Constant-time string comparison. A plain === short-circuits on the
+// first differing byte, which leaks token prefixes through response
+// timing. The edge runtime adds jitter that makes exploitation hard,
+// but constant-time costs nothing.
+function timingSafeEqual(a, b) {
+  const ea = new TextEncoder().encode(String(a));
+  const eb = new TextEncoder().encode(String(b));
+  let diff = ea.length === eb.length ? 0 : 1;
+  for (let i = 0; i < ea.length; i++) diff |= ea[i] ^ (i < eb.length ? eb[i] : 0);
+  return diff === 0;
+}
+
 async function bearerToken(env, request) {
   const token = await getAdminToken(env);
   if (!token) return false;
   const bearer = (request.headers.get('Authorization') || '').match(/^Bearer\s+(.+)$/i);
-  if (bearer && bearer[1].trim() === token) return true;
+  if (bearer && timingSafeEqual(bearer[1].trim(), token)) return true;
   const hdr = (request.headers.get('X-Admin-Token') || '').trim();
-  return !!(hdr && hdr === token);
+  return !!(hdr && timingSafeEqual(hdr, token));
 }
 
 async function sessionAuth(env, request) {

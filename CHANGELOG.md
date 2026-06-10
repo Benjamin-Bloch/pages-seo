@@ -7,6 +7,44 @@ version.
 
 The format is loosely Keep-a-Changelog, dates in ISO order.
 
+## 1.1.0 — 2026-06-10
+
+### Added
+- **Claude Fable 5 support.** The Anthropic provider now defaults to
+  `claude-fable-5`, Anthropic's newest model ($10/M in, $50/M out —
+  bundled price snapshot updated to match). Override with
+  `ANTHROPIC_TEXT_MODEL` as before.
+- **`scripts/optimize-hero-images.sh`** — one-command maintenance
+  script that recompresses existing AI hero PNGs in R2 to WebP
+  (~97% smaller; a 10-post /blog page drops from ~14 MB of images
+  to under 600 KB) and repoints `blog_posts` at the new keys.
+- **Proper 404s.** A branded `public/404.html` replaces the previous
+  SPA fallback that returned the homepage with HTTP 200 for unknown
+  URLs (a classic soft-404 that wastes crawl budget).
+- **Marketing site redesign.** Editorial press-sheet look: serif
+  display headlines, highlighter-yellow accents, provider ticker,
+  ghost folio numerals, full-bleed nav, closing CTA band, dark mode.
+
+### Changed
+- **Hero images store their real format.** The image step now sniffs
+  the provider's bytes (JPEG/WebP/PNG) and writes the matching
+  extension + content-type instead of assuming PNG.
+- **All public pages self-host fonts.** Blog index, posts,
+  programmatic pages, and docs no longer call Google Fonts — fonts
+  load from `/_fonts/` with preload hints (faster first paint, one
+  fewer third-party origin).
+- **Blog index LCP.** The first card image loads eagerly with
+  `fetchpriority=high` (plus a preload hint and og:image); the rest
+  stay lazy. Page-1 now ships `twitter:card=summary_large_image`.
+
+### Security
+- **Constant-time admin-token comparison.** Bearer/X-Admin-Token
+  checks no longer short-circuit on the first differing byte.
+- **Baseline security headers.** `X-Content-Type-Options: nosniff` +
+  `Referrer-Policy` on static assets and rendered pages;
+  `X-Frame-Options: DENY` + `Cache-Control: no-store` on the admin
+  SPA and sign-in page (clickjacking defence).
+
 ## 1.0.6 — 2026-06-07
 
 ### Removed

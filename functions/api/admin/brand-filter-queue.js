@@ -146,7 +146,7 @@ async function callProvider(env, name, system, prompt) {
       throw new Error('openai_empty');
     }
     case 'anthropic': {
-      const model = env.ANTHROPIC_TEXT_MODEL || 'claude-opus-4-7';
+      const model = env.ANTHROPIC_TEXT_MODEL || 'claude-fable-5';
       const r = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },

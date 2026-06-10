@@ -230,9 +230,8 @@ ${verifyMetas}
 <meta name="twitter:description" content="${esc(post.meta_description)}" />
 <meta name="twitter:image" content="https://${host}${heroSrc}" />
 ${preloadHero}
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" />
+<link rel="preload" href="/_fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="preload" href="/_fonts/instrument-serif-400.woff2" as="font" type="font/woff2" crossorigin />
 <link rel="stylesheet" href="/style.css" />
 <script type="application/ld+json">${jsonLD({ site, post: { ...post, urlPath }, host, kind, settings })}</script>
 </head>

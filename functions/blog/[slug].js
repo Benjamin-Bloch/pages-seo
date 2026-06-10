@@ -74,6 +74,8 @@ export const onRequestGet = async ({ env, request, params }) => {
     headers: {
       'content-type': 'text/html; charset=utf-8',
       'cache-control': 'public, max-age=600, s-maxage=3600',
+      'x-content-type-options': 'nosniff',
+      'referrer-policy': 'strict-origin-when-cross-origin',
     },
   });
 };
