@@ -191,90 +191,73 @@ a:hover{text-decoration:underline}
 .gate-card .err{margin-top:12px;color:var(--bad);font-size:13px;min-height:18px}
 
 /* ── Dash shell ──────────────────────────────────────────────────── */
-/* Base (mobile/tablet): horizontal top bar. Desktop (≥1001px):
-   fixed left sidebar — see the media query below. Markup is shared;
-   only CSS changes between the two. */
 .dash[hidden]{display:none}
 .topbar{
   position:sticky;top:0;z-index:5;
-  display:flex;align-items:center;gap:18px;
-  padding:14px 24px;
-  background:color-mix(in srgb, var(--bg) 88%, transparent);backdrop-filter:blur(8px);
-  border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:12px;
+  padding:10px 20px;
+  background:var(--bg);border-bottom:1px solid var(--line);
 }
-.topbar .brand{font-family:var(--mono);font-weight:600;color:var(--accent);letter-spacing:.04em;font-size:14px}
-.topbar .tabs{display:flex;gap:4px;margin-left:24px;flex:1}
+.topbar .brand{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--ink);font-size:16px;letter-spacing:0;white-space:nowrap}
+.topbar .brand::after{content:" · admin";font-style:normal;font-family:var(--mono);font-size:11px;color:var(--ink-faint);letter-spacing:.04em;margin-left:4px}
+.topbar .tabs{display:flex;gap:2px;margin-left:12px;flex:1;overflow-x:auto}
 .topbar .tab{
-  background:transparent;border:1px solid transparent;color:var(--ink-dim);
-  padding:6px 14px;border-radius:6px;font-size:13px;cursor:pointer;
-  transition:color .15s, background .15s, border-color .15s;
+  background:transparent;border:0;border-bottom:2px solid transparent;color:var(--ink-faint);
+  padding:7px 12px;font-size:13px;cursor:pointer;white-space:nowrap;
+  transition:color .12s, border-color .12s;border-radius:0;
 }
 .topbar .tab:hover{color:var(--ink)}
-.topbar .tab[aria-current="page"]{color:var(--ink);background:var(--bg-soft);border-color:var(--line-2)}
+.topbar .tab[aria-current="page"]{color:var(--ink);border-bottom-color:var(--accent)}
 
-
-.pages{max-width:1200px;margin:0 auto;padding:28px 24px 80px}
-.page > .card + .card{margin-top:18px}
-
-/* Desktop: proper dashboard chrome — fixed sidebar, content column. */
-/* Geometric glyph per section — keyed off data-tab so admin.js's
-   markup stays untouched. Sidebar-only: inline glyphs wrap badly in
-   the narrow horizontal top bar. */
-@media (min-width:1001px){
-  .topbar .tab::before{
-    font-family:var(--mono);
-    display:inline-block;width:17px;text-align:center;
-    margin-right:7px;color:var(--ink-faint);
-    transition:color .15s;
-  }
-  .topbar .tab[data-tab="overview"]::before{content:"▤"}
-  .topbar .tab[data-tab="blog"]::before{content:"✎"}
-  .topbar .tab[data-tab="brand"]::before{content:"◈"}
-  .topbar .tab[data-tab="covers"]::before{content:"▣"}
-  .topbar .tab[data-tab="seo"]::before{content:"↗"}
-  .topbar .tab[data-tab="status"]::before{content:"◉"}
-  .topbar .tab[data-tab="settings"]::before{content:"⚙"}
-  .topbar .tab:hover::before,
-  .topbar .tab[aria-current="page"]::before{color:var(--accent)}
-}
+.pages{max-width:1240px;margin:0 auto;padding:28px 24px 80px}
+.page > .card + .card{margin-top:16px}
 
 @media (min-width:1001px){
   .topbar{
-    position:fixed;top:0;left:0;bottom:0;width:238px;
-    flex-direction:column;align-items:stretch;gap:6px;
-    padding:22px 14px 16px;
-    background:var(--bg-soft);backdrop-filter:none;
+    position:fixed;top:0;left:0;bottom:0;width:220px;
+    flex-direction:column;align-items:stretch;gap:4px;
+    padding:20px 12px 14px;
+    background:var(--bg-soft);
     border-bottom:none;border-right:1px solid var(--line);
     overflow-y:auto;
   }
   .topbar .brand{
-    font-size:14px;padding:0 10px 16px;margin-bottom:8px;
-    border-bottom:1px solid var(--line);
+    font-size:17px;padding:2px 8px 18px;margin-bottom:4px;
+    border-bottom:1px solid var(--line);letter-spacing:-0.01em;
   }
-  .topbar .tabs{flex-direction:column;gap:2px;margin-left:0;flex:0 0 auto}
+  .topbar .brand::after{display:block;margin-left:0;margin-top:2px}
+  .topbar .tabs{flex-direction:column;gap:1px;margin-left:0;flex:0 0 auto;overflow:visible}
   .topbar .tab{
     display:flex;align-items:center;width:100%;
-    text-align:left;padding:9px 12px;border-radius:8px;font-size:13.5px;
+    text-align:left;padding:8px 10px;border-radius:6px;font-size:13px;
+    border-bottom:0;
+  }
+  .topbar .tab::before{
+    content:'';display:inline-block;width:4px;height:4px;border-radius:50%;
+    background:var(--ink-faint);margin-right:10px;flex-shrink:0;
+    transition:background .12s;
   }
   .topbar .tab[aria-current="page"]{
-    background:var(--accent-soft);border-color:transparent;
-    box-shadow:inset 2px 0 0 var(--accent);
+    background:var(--accent-soft);color:var(--ink);
   }
+  .topbar .tab[aria-current="page"]::before{background:var(--accent)}
+  .topbar .tab:hover{background:rgba(255,255,255,0.04);color:var(--ink)}
+  :root[data-theme="light"] .topbar .tab:hover{background:rgba(0,0,0,0.04)}
   /* Sub-nav nests under its parent tab as an indented column. */
   .topbar .subtabs{
     flex-direction:column;gap:1px;
     background:transparent;border-bottom:none;
-    padding:2px 0 8px 34px;overflow:visible;
+    padding:2px 0 6px 22px;overflow:visible;
   }
-  .topbar .subtab{text-align:left;padding:6px 10px;font-size:12.5px;border-radius:6px}
+  .topbar .subtab{text-align:left;padding:5px 10px;font-size:12px;border-radius:5px}
   /* Tools pin to the sidebar foot. */
   .topbar .topbar-tools{
-    margin-top:auto;flex-direction:column;align-items:stretch;gap:8px;
-    padding-top:14px;border-top:1px solid var(--line);
+    margin-top:auto;flex-direction:column;align-items:stretch;gap:6px;
+    padding-top:12px;border-top:1px solid var(--line);
   }
-  .topbar .topbar-tools .btn{justify-content:center}
+  .topbar .topbar-tools .btn{justify-content:center;font-size:12px}
   .topbar .version-badge{justify-content:center;margin-right:0}
-  .pages{margin-left:238px;max-width:1140px;padding:34px 40px 90px}
+  .pages{margin-left:220px;padding:32px 36px 90px}
 }
 
 .grid-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:18px}
@@ -285,13 +268,13 @@ a:hover{text-decoration:underline}
   background:var(--bg-card);
 }
 .card-eyebrow{
-  font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;
-  color:var(--accent);margin-bottom:8px;
+  font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--ink-faint);margin-bottom:6px;
 }
-.card h2{margin:0 0 6px;font-size:18px;font-weight:600;letter-spacing:-0.01em}
+.card h2{margin:0 0 6px;font-size:17px;font-weight:600;letter-spacing:-0.01em}
 .card > p{margin:0 0 16px;color:var(--ink-dim);font-size:14px}
-.card-stat{font-family:var(--serif);font-size:42px;font-weight:400;color:var(--ink);letter-spacing:-0.01em;line-height:1.05}
-.card-sub{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);margin-top:4px}
+.card-stat{font-family:var(--mono);font-size:38px;font-weight:600;color:var(--ink);letter-spacing:-0.04em;line-height:1}
+.card-sub{font-size:12px;color:var(--ink-faint);margin-top:5px;text-transform:uppercase;letter-spacing:.06em;font-family:var(--mono)}
 /* "Stuck? Hand off to an AI" card — slightly tinted so it reads as an
    escape hatch rather than a primary control. */
 .ai-help-card{
@@ -616,6 +599,26 @@ em.optional{font-style:normal;color:var(--ink-faint);font-size:11px;letter-spaci
 .provider-actions{display:flex;justify-content:flex-end}
 .provider-del{color:var(--bad)}
 .provider-del:hover{background:rgba(241,103,103,0.08);border-color:var(--bad)}
+
+/* Model selector row inside a provider card */
+.provider-model-row{
+  display:flex;align-items:center;gap:6px;
+  padding-top:4px;border-top:1px solid var(--line);
+  margin-top:2px;
+}
+.provider-model-label{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-faint);
+  flex-shrink:0;
+}
+.provider-model-select{
+  flex:1;padding:5px 8px;
+  background:var(--bg);color:var(--ink);
+  border:1px solid var(--line);border-radius:5px;
+  font:inherit;font-size:12px;
+  min-width:0;
+}
+.provider-model-select:focus{outline:none;border-color:var(--accent)}
 
 .filter-results{margin-top:14px}
 .filter-results h4{font-size:13px;color:var(--ink-dim);margin:0 0 8px;font-weight:500;text-transform:uppercase;letter-spacing:0.05em}

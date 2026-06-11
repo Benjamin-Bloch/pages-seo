@@ -842,16 +842,114 @@
   }
 
   // ── provider status grid (Settings tab) ─────────────────────────
+  // models: ordered most-powerful → least, first entry is the default.
   const PROVIDER_META = [
-    { name: 'workers-ai', label: 'Cloudflare Workers AI', envKey: '(binding)',          text: true,  image: true,  optional: false },
-    { name: 'openai',     label: 'OpenAI',                envKey: 'OPENAI_API_KEY',     text: true,  image: true,  optional: true },
-    { name: 'anthropic',  label: 'Anthropic Claude',      envKey: 'ANTHROPIC_API_KEY',  text: true,  image: false, optional: true },
-    { name: 'gemini',     label: 'Google Gemini',         envKey: 'GEMINI_API_KEY',     text: true,  image: true,  optional: true },
-    { name: 'groq',       label: 'Groq',                  envKey: 'GROQ_API_KEY',       text: true,  image: false, optional: true },
-    { name: 'deepseek',   label: 'DeepSeek',              envKey: 'DEEPSEEK_API_KEY',   text: true,  image: false, optional: true },
-    { name: 'mistral',    label: 'Mistral',               envKey: 'MISTRAL_API_KEY',    text: true,  image: false, optional: true },
-    { name: 'together',   label: 'Together AI',           envKey: 'TOGETHER_API_KEY',   text: true,  image: false, optional: true },
-    { name: 'cerebras',   label: 'Cerebras',              envKey: 'CEREBRAS_API_KEY',   text: true,  image: false, optional: true },
+    {
+      name: 'workers-ai', label: 'Cloudflare Workers AI', envKey: '(binding)',
+      text: true, image: true, optional: false,
+      modelEnvKey: 'WORKERS_AI_TEXT_MODEL',
+      modelDefault: '@cf/qwen/qwen3-30b-a3b-fp8',
+      models: [
+        { id: '@cf/qwen/qwen3-30b-a3b-fp8',                label: 'Qwen3 30B A3B FP8 (recommended)' },
+        { id: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',  label: 'Llama 3.3 70B FP8 Fast' },
+        { id: '@cf/meta/llama-3.1-70b-instruct',           label: 'Llama 3.1 70B' },
+        { id: '@cf/mistral/mistral-7b-instruct-v0.2',      label: 'Mistral 7B v0.2' },
+      ],
+    },
+    {
+      name: 'anthropic', label: 'Anthropic Claude', envKey: 'ANTHROPIC_API_KEY',
+      text: true, image: false, optional: true,
+      modelEnvKey: 'ANTHROPIC_TEXT_MODEL',
+      modelDefault: 'claude-fable-5',
+      models: [
+        { id: 'claude-fable-5',       label: 'Claude Fable 5 (most powerful)' },
+        { id: 'claude-opus-4-8',      label: 'Claude Opus 4.8' },
+        { id: 'claude-sonnet-4-6',    label: 'Claude Sonnet 4.6' },
+        { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 (fastest)' },
+      ],
+    },
+    {
+      name: 'openai', label: 'OpenAI', envKey: 'OPENAI_API_KEY',
+      text: true, image: true, optional: true,
+      modelEnvKey: 'OPENAI_TEXT_MODEL',
+      modelDefault: 'gpt-5',
+      models: [
+        { id: 'gpt-5',         label: 'GPT-5 (most powerful)' },
+        { id: 'gpt-4.1',       label: 'GPT-4.1' },
+        { id: 'gpt-4.1-mini',  label: 'GPT-4.1 Mini' },
+        { id: 'o3',            label: 'o3 (reasoning)' },
+        { id: 'o4-mini',       label: 'o4-mini (reasoning, fast)' },
+      ],
+    },
+    {
+      name: 'gemini', label: 'Google Gemini', envKey: 'GEMINI_API_KEY',
+      text: true, image: true, optional: true,
+      modelEnvKey: 'GEMINI_TEXT_MODEL',
+      modelDefault: 'gemini-2.5-pro',
+      models: [
+        { id: 'gemini-2.5-pro',        label: 'Gemini 2.5 Pro (most powerful)' },
+        { id: 'gemini-2.5-flash',      label: 'Gemini 2.5 Flash' },
+        { id: 'gemini-2.0-flash',      label: 'Gemini 2.0 Flash' },
+        { id: 'gemini-1.5-pro',        label: 'Gemini 1.5 Pro' },
+      ],
+    },
+    {
+      name: 'groq', label: 'Groq', envKey: 'GROQ_API_KEY',
+      text: true, image: false, optional: true,
+      modelEnvKey: 'GROQ_TEXT_MODEL',
+      modelDefault: 'llama-3.3-70b-versatile',
+      models: [
+        { id: 'llama-3.3-70b-versatile',  label: 'Llama 3.3 70B Versatile' },
+        { id: 'llama-3.1-70b-versatile',  label: 'Llama 3.1 70B Versatile' },
+        { id: 'mixtral-8x7b-32768',       label: 'Mixtral 8x7B' },
+        { id: 'gemma2-9b-it',             label: 'Gemma 2 9B (fastest)' },
+      ],
+    },
+    {
+      name: 'deepseek', label: 'DeepSeek', envKey: 'DEEPSEEK_API_KEY',
+      text: true, image: false, optional: true,
+      modelEnvKey: 'DEEPSEEK_TEXT_MODEL',
+      modelDefault: 'deepseek-chat',
+      models: [
+        { id: 'deepseek-chat',     label: 'DeepSeek V3 (most powerful)' },
+        { id: 'deepseek-reasoner', label: 'DeepSeek R1 (reasoning)' },
+      ],
+    },
+    {
+      name: 'mistral', label: 'Mistral', envKey: 'MISTRAL_API_KEY',
+      text: true, image: false, optional: true,
+      modelEnvKey: 'MISTRAL_TEXT_MODEL',
+      modelDefault: 'mistral-large-latest',
+      models: [
+        { id: 'mistral-large-latest',   label: 'Mistral Large (most powerful)' },
+        { id: 'mistral-medium-latest',  label: 'Mistral Medium' },
+        { id: 'mistral-small-latest',   label: 'Mistral Small (fastest)' },
+        { id: 'codestral-latest',       label: 'Codestral (code-focused)' },
+      ],
+    },
+    {
+      name: 'together', label: 'Together AI', envKey: 'TOGETHER_API_KEY',
+      text: true, image: false, optional: true,
+      modelEnvKey: 'TOGETHER_TEXT_MODEL',
+      modelDefault: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+      models: [
+        { id: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',   label: 'Llama 3.3 70B Turbo (most powerful)' },
+        { id: 'meta-llama/Llama-3.1-405B-Instruct-Turbo',  label: 'Llama 3.1 405B Turbo' },
+        { id: 'Qwen/Qwen2.5-72B-Instruct-Turbo',           label: 'Qwen2.5 72B Turbo' },
+        { id: 'mistralai/Mixtral-8x22B-Instruct-v0.1',     label: 'Mixtral 8x22B (fastest)' },
+      ],
+    },
+    {
+      name: 'cerebras', label: 'Cerebras', envKey: 'CEREBRAS_API_KEY',
+      text: true, image: false, optional: true,
+      modelEnvKey: 'CEREBRAS_TEXT_MODEL',
+      modelDefault: 'llama-3.3-70b',
+      models: [
+        { id: 'llama-3.3-70b',    label: 'Llama 3.3 70B (most powerful)' },
+        { id: 'llama-3.1-70b',    label: 'Llama 3.1 70B' },
+        { id: 'llama-3.1-8b',     label: 'Llama 3.1 8B (fastest)' },
+      ],
+    },
   ];
 
   async function loadProviderGrid() {
@@ -900,11 +998,12 @@
       card.append(head, sub);
 
       if (isWorkersAI) {
-        // No edit affordance — it's a binding.
+        // No API key edit — it's a binding. But model is still selectable.
         const note = document.createElement('div'); note.className = 'provider-sub';
         note.style.color = 'var(--ink-faint)';
         note.textContent = 'Configured via the [ai] binding in wrangler.toml.';
         card.append(note);
+        if (p.models?.length) card.append(buildModelRow(p, sources));
         grid.appendChild(card);
         continue;
       }
@@ -940,6 +1039,9 @@
       editRow.append(input, save);
       card.append(editRow);
 
+      // Model selector — always show so users can change without re-entering the key.
+      if (p.models?.length) card.append(buildModelRow(p, sources));
+
       // Source-specific actions row.
       if (source === 'vault') {
         const actions = document.createElement('div'); actions.className = 'provider-actions';
@@ -972,6 +1074,53 @@
       }
 
       grid.appendChild(card);
+    }
+
+    // Build the model-selector row for a provider card.
+    function buildModelRow(p, sources) {
+      const wrap = document.createElement('div'); wrap.className = 'provider-model-row';
+      const lbl = document.createElement('span'); lbl.className = 'provider-model-label';
+      lbl.textContent = 'Model';
+      const sel = document.createElement('select'); sel.className = 'provider-model-select';
+      // Current value: the stored secret for this env key, else the default.
+      const curVal = sources[p.modelEnvKey] || p.modelDefault;
+      for (const m of p.models) {
+        const o = document.createElement('option');
+        o.value = m.id;
+        o.textContent = m.label;
+        if (m.id === curVal) o.selected = true;
+        sel.appendChild(o);
+      }
+      // Show a custom-model input if the current value isn't in the list.
+      const knownIds = new Set(p.models.map((m) => m.id));
+      if (!knownIds.has(curVal)) {
+        const o = document.createElement('option');
+        o.value = curVal; o.textContent = curVal + ' (custom)'; o.selected = true;
+        sel.insertBefore(o, sel.firstChild);
+      }
+      const saveBtn = document.createElement('button');
+      saveBtn.className = 'btn btn-ghost btn-sm';
+      saveBtn.textContent = 'Apply';
+      saveBtn.onclick = async () => {
+        const val = sel.value;
+        saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
+        // If the selected model is the hard-coded default, remove the override
+        // so the binary default takes effect (cleaner state).
+        let r;
+        if (val === p.modelDefault) {
+          r = await api('/api/admin/secrets?name=' + encodeURIComponent(p.modelEnvKey), { method: 'DELETE' });
+        } else {
+          r = await api('/api/admin/secrets', {
+            method: 'POST',
+            body: JSON.stringify({ name: p.modelEnvKey, value: val }),
+          });
+        }
+        saveBtn.disabled = false;
+        saveBtn.textContent = (r.status === 200) ? '✓ Applied' : 'Error';
+        setTimeout(() => (saveBtn.textContent = 'Apply'), 1800);
+      };
+      wrap.append(lbl, sel, saveBtn);
+      return wrap;
     }
   }
 

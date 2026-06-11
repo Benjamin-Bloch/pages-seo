@@ -360,39 +360,48 @@ export const onRequestGet = async ({ request }) => {
 <meta name="robots" content="index,follow" />
 <link rel="preload" href="/_fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin />
 <link rel="preload" href="/_fonts/instrument-serif-400.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="preload" href="/_fonts/jetbrains-mono-400.woff2" as="font" type="font/woff2" crossorigin />
 <link rel="stylesheet" href="/marketing.css" />
 <style>
-  .docs-wrap { max-width: 920px; margin: 0 auto; padding: 48px 24px 96px; }
-  .docs-head { text-align: left; margin-bottom: 32px; }
-  .docs-head h1 { font-size: 44px; line-height: 1.1; margin: 0 0 8px; }
-  .docs-head p { color: var(--ink-dim, #6a7484); font-size: 18px; margin: 0; }
-  .docs-grid { display: grid; grid-template-columns: 220px 1fr; gap: 48px; margin-top: 24px; }
-  .docs-toc { position: sticky; top: 24px; align-self: start; font-size: 13px; }
-  .docs-toc strong { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-dim, #6a7484); display: block; margin-bottom: 12px; }
-  .docs-toc ol { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
-  .docs-toc a { color: var(--ink); text-decoration: none; border-left: 2px solid var(--line, rgba(0,0,0,0.1)); padding: 2px 10px; display: block; }
-  .docs-toc a:hover { color: var(--accent); border-left-color: var(--accent); }
-  .docs-section { margin-bottom: 56px; scroll-margin-top: 24px; }
-  .docs-section h2 { font-size: 28px; margin: 0 0 16px; display: flex; align-items: baseline; gap: 10px; }
-  .docs-section h2 .anchor { color: var(--ink-dim, #6a7484); text-decoration: none; font-size: 0.6em; opacity: 0; transition: opacity .12s; }
+  /* Docs page uses marketing.css for the nav/footer shell. The docs
+     content area is constrained to match the marketing max-width so
+     the text column aligns with the nav's inner padding. */
+  :root { --docs-max: 1100px; }
+  .docs-wrap { max-width: var(--docs-max); margin: 0 auto; padding: 52px max(28px, calc((100vw - var(--docs-max)) / 2 + 28px)) 96px; }
+  .docs-head { margin-bottom: 36px; }
+  .docs-head h1 { font-family: 'Instrument Serif', Georgia, serif; font-weight: 400; font-size: clamp(2rem, 4vw, 3rem); line-height: 1.05; margin: 0 0 10px; letter-spacing: -0.015em; }
+  .docs-head p { color: var(--muted, #6a7484); font-size: 17px; margin: 0; max-width: 560px; }
+  .docs-grid { display: grid; grid-template-columns: 200px 1fr; gap: 52px; margin-top: 8px; }
+  .docs-toc { position: sticky; top: 80px; align-self: start; font-size: 13px; }
+  .docs-toc strong { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted, #6a7484); display: block; margin-bottom: 10px; font-family: 'JetBrains Mono', monospace; }
+  .docs-toc ol { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
+  .docs-toc a { color: var(--ink); text-decoration: none; font-size: 13px; padding: 5px 10px; display: block; border-radius: 5px; transition: background .12s, color .12s; }
+  .docs-toc a:hover { background: var(--bg-2, #f0ece4); color: var(--ink); }
+  .docs-section { margin-bottom: 60px; scroll-margin-top: 28px; }
+  .docs-section h2 { font-family: 'Instrument Serif', Georgia, serif; font-weight: 400; font-style: italic; font-size: 26px; margin: 0 0 16px; display: flex; align-items: baseline; gap: 10px; letter-spacing: -0.01em; border-bottom: 1px solid var(--line, rgba(0,0,0,.08)); padding-bottom: 10px; }
+  .docs-section h2 .anchor { color: var(--muted, #999); text-decoration: none; font-size: 14px; font-style: normal; font-family: monospace; opacity: 0; transition: opacity .12s; }
   .docs-section h2:hover .anchor { opacity: 1; }
-  .docs-section h3 { font-size: 18px; margin: 28px 0 10px; }
-  .docs-section p, .docs-section li, .docs-section dd { line-height: 1.6; }
-  .docs-section pre { background: var(--bg-2, #f3f1ec); padding: 14px 16px; border-radius: 8px; overflow-x: auto; font-size: 13px; line-height: 1.5; }
-  .docs-section code { font-size: 0.9em; }
-  .docs-section pre code { background: none; padding: 0; }
+  .docs-section h3 { font-size: 16px; font-weight: 600; margin: 28px 0 8px; letter-spacing: -0.01em; }
+  .docs-section p, .docs-section li, .docs-section dd { line-height: 1.65; font-size: 14.5px; color: var(--ink, #131210); }
+  .docs-section pre { background: var(--bg-2, #f0ece4); padding: 14px 16px; border-radius: 8px; overflow-x: auto; font-size: 12.5px; line-height: 1.55; margin: 12px 0; }
+  .docs-section code { font-size: 0.88em; background: var(--bg-2, #f0ece4); padding: 1px 5px; border-radius: 3px; font-family: 'JetBrains Mono', monospace; }
+  .docs-section pre code { background: none; padding: 0; font-size: inherit; }
   .docs-section ol, .docs-section ul { padding-left: 22px; }
-  .docs-section dl { margin: 12px 0; }
-  .docs-section dt { font-weight: 600; margin-top: 14px; }
-  .docs-section dd { margin: 4px 0 0; color: var(--ink-dim, #4a5060); }
-  .err-dl dt { font-family: var(--font-mono, monospace); font-size: 13px; }
-  .err-dl dt code { font-size: 1em; }
-  .ref-dl dt { font-family: var(--font-mono, monospace); font-size: 13px; }
-  .lede { font-size: 17px; color: var(--ink-dim, #4a5060); }
-  @media (max-width: 760px) {
-    .docs-grid { grid-template-columns: 1fr; }
-    .docs-toc { position: static; }
-    .docs-head h1 { font-size: 32px; }
+  .docs-section ol li, .docs-section ul li { margin-bottom: 6px; }
+  .docs-section dl { margin: 16px 0; }
+  .docs-section dt { font-weight: 600; margin-top: 16px; }
+  .docs-section dd { margin: 4px 0 0; color: var(--muted, #4a5060); }
+  .err-dl dt, .ref-dl dt { font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+  .err-dl dt code, .ref-dl dt code { font-size: 1em; background: none; padding: 0; }
+  .lede { font-size: 16px; color: var(--muted, #4a5060); }
+  .foot { max-width: var(--docs-max); margin: 0 auto; padding: 28px max(28px, calc((100vw - var(--docs-max)) / 2 + 28px)); font-size: 13px; color: var(--muted, #666); border-top: 1px solid var(--line, rgba(0,0,0,.08)); }
+  .foot a { color: var(--muted, #666); text-decoration: none; }
+  .foot a:hover { color: var(--ink); }
+  @media (max-width: 820px) {
+    .docs-wrap { padding: 36px 20px 80px; }
+    .docs-grid { grid-template-columns: 1fr; gap: 28px; }
+    .docs-toc { position: static; background: var(--bg-2, #f0ece4); padding: 16px; border-radius: 8px; }
+    .docs-head h1 { font-size: 2rem; }
   }
 </style>
 </head>
